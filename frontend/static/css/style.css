@@ -264,3 +264,61 @@ footer {
   .header-right { gap: 8px; }
   .date-display { display: none; }
 }
+#analysisStatus {
+    display: none;
+    margin: 20px 0;
+}
+
+.status-box {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.status-box.success { border-color: #00d4aa; }
+.status-box.error { border-color: #ff4444; }
+
+.status-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #333;
+    border-top-color: #00d4aa;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.status-text {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.status-text strong { color: #fff; font-size: 1rem; }
+.status-text span { color: #aaa; font-size: 0.85rem; }
+.status-text small { color: #00d4aa; font-size: 0.8rem; }
+
+.progress-bar-wrap {
+    background: #333;
+    border-radius: 99px;
+    height: 6px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00d4aa, #7c6fff);
+    border-radius: 99px;
+    width: 0%;
+    transition: width 1s ease;
+}
