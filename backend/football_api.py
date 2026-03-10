@@ -1,6 +1,7 @@
 import requests
 import os
 import logging
+import time
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -20,20 +21,36 @@ FOOTBALL_DATA_HEADERS = {
     'X-Auth-Token': FOOTBALL_DATA_KEY
 }
 
-# Football-Data.org desteklenen ligler
-SUPPORTED_LEAGUES = {
-    'PL': 'Premier League',
-    'PD': 'La Liga',
-    'SA': 'Serie A',
-    'BL1': 'Bundesliga',
-    'FL1': 'Ligue 1',
-    'CL': 'Champions League',
-    'EL': 'Europa League',
-    'EC': 'European Championship',
-    'WC': 'World Cup',
-    'PPL': 'Primeira Liga',
-    'DED': 'Eredivisie',
-    'BSA': 'Brasileirao'
+# Bilinen takım ID'leri - API istek tasarrufu için
+KNOWN_TEAM_IDS = {
+    'galatasaray': 1006,
+    'fenerbahce': 1007,
+    'besiktas': 1009,
+    'trabzonspor': 1012,
+    'liverpool': 64,
+    'manchester city': 65,
+    'manchester united': 66,
+    'chelsea': 61,
+    'arsenal': 57,
+    'tottenham': 73,
+    'newcastle': 67,
+    'barcelona': 81,
+    'real madrid': 86,
+    'atletico madrid': 78,
+    'bayern munich': 5,
+    'borussia dortmund': 4,
+    'juventus': 109,
+    'inter milan': 108,
+    'ac milan': 98,
+    'napoli': 113,
+    'paris saint-germain': 524,
+    'psg': 524,
+    'ajax': 678,
+    'porto': 503,
+    'benfica': 1903,
+    'sporting cp': 498,
+    'celtic': 1007,
+    'rangers': 1008,
 }
 
 def _get_rapidapi(endpoint, params={}):
@@ -51,7 +68,12 @@ def _get_football_data(endpoint, params={}):
     if not FOOTBALL_DATA_KEY:
         return None
     try:
+        time.sleep(6)  # Rate limit: max 10 istek/dakika
         resp = requests.get(f"{FOOTBALL_DATA_BASE}/{endpoint}", headers=FOOTBALL_DATA_HEADERS, params=params, timeout=15)
+        if resp.status_code == 429:
+            logger.warning("Football-Data rate limit, waiting 30s...")
+            time.sleep(30)
+            resp = requests.get(f"{FOOTBALL_DATA_BASE}/{endpoint}", headers=FOOTBALL_DATA_HEADERS, params=params, timeout=15)
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -80,23 +102,11 @@ def get_todays_fixtures():
             away_name = m.get('away', {}).get('name') or m.get('away', {}).get('longName', '?')
             league_name = m.get('tournamentStage', 'Bilinmeyen Lig')
             fixtures.append({
-                'fixture': {
-                    'id': m.get('id', 0),
-                    'date': match_time
-                },
-                'league': {
-                    'id': m.get('leagueId', 0),
-                    'name': league_name
-                },
+                'fixture': {'id': m.get('id', 0), 'date': match_time},
+                'league': {'id': m.get('leagueId', 0), 'name': league_name},
                 'teams': {
-                    'home': {
-                        'id': m.get('home', {}).get('id', 0),
-                        'name': home_name
-                    },
-                    'away': {
-                        'id': m.get('away', {}).get('id', 0),
-                        'name': away_name
-                    }
+                    'home': {'id': m.get('home', {}).get('id', 0), 'name': home_name},
+                    'away': {'id': m.get('away', {}).get('id', 0), 'name': away_name}
                 },
                 'goals': {'home': None, 'away': None}
             })
@@ -107,25 +117,29 @@ def get_todays_fixtures():
         return []
 
 def search_team(team_name):
-    """Takım adından football-data.org team ID bul"""
+    """Takım ID bul - önce cache'den, sonra API'den"""
+    team_lower = team_name.lower().strip()
+    
+    # Bilinen takımları direkt döndür
+    for key, team_id in KNOWN_TEAM_IDS.items():
+        if key in team_lower or team_lower in key:
+            logger.info(f"Found cached team ID for {team_name}: {team_id}")
+            return team_id
+    
+    # API'den ara
     result = _get_football_data('teams', {'name': team_name})
-    if result and result.get('teams'):
-        return result['teams'][0]['id']
+    if result and result.get('teams') and len(result['teams']) > 0:
+        team_id = result['teams'][0]['id']
+        logger.info(f"Found API team ID for {team_name}: {team_id}")
+        return team_id
     
-    # İlk kelimeyle ara
-    first_word = team_name.split()[0]
-    if len(first_word) >= 3 and first_word != team_name:
-        result = _get_football_data('teams', {'name': first_word})
-        if result and result.get('teams'):
-            return result['teams'][0]['id']
-    
+    logger.warning(f"Could not find team ID for: {team_name}")
     return None
 
 def get_team_last_matches(team_name, last=5):
-    """Takımın son maçları - football-data.org"""
+    """Takımın son maçları"""
     team_id = search_team(team_name)
     if not team_id:
-        logger.warning(f"Could not find team ID for: {team_name}")
         return []
     
     result = _get_football_data(f'teams/{team_id}/matches', {
@@ -136,7 +150,6 @@ def get_team_last_matches(team_name, last=5):
     if not result or not result.get('matches'):
         return []
     
-    # Football-data formatını kendi formatımıza çevir
     converted = []
     for m in result['matches'][-last:]:
         try:
@@ -153,13 +166,13 @@ def get_team_last_matches(team_name, last=5):
         except:
             continue
     
+    logger.info(f"Got {len(converted)} matches for {team_name}")
     return converted
 
 def get_h2h(team1_name, team2_name, last=5):
-    """İki takım arasındaki H2H - football-data.org"""
+    """H2H maçları"""
     team1_id = search_team(team1_name)
     if not team1_id:
-        logger.warning(f"Could not find team ID for H2H: {team1_name}")
         return []
     
     result = _get_football_data(f'teams/{team1_id}/matches', {
@@ -170,7 +183,6 @@ def get_h2h(team1_name, team2_name, last=5):
     if not result or not result.get('matches'):
         return []
     
-    # Sadece team2 ile olan maçları filtrele
     h2h_matches = []
     team2_lower = team2_name.lower().split()[0]
     
@@ -195,9 +207,7 @@ def get_h2h(team1_name, team2_name, last=5):
     return h2h_matches[:last]
 
 def get_standings(league_code, season=2024):
-    result = _get_football_data(f'competitions/{league_code}/standings', {
-        'season': season
-    })
+    result = _get_football_data(f'competitions/{league_code}/standings', {'season': season})
     if not result:
         return []
     return result
