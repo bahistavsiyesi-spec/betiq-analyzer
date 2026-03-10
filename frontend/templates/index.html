@@ -16,19 +16,64 @@
                     <span class="logo-text">BetIQ</span>
                     <span class="logo-sub">ANALYZER</span>
                 </div>
-                <button id="analyzeBtn" class="analyze-btn">
-                    🔍 Şimdi Analiz Yap
-                </button>
             </div>
         </header>
 
         <main class="main-content">
-            <div id="analysisStatus"></div>
-            <div id="matchesContainer">
-                <div class="no-matches">
-                    <p>📭 Bugün henüz analiz yapılmadı.</p>
-                    <p>Analiz yapmak için butona basın.</p>
+            <div class="two-column">
+
+                <!-- SOL: Maç Seçimi -->
+                <div class="left-panel">
+                    <div class="panel-header">
+                        <h2>📅 Bugünün Maçları</h2>
+                        <div class="panel-actions">
+                            <button id="refreshFixtures" class="btn-secondary">🔄 Yenile</button>
+                            <button id="selectAll" class="btn-secondary">✅ Tümünü Seç</button>
+                        </div>
+                    </div>
+
+                    <div id="fixturesList">
+                        <div class="loading-fixtures">
+                            <div class="spinner"></div>
+                            <span>Maçlar yükleniyor...</span>
+                        </div>
+                    </div>
+
+                    <!-- Manuel Maç Ekleme -->
+                    <div class="manual-section">
+                        <h3>➕ Manuel Maç Ekle</h3>
+                        <div class="manual-form">
+                            <input type="text" id="homeTeam" placeholder="Ev Sahibi Takım" class="input-field">
+                            <input type="text" id="awayTeam" placeholder="Deplasman Takımı" class="input-field">
+                            <input type="text" id="leagueName" placeholder="Lig Adı (opsiyonel)" class="input-field">
+                            <button id="addManual" class="btn-add">➕ Listeye Ekle</button>
+                        </div>
+                        <div id="manualList"></div>
+                    </div>
+
+                    <!-- Analiz Butonu -->
+                    <div class="analyze-section">
+                        <div id="selectedCount" class="selected-count">0 maç seçildi</div>
+                        <button id="analyzeBtn" class="analyze-btn" disabled>
+                            🔍 Seçilenleri Analiz Et
+                        </button>
+                    </div>
                 </div>
+
+                <!-- SAĞ: Analiz Sonuçları -->
+                <div class="right-panel">
+                    <div class="panel-header">
+                        <h2>🧠 Analiz Sonuçları</h2>
+                    </div>
+                    <div id="analysisStatus"></div>
+                    <div id="matchesContainer">
+                        <div class="no-matches">
+                            <p>📭 Henüz analiz yapılmadı.</p>
+                            <p>Sol taraftan maç seçip analiz et.</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>
