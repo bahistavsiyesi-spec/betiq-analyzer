@@ -72,20 +72,26 @@ def call_groq(prompt):
     return response.json()['choices'][0]['message']['content'].strip()
 
 def call_gemini(prompt):
+    # Geçici olarak devre dışı - rate limit sorunu
+    raise Exception("Gemini devre dışı")
+
+def call_anthropic(prompt):
     response = requests.post(
-        f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
-        headers={'Content-Type': 'application/json'},
+        'https://api.anthropic.com/v1/messages',
+        headers={
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        },
         json={
-            'contents': [{'parts': [{'text': prompt}]}],
-            'generationConfig': {
-                'temperature': 0.8,
-                'maxOutputTokens': 1000,
-            }
+            'model': 'claude-sonnet-4-20250514',
+            'max_tokens': 1000,
+            'messages': [{'role': 'user', 'content': prompt}]
         },
         timeout=30
     )
     response.raise_for_status()
-    return response.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+    return response.json()['content'][0]['text'].strip()
 
 def parse_result(raw_text):
     if '```json' in raw_text:
@@ -95,19 +101,13 @@ def parse_result(raw_text):
     return json.loads(raw_text)
 
 def merge_results(r1, r2):
-    """İki AI sonucunu birleştir"""
-    # Yüzdelerin ortalaması
     over25 = (float(r1.get('over25_pct', 50)) + float(r2.get('over25_pct', 50))) / 2
     ht2g = (float(r1.get('ht2g_pct', 30)) + float(r2.get('ht2g_pct', 30))) / 2
     btts = (float(r1.get('btts_pct', 40)) + float(r2.get('btts_pct', 40))) / 2
-
-    # Tahmin oylama
     pred1 = r1.get('prediction_1x2', '1')
     pred2 = r2.get('prediction_1x2', '1')
-
     if pred1 == pred2:
         final_pred = pred1
-        # Skor ortalaması
         try:
             s1 = r1.get('predicted_score', '1-1').split('-')
             s2 = r2.get('predicted_score', '1-1').split('-')
@@ -116,20 +116,15 @@ def merge_results(r1, r2):
             final_score = f"{home_avg}-{away_avg}"
         except:
             final_score = r1.get('predicted_score', '1-1')
-
-        # Güven seviyeleri
         conf_map = {'Düşük': 1, 'Orta': 2, 'Yüksek': 3, 'Çok Yüksek': 4}
         conf_reverse = {1: 'Düşük', 2: 'Orta', 3: 'Yüksek', 4: 'Çok Yüksek'}
         c1 = conf_map.get(r1.get('confidence', 'Orta'), 2)
         c2 = conf_map.get(r2.get('confidence', 'Orta'), 2)
         final_conf = conf_reverse.get(round((c1 + c2) / 2), 'Orta')
     else:
-        # İki AI çelişiyor → güven düşük
-        final_pred = pred1  # Groq'u önceliklendir
+        final_pred = pred1
         final_score = '?-?'
         final_conf = 'Düşük'
-
-    # Her iki AI'dan reasoning al
     r1_reasoning = r1.get('reasoning', [])
     r2_reasoning = r2.get('reasoning', [])
     combined_reasoning = []
@@ -139,7 +134,6 @@ def merge_results(r1, r2):
         combined_reasoning.append(f"🧠 Gemini: {r2_reasoning[0]}")
     if r1_reasoning and len(r1_reasoning) > 1:
         combined_reasoning.append(r1_reasoning[1])
-
     return {
         'prediction_1x2': final_pred,
         'over25_pct': round(over25, 1),
@@ -157,13 +151,9 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches):
     away_team = fixture['teams']['away']['name']
     league = fixture['league']['name']
     match_time = fixture['fixture']['date']
-
     prompt = build_prompt(home_team, away_team, league, match_time)
-
     groq_result = None
     gemini_result = None
-
-    # Groq analizi
     if GROQ_API_KEY:
         try:
             raw = call_groq(prompt)
@@ -171,8 +161,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches):
             logger.info(f"Groq OK: {home_team} vs {away_team}")
         except Exception as e:
             logger.error(f"Groq failed: {e}")
-
-    # Gemini analizi
     if GEMINI_API_KEY:
         try:
             raw = call_gemini(prompt)
@@ -180,20 +168,16 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches):
             logger.info(f"Gemini OK: {home_team} vs {away_team}")
         except Exception as e:
             logger.error(f"Gemini failed: {e}")
-
-    # Sonuçları birleştir
     if groq_result and gemini_result:
         result = merge_results(groq_result, gemini_result)
-        logger.info(f"Dual AI merge: agreement={result['ai_agreement']}")
+        logger.info(f"Dual AI: agreement={result['ai_agreement']}")
     elif groq_result:
         result = groq_result
-        result['reasoning'] = [f"🤖 Groq: {r}" for r in result.get('reasoning', [])]
+        result['reasoning'] = result.get('reasoning', [])
     elif gemini_result:
         result = gemini_result
-        result['reasoning'] = [f"🧠 Gemini: {r}" for r in result.get('reasoning', [])]
     else:
         return mock_analysis(fixture)
-
     return {
         'analysis_date': datetime.now().strftime('%Y-%m-%d'),
         'fixture_id': fixture['fixture']['id'],
