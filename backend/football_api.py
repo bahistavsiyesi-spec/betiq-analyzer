@@ -21,7 +21,7 @@ FOOTBALL_DATA_HEADERS = {
 
 # Sadece bilinen büyük takımlar - API'ye gitmeden direkt ID
 KNOWN_TEAM_IDS = {
-    'galatasaray': 1006,
+    'galatasaray': 2290,
     'fenerbahce': 1007,
     'besiktas': 1009,
     'trabzonspor': 1012,
