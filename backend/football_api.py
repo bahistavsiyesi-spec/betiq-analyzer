@@ -38,7 +38,6 @@ def _get_api_football(endpoint, params={}):
         resp = requests.get(f"{API_FOOTBALL_BASE}/{endpoint}", headers=API_FOOTBALL_HEADERS, params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
-        # Kalan istek sayısını logla
         remaining = resp.headers.get('x-ratelimit-requests-remaining', '?')
         logger.info(f"API-Football remaining requests: {remaining}")
         return data
@@ -64,11 +63,9 @@ def get_todays_fixtures():
             finished = m.get('finished', False)
             if cancelled or finished:
                 continue
-
             home_name = m.get('home', {}).get('name') or m.get('home', {}).get('longName', '?')
             away_name = m.get('away', {}).get('name') or m.get('away', {}).get('longName', '?')
             league_name = m.get('tournamentStage', 'Bilinmeyen Lig')
-
             fixtures.append({
                 'fixture': {
                     'id': m.get('id', 0),
@@ -98,22 +95,69 @@ def get_todays_fixtures():
 
 def search_team(team_name):
     """Takım adından API-Football team ID bul"""
+    # Önce tam isimle ara
     result = _get_api_football('teams', {'search': team_name})
-    if not result or not result.get('response'):
-        return None
-    teams = result['response']
-    if teams:
-        return teams[0]['team']['id']
+    if result and result.get('response'):
+        return result['response'][0]['team']['id']
+
+    # Bulunamazsa ilk kelimeyle ara
+    first_word = team_name.split()[0]
+    if len(first_word) >= 3:
+        result = _get_api_football('teams', {'search': first_word})
+        if result and result.get('response'):
+            for team in result['response']:
+                api_name = team['team']['name'].lower()
+                if first_word.lower() in api_name:
+                    return team['team']['id']
+            return result['response'][0]['team']['id']
+
     return None
+
+def get_team_last_matches(team_name, last=5):
+    """Takımın son maçları"""
+    team_id = search_team(team_name)
+    if not team_id:
+        logger.warning(f"Could not find team ID for: {team_name}")
+        return []
+
+    result = _get_api_football('fixtures', {
+        'team': team_id,
+        'last': last,
+        'status': 'FT'
+    })
+
+    if not result or not result.get('response'):
+        return []
+
+    return result['response']
+
+def get_h2h(team1_name, team2_name, last=5):
+    """İki takım arasındaki H2H maçları"""
+    team1_id = search_team(team1_name)
+    if not team1_id:
+        logger.warning(f"Could not find team ID for H2H: {team1_name}")
+        return []
+
+    team2_id = search_team(team2_name)
+    if not team2_id:
+        logger.warning(f"Could not find team ID for H2H: {team2_name}")
+        return []
+
+    result = _get_api_football('fixtures/headtohead', {
+        'h2h': f"{team1_id}-{team2_id}",
+        'last': last
+    })
+
+    if not result or not result.get('response'):
+        return []
+
+    return result['response']
 
 def get_team_statistics(team_id, league_id=None, season=2024):
     """Takım istatistiklerini getir"""
     if not team_id:
         return None
-    
-    # Önce büyük liglerde ara
     leagues_to_try = [league_id] if league_id else [39, 140, 135, 78, 61, 2, 203, 197]
-    
     for league in leagues_to_try:
         if not league:
             continue
@@ -125,42 +169,6 @@ def get_team_statistics(team_id, league_id=None, season=2024):
         if result and result.get('response') and result['response'].get('fixtures'):
             return result['response']
     return None
-
-def get_h2h(team1_name, team2_name, last=5):
-    """İki takım arasındaki H2H maçları"""
-    team1_id = search_team(team1_name)
-    team2_id = search_team(team2_name)
-    
-    if not team1_id or not team2_id:
-        logger.warning(f"Could not find team IDs for H2H: {team1_name} vs {team2_name}")
-        return []
-    
-    result = _get_api_football('fixtures/headtohead', {
-        'h2h': f"{team1_id}-{team2_id}",
-        'last': last
-    })
-    
-    if not result or not result.get('response'):
-        return []
-    
-    return result['response']
-
-def get_team_last_matches(team_name, last=5):
-    """Takımın son maçları"""
-    team_id = search_team(team_name)
-    if not team_id:
-        return []
-    
-    result = _get_api_football('fixtures', {
-        'team': team_id,
-        'last': last,
-        'status': 'FT'
-    })
-    
-    if not result or not result.get('response'):
-        return []
-    
-    return result['response']
 
 def get_standings(league_id, season=2024):
     result = _get_api_football('standings', {
