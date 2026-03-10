@@ -1,5 +1,6 @@
 import logging
 import json
+import time
 from datetime import datetime
 from backend.football_api import (
     get_todays_fixtures, get_h2h, get_team_last_matches
@@ -120,6 +121,7 @@ def run_daily_analysis():
                 if analysis:
                     save_analysis(analysis)
                     analyzed += 1
+                time.sleep(5)
             except Exception as e:
                 logger.error(f"Error analyzing match: {e}")
                 continue
