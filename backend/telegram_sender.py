@@ -2,12 +2,14 @@ import os
 import json
 import logging
 import requests
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
+
+TR_TZ = timezone(timedelta(hours=3))
 
 def send_message(text, parse_mode='HTML'):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -48,13 +50,12 @@ def format_match(match, index):
         reasoning = json.loads(match.get('reasoning', '[]'))
     except:
         reasoning = []
-
     reasoning_text = '\n'.join([f"  → {r}" for r in reasoning[:3]])
 
     match_time = match.get('match_time', '')
     try:
-        from datetime import datetime
         dt = datetime.fromisoformat(match_time.replace('Z', '+00:00'))
+        dt = dt.astimezone(TR_TZ)
         time_str = dt.strftime('%H:%M')
     except:
         time_str = match_time[11:16] if len(match_time) > 15 else '--:--'
@@ -63,15 +64,12 @@ def format_match(match, index):
 <b>{'─' * 28}</b>
 <b>#{index} {match.get('home_team')} vs {match.get('away_team')}</b>
 🏆 {match.get('league', 'Bilinmeyen Lig')}  🕐 {time_str}
-
 📊 <b>Tahmin:</b> {pred_text}
 🎯 <b>Skor:</b> {match.get('predicted_score', '?-?')}
 {conf_emoji} <b>Güven:</b> {match.get('confidence', 'Orta')}
-
 📈 2.5 Gol Üstü: <b>{int(match.get('over25_pct', 0))}%</b>
 ⚽ İY 2 Gol: <b>{int(match.get('ht2g_pct', 0))}%</b>
 🔁 KG Var: <b>{int(match.get('btts_pct', 0))}%</b>
-
 🧠 <b>Analiz:</b>
 {reasoning_text}"""
 
@@ -80,28 +78,22 @@ def send_daily_analysis(matches):
         send_message("⚠️ Bugün analiz edilecek maç bulunamadı.")
         return
 
-    today = datetime.now().strftime('%d %B %Y')
+    today = datetime.now(TR_TZ).strftime('%d %B %Y')
     high_conf = [m for m in matches if m.get('confidence') in ['Yüksek', 'Çok Yüksek']]
     avg_over25 = int(sum(m.get('over25_pct', 0) for m in matches) / len(matches))
 
-    # Başlık mesajı
     header = f"""⚡ <b>BetIQ — Günlük Analiz</b>
 📅 {today}
-
 🔍 <b>{len(matches)} maç analiz edildi</b>
 🔥 <b>{len(high_conf)} yüksek güvenli maç</b>
 📊 <b>Ort. 2.5 Gol Üstü: %{avg_over25}</b>
-
 <i>Aşağıda bugünün en güçlü maçları 👇</i>"""
-
     send_message(header)
 
-    # Her maç için ayrı mesaj
     for i, match in enumerate(matches, 1):
         msg = format_match(match, i)
         send_message(msg)
 
-    # Özet mesaj
     footer = f"""
 <b>{'─' * 28}</b>
 ⚡ <b>BetIQ Analiz Tamamlandı</b>
