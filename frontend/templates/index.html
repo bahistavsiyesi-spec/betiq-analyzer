@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BetIQ — Yapay Zeka Destekli Bahis Analizi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="noise"></div>
+
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">BetIQ</span>
+        <span class="logo-badge">AI</span>
+      </div>
+      <div class="header-right">
+        <div class="live-indicator">
+          <span class="pulse-dot"></span>
+          <span class="mono">Canlı Analiz</span>
+        </div>
+        <div class="date-display mono" id="current-date"></div>
+        <button class="refresh-btn" onclick="refreshAnalysis()">
+          <span id="refresh-icon">↻</span> Güncelle
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-content">
+        <h1>Bugünün En Güçlü<br><span class="accent">10 Maç Analizi</span></h1>
+        <p>Yapay zeka destekli istatistiksel analiz · H2H · Form · Risk değerlendirmesi</p>
+      </div>
+      <div class="hero-stats" id="hero-stats">
+        <div class="stat-pill"><span class="mono" id="total-matches">0</span> Maç</div>
+        <div class="stat-pill"><span class="mono" id="high-conf">0</span> Yüksek Güven</div>
+        <div class="stat-pill"><span class="mono" id="avg-over25">0%</span> Ort. 2.5Ü</div>
+      </div>
+    </section>
+
+    <div class="matches-grid" id="matches-container">
+      <div class="loading-state" id="loading">
+        <div class="spinner"></div>
+        <p>Analizler yükleniyor...</p>
+      </div>
+    </div>
+
+    <div class="empty-state" id="empty-state" style="display:none">
+      <div class="empty-icon">🔍</div>
+      <h2>Henüz analiz yok</h2>
+      <p>Günlük analiz her sabah 07:00'de otomatik çalışır.</p>
+      <button class="trigger-btn" onclick="triggerAnalysis()">Şimdi Analiz Yap</button>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <footer>
+    <div class="footer-inner">
+      <span>BetIQ — Sadece eğlence amaçlıdır. Sorumlu oynayın.</span>
+      <span class="mono">v1.0</span>
+    </div>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
