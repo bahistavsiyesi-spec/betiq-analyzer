@@ -1,9 +1,137 @@
 const API_BASE = '';
+let selectedFixtures = {};
+let manualMatches = [];
 
+// ===== FIXTURES =====
+async function loadFixtures() {
+    const container = document.getElementById('fixturesList');
+    container.innerHTML = `<div class="loading-fixtures"><div class="spinner"></div><span>Maçlar yükleniyor...</span></div>`;
+    
+    try {
+        const resp = await fetch('/api/fixtures/today');
+        const fixtures = await resp.json();
+        
+        if (!fixtures || fixtures.length === 0) {
+            container.innerHTML = `<div class="no-matches"><p>📭 Bugün maç bulunamadı.</p></div>`;
+            return;
+        }
+
+        // Lige göre grupla
+        const grouped = {};
+        fixtures.forEach(f => {
+            const league = f.league || 'Diğer';
+            if (!grouped[league]) grouped[league] = [];
+            grouped[league].push(f);
+        });
+
+        let html = '';
+        for (const [league, matches] of Object.entries(grouped)) {
+            html += `<div class="league-group">
+                <div class="league-title">🏆 ${league}</div>`;
+            matches.forEach(f => {
+                const time = formatTime(f.date);
+                html += `
+                <div class="fixture-item" data-id="${f.id}" onclick="toggleFixture(${f.id}, '${f.home_team}', '${f.away_team}', '${f.league}', '${f.date}')">
+                    <div class="fixture-check" id="check-${f.id}">☐</div>
+                    <div class="fixture-info">
+                        <span class="fixture-teams">${f.home_team} vs ${f.away_team}</span>
+                        <span class="fixture-time">${time}</span>
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
+        }
+
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = `<div class="no-matches"><p>❌ Maçlar yüklenemedi. Tekrar deneyin.</p></div>`;
+    }
+}
+
+function toggleFixture(id, home, away, league, date) {
+    if (selectedFixtures[id]) {
+        delete selectedFixtures[id];
+        document.getElementById(`check-${id}`).textContent = '☐';
+        document.querySelector(`[data-id="${id}"]`).classList.remove('selected');
+    } else {
+        selectedFixtures[id] = { id, home_team: home, away_team: away, league, date };
+        document.getElementById(`check-${id}`).textContent = '✅';
+        document.querySelector(`[data-id="${id}"]`).classList.add('selected');
+    }
+    updateSelectedCount();
+}
+
+function selectAll() {
+    const items = document.querySelectorAll('.fixture-item');
+    const allSelected = items.length === Object.keys(selectedFixtures).length;
+    
+    items.forEach(item => {
+        const id = parseInt(item.dataset.id);
+        const teams = item.querySelector('.fixture-teams').textContent.split(' vs ');
+        if (allSelected) {
+            delete selectedFixtures[id];
+            document.getElementById(`check-${id}`).textContent = '☐';
+            item.classList.remove('selected');
+        } else {
+            selectedFixtures[id] = { id };
+            document.getElementById(`check-${id}`).textContent = '✅';
+            item.classList.add('selected');
+        }
+    });
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const total = Object.keys(selectedFixtures).length + manualMatches.length;
+    document.getElementById('selectedCount').textContent = `${total} maç seçildi`;
+    document.getElementById('analyzeBtn').disabled = total === 0;
+}
+
+// ===== MANUAL MATCHES =====
+function addManualMatch() {
+    const home = document.getElementById('homeTeam').value.trim();
+    const away = document.getElementById('awayTeam').value.trim();
+    const league = document.getElementById('leagueName').value.trim() || 'Manuel Maç';
+
+    if (!home || !away) {
+        alert('Ev sahibi ve deplasman takımı gerekli!');
+        return;
+    }
+
+    manualMatches.push({ home_team: home, away_team: away, league });
+    document.getElementById('homeTeam').value = '';
+    document.getElementById('awayTeam').value = '';
+    document.getElementById('leagueName').value = '';
+    renderManualList();
+    updateSelectedCount();
+}
+
+function removeManual(index) {
+    manualMatches.splice(index, 1);
+    renderManualList();
+    updateSelectedCount();
+}
+
+function renderManualList() {
+    const container = document.getElementById('manualList');
+    if (manualMatches.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = manualMatches.map((m, i) => `
+        <div class="manual-item">
+            <span>⚽ ${m.home_team} vs ${m.away_team} <small>(${m.league})</small></span>
+            <button onclick="removeManual(${i})" class="btn-remove">✕</button>
+        </div>
+    `).join('');
+}
+
+// ===== ANALYSIS =====
 async function runAnalysis() {
     const btn = document.getElementById('analyzeBtn');
     const statusDiv = document.getElementById('analysisStatus');
-    
+    const total = Object.keys(selectedFixtures).length + manualMatches.length;
+
     btn.disabled = true;
     btn.innerHTML = '⏳ Analiz başlatılıyor...';
     statusDiv.style.display = 'block';
@@ -11,126 +139,101 @@ async function runAnalysis() {
         <div class="status-box">
             <div class="status-spinner"></div>
             <div class="status-text">
-                <strong>🔍 Analiz yapılıyor...</strong>
-                <span>Groq AI maçları inceliyor, yaklaşık 2 dakika sürer.</span>
+                <strong>🔍 ${total} maç analiz ediliyor...</strong>
+                <span>Groq AI çalışıyor, yaklaşık ${total * 10} saniye sürer.</span>
                 <div class="progress-bar-wrap">
                     <div class="progress-bar-fill" id="progressBar"></div>
                 </div>
-                <small id="progressText">Maçlar hazırlanıyor...</small>
+                <small id="progressText">Başlatılıyor...</small>
             </div>
         </div>
     `;
 
-    const steps = [
-        { pct: 10, text: '📡 Bugünkü maçlar çekiliyor...', time: 1000 },
-        { pct: 25, text: '🔍 Maçlar puanlanıyor...', time: 3000 },
-        { pct: 40, text: '🤖 Groq AI analiz yapıyor... (1/10)', time: 8000 },
-        { pct: 55, text: '🤖 Groq AI analiz yapıyor... (3/10)', time: 16000 },
-        { pct: 70, text: '🤖 Groq AI analiz yapıyor... (6/10)', time: 24000 },
-        { pct: 85, text: '🤖 Groq AI analiz yapıyor... (9/10)', time: 32000 },
-        { pct: 95, text: '📱 Telegram\'a gönderiliyor...', time: 40000 },
-    ];
-
-    steps.forEach(step => {
+    const duration = total * 10000;
+    const steps = [10, 25, 40, 55, 70, 85, 95];
+    steps.forEach((pct, i) => {
         setTimeout(() => {
             const bar = document.getElementById('progressBar');
             const txt = document.getElementById('progressText');
-            if (bar) bar.style.width = step.pct + '%';
-            if (txt) txt.textContent = step.text;
-        }, step.time);
+            if (bar) bar.style.width = pct + '%';
+            if (txt) txt.textContent = `🤖 Analiz yapılıyor... (${Math.ceil(i * total / steps.length)}/${total})`;
+        }, (duration / steps.length) * i);
     });
 
     try {
-        const response = await fetch(`${API_BASE}/api/analyze/run`, {
+        const resp = await fetch('/api/analyze/selected', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fixture_ids: Object.keys(selectedFixtures).map(Number),
+                manual_matches: manualMatches
+            })
         });
-        const data = await response.json();
+        const data = await resp.json();
 
         if (data.status === 'success') {
             setTimeout(async () => {
-                await checkAndReload(statusDiv, btn);
-            }, 90000);
+                await checkAndReload(statusDiv, btn, total);
+            }, duration + 5000);
         } else {
             showError(statusDiv, btn, data.message);
         }
-    } catch (error) {
-        showError(statusDiv, btn, error.message);
+    } catch (e) {
+        showError(statusDiv, btn, e.message);
     }
 }
 
-async function checkAndReload(statusDiv, btn) {
+async function checkAndReload(statusDiv, btn, total) {
     try {
         const res = await fetch('/api/matches/today');
         const matches = await res.json();
-        
         if (matches && matches.length > 0) {
             const bar = document.getElementById('progressBar');
             const txt = document.getElementById('progressText');
             if (bar) bar.style.width = '100%';
             if (txt) txt.textContent = '✅ Analiz tamamlandı!';
-            
-            statusDiv.innerHTML = `
-                <div class="status-box success">
-                    <span>✅ ${matches.length} maç analiz edildi! Sayfa yenileniyor...</span>
-                </div>
-            `;
-            setTimeout(() => location.reload(), 2000);
+            statusDiv.innerHTML = `<div class="status-box success"><span>✅ ${matches.length} maç analiz edildi! Yükleniyor...</span></div>`;
+            renderMatches(matches);
+            btn.disabled = false;
+            btn.innerHTML = '🔍 Seçilenleri Analiz Et';
+            statusDiv.style.display = 'none';
         } else {
-            setTimeout(async () => {
-                await checkAndReload(statusDiv, btn);
-            }, 30000);
+            setTimeout(() => checkAndReload(statusDiv, btn, total), 15000);
         }
     } catch (e) {
-        setTimeout(() => location.reload(), 3000);
+        setTimeout(() => checkAndReload(statusDiv, btn, total), 15000);
     }
 }
 
 function showError(statusDiv, btn, message) {
-    statusDiv.innerHTML = `
-        <div class="status-box error">
-            <span>❌ Hata: ${message}</span>
-        </div>
-    `;
+    statusDiv.innerHTML = `<div class="status-box error"><span>❌ Hata: ${message}</span></div>`;
     btn.disabled = false;
-    btn.innerHTML = '🔍 Şimdi Analiz Yap';
+    btn.innerHTML = '🔍 Seçilenleri Analiz Et';
 }
 
+// ===== MATCHES =====
 async function loadMatches() {
     const container = document.getElementById('matchesContainer');
     try {
-        const response = await fetch(`${API_BASE}/api/matches/today`);
-        const matches = await response.json();
-        
+        const resp = await fetch('/api/matches/today');
+        const matches = await resp.json();
         if (!matches || matches.length === 0) {
-            container.innerHTML = `
-                <div class="no-matches">
-                    <p>📭 Bugün henüz analiz yapılmadı.</p>
-                    <p>Analiz yapmak için butona basın.</p>
-                </div>
-            `;
+            container.innerHTML = `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p><p>Sol taraftan maç seçip analiz et.</p></div>`;
             return;
         }
-        
-        container.innerHTML = matches.map(match => createMatchCard(match)).join('');
-    } catch (error) {
-        container.innerHTML = `
-            <div class="no-matches">
-                <p>📭 Bugün henüz analiz yapılmadı.</p>
-                <p>Analiz yapmak için butona basın.</p>
-            </div>
-        `;
+        renderMatches(matches);
+    } catch (e) {
+        container.innerHTML = `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
     }
+}
+
+function renderMatches(matches) {
+    const container = document.getElementById('matchesContainer');
+    container.innerHTML = matches.map(m => createMatchCard(m)).join('');
 }
 
 function createMatchCard(match) {
     const prediction = match.prediction_1x2 || '?';
-    const predictionText = {
-        '1': `1 (${match.home_team})`,
-        'X': 'X (Beraberlik)',
-        '2': `2 (${match.away_team})`
-    }[prediction] || prediction;
-
     const confidenceClass = {
         'Çok Yüksek': 'confidence-very-high',
         'Yüksek': 'confidence-high',
@@ -139,28 +242,20 @@ function createMatchCard(match) {
     }[match.confidence] || 'confidence-medium';
 
     let reasoning = [];
-    try {
-        reasoning = JSON.parse(match.reasoning || '[]');
-    } catch (e) {
-        reasoning = match.reasoning ? [match.reasoning] : [];
-    }
-
-    const matchTime = match.match_time ? formatTime(match.match_time) : '--:--';
+    try { reasoning = JSON.parse(match.reasoning || '[]'); } catch (e) {}
 
     return `
         <div class="match-card">
             <div class="match-header">
                 <span class="league-badge">⚽ ${match.league || 'Bilinmeyen Lig'}</span>
-                <span class="match-time">${matchTime}</span>
+                <span class="match-time">${formatTime(match.match_time)}</span>
             </div>
             <div class="teams">
                 <div class="team home-team">
                     <span class="team-name">${match.home_team}</span>
                     <span class="team-form">${match.home_form || 'N/A'}</span>
                 </div>
-                <div class="vs-badge prediction-${prediction.toLowerCase()}">
-                    ${prediction}
-                </div>
+                <div class="vs-badge prediction-${prediction.toLowerCase()}">${prediction}</div>
                 <div class="team away-team">
                     <span class="team-name">${match.away_team}</span>
                     <span class="team-form">${match.away_form || 'N/A'}</span>
@@ -212,8 +307,12 @@ function formatTime(dateStr) {
     }
 }
 
+// ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
+    loadFixtures();
     loadMatches();
-    const btn = document.getElementById('analyzeBtn');
-    if (btn) btn.addEventListener('click', runAnalysis);
+    document.getElementById('analyzeBtn').addEventListener('click', runAnalysis);
+    document.getElementById('refreshFixtures').addEventListener('click', loadFixtures);
+    document.getElementById('selectAll').addEventListener('click', selectAll);
+    document.getElementById('addManual').addEventListener('click', addManualMatch);
 });
