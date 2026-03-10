@@ -6,25 +6,12 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 API_KEY = os.environ.get('FOOTBALL_API_KEY', '')
-BASE_URL = 'https://api-football-v1.p.rapidapi.com/v3'
+BASE_URL = 'https://free-api-live-football-data.p.rapidapi.com'
 
 HEADERS = {
     'x-rapidapi-key': API_KEY,
-    'x-rapidapi-host': 'api-football-v1.p.rapidapi.com'
+    'x-rapidapi-host': 'free-api-live-football-data.p.rapidapi.com'
 }
-
-PRIORITY_LEAGUES = [
-    39,   # Premier League
-    140,  # La Liga
-    135,  # Serie A
-    78,   # Bundesliga
-    61,   # Ligue 1
-    2,    # Champions League
-    3,    # Europa League
-    203,  # Süper Lig
-    94,   # Primeira Liga
-    88,   # Eredivisie
-]
 
 def _get(endpoint, params={}):
     if not API_KEY:
@@ -34,44 +21,51 @@ def _get(endpoint, params={}):
         resp = requests.get(f"{BASE_URL}/{endpoint}", headers=HEADERS, params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
-        if data.get('errors'):
-            logger.error(f"API error: {data['errors']}")
-            return None
-        return data.get('response', [])
+        return data.get('response', data)
     except Exception as e:
         logger.error(f"API request failed: {e}")
         return None
 
 def get_todays_fixtures():
-    today = datetime.now().strftime('%Y-%m-%d')
-    fixtures = _get('fixtures', {'date': today, 'timezone': 'Europe/Istanbul'})
-    if not fixtures:
+    today = datetime.now().strftime('%Y%m%d')
+    result = _get('football-get-matches-by-date', {'date': today})
+    if not result:
         return []
-    priority = [f for f in fixtures if f['league']['id'] in PRIORITY_LEAGUES]
-    other = [f for f in fixtures if f['league']['id'] not in PRIORITY_LEAGUES]
-    return priority + other
+    try:
+        matches = result.get('matches', [])
+        fixtures = []
+        for m in matches:
+            fixtures.append({
+                'fixture': {
+                    'id': m.get('id', 0),
+                    'date': m.get('date', '') or m.get('time', '')
+                },
+                'league': {
+                    'id': 0,
+                    'name': m.get('competition', {}).get('name', 'Bilinmeyen Lig')
+                },
+                'teams': {
+                    'home': {
+                        'id': m.get('homeTeam', {}).get('id', 0),
+                        'name': m.get('homeTeam', {}).get('name', '?')
+                    },
+                    'away': {
+                        'id': m.get('awayTeam', {}).get('id', 0),
+                        'name': m.get('awayTeam', {}).get('name', '?')
+                    }
+                },
+                'goals': {'home': None, 'away': None}
+            })
+        return fixtures[:20]
+    except Exception as e:
+        logger.error(f"Error parsing fixtures: {e}")
+        return []
 
 def get_h2h(team1_id, team2_id, last=5):
-    results = _get('fixtures/headtohead', {
-        'h2h': f"{team1_id}-{team2_id}",
-        'status': 'FT'
-    })
-    if not results:
-        return []
-    return results[:last]
+    return []
 
 def get_team_last_matches(team_id, last=10):
-    for season in [2024, 2023, 2022]:
-        results = _get('fixtures', {
-            'team': team_id,
-            'season': season,
-            'status': 'FT'
-        })
-        if results:
-            results.sort(key=lambda x: x['fixture']['date'], reverse=True)
-            return results[:last]
     return []
 
 def get_standings(league_id, season=2024):
-    results = _get('standings', {'league': league_id, 'season': season})
-    return results or []
+    return []
