@@ -27,6 +27,7 @@ def _get(endpoint, params={}):
 
 def get_todays_fixtures():
     today = datetime.now().strftime('%Y%m%d')
+    today_str = datetime.now().strftime('%Y-%m-%d')
     result = _get('football-get-matches-by-date', {'date': today})
     if not result:
         return []
@@ -35,10 +36,21 @@ def get_todays_fixtures():
         logger.info(f"Found {len(matches)} matches from API")
         fixtures = []
         for m in matches:
+            # Sadece bugünün maçlarını al
+            match_time = m.get('status', {}).get('utcTime', '')
+            if today_str not in match_time:
+                continue
+            # Sadece oynanmamış maçları al
+            started = m.get('started', False)
+            cancelled = m.get('cancelled', False)
+            finished = m.get('finished', False)
+            if cancelled or finished:
+                continue
+
             home_name = m.get('home', {}).get('name') or m.get('home', {}).get('longName', '?')
             away_name = m.get('away', {}).get('name') or m.get('away', {}).get('longName', '?')
             league_name = m.get('tournamentStage', 'Bilinmeyen Lig')
-            match_time = m.get('status', {}).get('utcTime', m.get('time', ''))
+
             fixtures.append({
                 'fixture': {
                     'id': m.get('id', 0),
@@ -60,6 +72,7 @@ def get_todays_fixtures():
                 },
                 'goals': {'home': None, 'away': None}
             })
+        logger.info(f"Filtered to {len(fixtures)} upcoming fixtures today")
         return fixtures
     except Exception as e:
         logger.error(f"Error parsing fixtures: {e}")
