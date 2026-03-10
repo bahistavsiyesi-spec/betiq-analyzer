@@ -1,12 +1,10 @@
 import logging
-import os
 import json
 from datetime import datetime
 from backend.football_api import (
     get_todays_fixtures, get_h2h, get_team_last_matches
 )
 from backend.database import save_analysis, clear_today_analyses, log_run
-from backend.ai_analyzer import analyze_with_claude
 
 logger = logging.getLogger(__name__)
 
@@ -14,22 +12,20 @@ def extract_form(matches, team_id):
     form = []
     for m in matches[-5:]:
         home_id = m['teams']['home']['id']
-        away_id = m['teams']['away']['id']
         home_goals = m['goals']['home'] or 0
         away_goals = m['goals']['away'] or 0
         if home_id == team_id:
             if home_goals > away_goals: form.append('W')
             elif home_goals == away_goals: form.append('D')
             else: form.append('L')
-        elif away_id == team_id:
+        else:
             if away_goals > home_goals: form.append('W')
             elif away_goals == home_goals: form.append('D')
             else: form.append('L')
     return ''.join(form[-5:])
 
 def calc_goals_stats(matches, team_id):
-    scored = []
-    conceded = []
+    scored, conceded = [], []
     for m in matches:
         home_id = m['teams']['home']['id']
         hg = m['goals']['home'] or 0
@@ -40,9 +36,9 @@ def calc_goals_stats(matches, team_id):
         else:
             scored.append(ag)
             conceded.append(hg)
-    avg_scored = sum(scored) / len(scored) if scored else 0
-    avg_conceded = sum(conceded) / len(conceded) if conceded else 0
-    return round(avg_scored, 2), round(avg_conceded, 2)
+    avg_scored = round(sum(scored)/len(scored), 2) if scored else 0
+    avg_conceded = round(sum(conceded)/len(conceded), 2) if conceded else 0
+    return avg_scored, avg_conceded
 
 def calc_home_away_stats(matches, team_id):
     home_stats = {'W': 0, 'D': 0, 'L': 0}
@@ -82,6 +78,7 @@ def score_match(fixture, h2h_data, home_matches, away_matches):
     return score
 
 def run_daily_analysis():
+    from backend.ai_analyzer import analyze_with_claude
     today = datetime.now().strftime('%Y-%m-%d')
     logger.info(f"Starting daily analysis for {today}")
     try:
