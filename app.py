@@ -1,0 +1,44 @@
+from flask import Flask, render_template, jsonify
+from apscheduler.schedulers.background import BackgroundScheduler
+import logging
+import os
+from backend.analyzer import run_daily_analysis
+from backend.database import init_db, get_today_matches, get_recent_analyses
+
+app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+init_db()
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(run_daily_analysis, 'cron', hour=7, minute=0, id='daily_analysis')
+scheduler.start()
+
+@app.route('/')
+def index():
+    matches = get_today_matches()
+    return render_template('index.html', matches=matches)
+
+@app.route('/api/matches/today')
+def api_today_matches():
+    matches = get_today_matches()
+    return jsonify(matches)
+
+@app.route('/api/matches/history')
+def api_history():
+    analyses = get_recent_analyses(days=7)
+    return jsonify(analyses)
+
+@app.route('/api/analyze/run', methods=['POST'])
+def api_run_analysis():
+    try:
+        run_daily_analysis()
+        return jsonify({"status": "success", "message": "Analiz tamamlandı"})
+    except Exception as e:
+        logger.error(f"Analysis error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
