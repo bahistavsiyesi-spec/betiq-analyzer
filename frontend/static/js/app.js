@@ -21,8 +21,6 @@ async function runAnalysis() {
         </div>
     `;
 
-    // Progress animasyonu
-    let progress = 0;
     const steps = [
         { pct: 10, text: '📡 Bugünkü maçlar çekiliyor...', time: 1000 },
         { pct: 25, text: '🔍 Maçlar puanlanıyor...', time: 3000 },
@@ -50,7 +48,6 @@ async function runAnalysis() {
         const data = await response.json();
 
         if (data.status === 'success') {
-            // 90 saniye sonra kontrol et
             setTimeout(async () => {
                 await checkAndReload(statusDiv, btn);
             }, 90000);
@@ -80,7 +77,6 @@ async function checkAndReload(statusDiv, btn) {
             `;
             setTimeout(() => location.reload(), 2000);
         } else {
-            // Henüz bitmemiş, 30 sn daha bekle
             setTimeout(async () => {
                 await checkAndReload(statusDiv, btn);
             }, 30000);
@@ -101,10 +97,10 @@ function showError(statusDiv, btn, message) {
 }
 
 async function loadMatches() {
+    const container = document.getElementById('matchesContainer');
     try {
         const response = await fetch(`${API_BASE}/api/matches/today`);
         const matches = await response.json();
-        const container = document.getElementById('matchesContainer');
         
         if (!matches || matches.length === 0) {
             container.innerHTML = `
@@ -118,7 +114,12 @@ async function loadMatches() {
         
         container.innerHTML = matches.map(match => createMatchCard(match)).join('');
     } catch (error) {
-        console.error('Error loading matches:', error);
+        container.innerHTML = `
+            <div class="no-matches">
+                <p>📭 Bugün henüz analiz yapılmadı.</p>
+                <p>Analiz yapmak için butona basın.</p>
+            </div>
+        `;
     }
 }
 
