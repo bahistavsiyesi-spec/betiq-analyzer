@@ -1,7 +1,7 @@
 import requests
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -51,34 +51,10 @@ def get_todays_fixtures():
     return priority + other
 
 def get_h2h(team1_id, team2_id, last=5):
-    results = _get('fixtures/headtohead', {
-        'h2h': f"{team1_id}-{team2_id}",
-        'status': 'FT'
-    })
-    if not results:
-        return []
-    return results[:last]
+    return []
 
 def get_team_last_matches(team_id, last=10):
-    season = datetime.now().year
-    results = _get('fixtures', {
-        'team': team_id,
-        'season': season,
-        'status': 'FT'
-    })
-    if not results:
-        results = _get('fixtures', {
-            'team': team_id,
-            'season': season - 1,
-            'status': 'FT'
-        })
-    if not results:
-        return []
-    results.sort(key=lambda x: x['fixture']['date'], reverse=True)
-    return results[:last]
+    return []
 
-def get_standings(league_id, season=None):
-    if not season:
-        season = datetime.now().year
-    results = _get('standings', {'league': league_id, 'season': season})
-    return results or []
+def get_standings(league_id, season=2024):
+    return []
