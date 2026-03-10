@@ -3,11 +3,59 @@ import json
 import logging
 import requests
 from datetime import datetime
-from backend.analyzer import extract_form, calc_goals_stats, calc_home_away_stats
 
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+
+def extract_form(matches, team_id):
+    form = []
+    for m in matches[-5:]:
+        home_id = m['teams']['home']['id']
+        home_goals = m['goals']['home'] or 0
+        away_goals = m['goals']['away'] or 0
+        if home_id == team_id:
+            if home_goals > away_goals: form.append('W')
+            elif home_goals == away_goals: form.append('D')
+            else: form.append('L')
+        else:
+            if away_goals > home_goals: form.append('W')
+            elif away_goals == home_goals: form.append('D')
+            else: form.append('L')
+    return ''.join(form[-5:])
+
+def calc_goals_stats(matches, team_id):
+    scored, conceded = [], []
+    for m in matches:
+        home_id = m['teams']['home']['id']
+        hg = m['goals']['home'] or 0
+        ag = m['goals']['away'] or 0
+        if home_id == team_id:
+            scored.append(hg)
+            conceded.append(ag)
+        else:
+            scored.append(ag)
+            conceded.append(hg)
+    avg_scored = round(sum(scored)/len(scored), 2) if scored else 0
+    avg_conceded = round(sum(conceded)/len(conceded), 2) if conceded else 0
+    return avg_scored, avg_conceded
+
+def calc_home_away_stats(matches, team_id):
+    home_stats = {'W': 0, 'D': 0, 'L': 0}
+    away_stats = {'W': 0, 'D': 0, 'L': 0}
+    for m in matches:
+        home_id = m['teams']['home']['id']
+        hg = m['goals']['home'] or 0
+        ag = m['goals']['away'] or 0
+        if home_id == team_id:
+            if hg > ag: home_stats['W'] += 1
+            elif hg == ag: home_stats['D'] += 1
+            else: home_stats['L'] += 1
+        else:
+            if ag > hg: away_stats['W'] += 1
+            elif ag == hg: away_stats['D'] += 1
+            else: away_stats['L'] += 1
+    return home_stats, away_stats
 
 def build_analysis_prompt(fixture, h2h_data, home_matches, away_matches):
     home_team = fixture['teams']['home']['name']
