@@ -84,67 +84,98 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
         'avg_goals': avg_goals
     }
 
-def run_daily_analysis():
+def analyze_fixture(fixture):
+    """Tek bir maçı analiz et"""
     from backend.ai_analyzer import analyze_with_claude
+    
+    home_name = fixture['teams']['home']['name']
+    away_name = fixture['teams']['away']['name']
+    
+    logger.info(f"Analyzing: {home_name} vs {away_name}")
+    
+    home_matches = get_team_last_matches(home_name, last=5)
+    away_matches = get_team_last_matches(away_name, last=5)
+    h2h = get_h2h(home_name, away_name, last=5)
+    
+    home_form = extract_form_from_fixtures(home_matches, home_name)
+    away_form = extract_form_from_fixtures(away_matches, away_name)
+    home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
+    away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
+    h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
+    
+    logger.info(f"Stats: {home_name} form={home_form} avg={home_goals_avg}, {away_name} form={away_form} avg={away_goals_avg}")
+    
+    return analyze_with_claude(
+        fixture=fixture,
+        h2h_data=h2h,
+        home_matches=home_matches,
+        away_matches=away_matches,
+        home_form=home_form,
+        away_form=away_form,
+        home_goals_avg=home_goals_avg,
+        away_goals_avg=away_goals_avg,
+        home_conceded_avg=home_conceded_avg,
+        away_conceded_avg=away_conceded_avg,
+        h2h_summary=h2h_summary
+    )
+
+def run_selected_analysis(fixture_ids=[], manual_matches=[]):
+    """Seçilen maçları analiz et"""
     today = datetime.now().strftime('%Y-%m-%d')
-    logger.info(f"Starting daily analysis for {today}")
+    logger.info(f"Starting selected analysis: {len(fixture_ids)} fixtures, {len(manual_matches)} manual")
+    
     try:
         clear_today_analyses()
-        fixtures = get_todays_fixtures()
-        logger.info(f"Found {len(fixtures)} fixtures today")
-        if not fixtures:
-            log_run(today, 'no_matches', 0, 0)
-            return
-
-        top_10 = fixtures[:10]
-        logger.info(f"Analyzing top {len(top_10)} matches")
-
         analyzed = 0
-        for item in top_10:
+        
+        # API'den gelen seçili maçlar
+        if fixture_ids:
+            all_fixtures = get_todays_fixtures()
+            selected = [f for f in all_fixtures if f['fixture']['id'] in fixture_ids]
+            
+            for fixture in selected:
+                try:
+                    analysis = analyze_fixture(fixture)
+                    if analysis:
+                        save_analysis(analysis)
+                        analyzed += 1
+                    time.sleep(4)
+                except Exception as e:
+                    logger.error(f"Error analyzing fixture: {e}")
+                    continue
+        
+        # Manuel eklenen maçlar
+        for m in manual_matches:
             try:
-                home_name = item['teams']['home']['name']
-                away_name = item['teams']['away']['name']
-                logger.info(f"Fetching stats for {home_name} vs {away_name}")
-
-                home_matches = get_team_last_matches(home_name, last=5)
-                time.sleep(1)
-                away_matches = get_team_last_matches(away_name, last=5)
-                time.sleep(1)
-                h2h = get_h2h(home_name, away_name, last=5)
-                time.sleep(1)
-
-                home_form = extract_form_from_fixtures(home_matches, home_name)
-                away_form = extract_form_from_fixtures(away_matches, away_name)
-                home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
-                away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
-                h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
-
-                logger.info(f"Stats: {home_name} form={home_form} avg={home_goals_avg}, {away_name} form={away_form} avg={away_goals_avg}")
-
-                analysis = analyze_with_claude(
-                    fixture=item,
-                    h2h_data=h2h,
-                    home_matches=home_matches,
-                    away_matches=away_matches,
-                    home_form=home_form,
-                    away_form=away_form,
-                    home_goals_avg=home_goals_avg,
-                    away_goals_avg=away_goals_avg,
-                    home_conceded_avg=home_conceded_avg,
-                    away_conceded_avg=away_conceded_avg,
-                    h2h_summary=h2h_summary
-                )
+                manual_fixture = {
+                    'fixture': {'id': int(time.time()), 'date': m.get('date', datetime.now().isoformat())},
+                    'league': {'id': 0, 'name': m.get('league', 'Manuel Maç')},
+                    'teams': {
+                        'home': {'id': 0, 'name': m.get('home_team', '?')},
+                        'away': {'id': 0, 'name': m.get('away_team', '?')}
+                    },
+                    'goals': {'home': None, 'away': None}
+                }
+                analysis = analyze_fixture(manual_fixture)
                 if analysis:
                     save_analysis(analysis)
                     analyzed += 1
                 time.sleep(4)
             except Exception as e:
-                logger.error(f"Error analyzing match {item['teams']['home']['name']}: {e}")
+                logger.error(f"Error analyzing manual match: {e}")
                 continue
-
-        log_run(today, 'success', len(fixtures), analyzed)
+        
+        log_run(today, 'success', len(fixture_ids) + len(manual_matches), analyzed)
         logger.info(f"Done. Analyzed {analyzed} matches.")
+        
     except Exception as e:
-        logger.error(f"Daily analysis failed: {e}")
+        logger.error(f"Selected analysis failed: {e}")
         log_run(today, 'error', 0, 0, str(e))
         raise
+
+def run_daily_analysis():
+    """Geriye dönük uyumluluk için"""
+    today = datetime.now().strftime('%Y-%m-%d')
+    fixtures = get_todays_fixtures()
+    fixture_ids = [f['fixture']['id'] for f in fixtures[:10]]
+    run_selected_analysis(fixture_ids=fixture_ids)
