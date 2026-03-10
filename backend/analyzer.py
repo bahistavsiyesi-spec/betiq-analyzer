@@ -3,14 +3,13 @@ import json
 import time
 from datetime import datetime
 from backend.football_api import (
-    get_todays_fixtures, get_h2h, get_team_last_matches, get_team_statistics, search_team
+    get_todays_fixtures, get_h2h, get_team_last_matches, search_team
 )
 from backend.database import save_analysis, clear_today_analyses, log_run
 
 logger = logging.getLogger(__name__)
 
 def extract_form_from_fixtures(matches, team_name):
-    """Son maçlardan form çıkar W/D/L"""
     form = []
     for m in matches[-5:]:
         try:
@@ -31,7 +30,6 @@ def extract_form_from_fixtures(matches, team_name):
     return ''.join(form)
 
 def extract_goals_avg(matches, team_name):
-    """Son maçlardan gol ortalaması"""
     scored = []
     conceded = []
     for m in matches:
@@ -53,23 +51,19 @@ def extract_goals_avg(matches, team_name):
     return avg_scored, avg_conceded
 
 def extract_h2h_summary(h2h_matches, home_team, away_team):
-    """H2H maçlarından özet çıkar"""
     if not h2h_matches:
         return None
-    
     home_wins = 0
     away_wins = 0
     draws = 0
     total_goals = 0
-    
     for m in h2h_matches:
         try:
             match_home = m['teams']['home']['name']
             hg = m['goals']['home'] or 0
             ag = m['goals']['away'] or 0
             total_goals += hg + ag
-            
-            is_our_home = home_team.lower() in match_home.lower()
+            is_our_home = home_team.lower().split()[0] in match_home.lower()
             if hg > ag:
                 if is_our_home: home_wins += 1
                 else: away_wins += 1
@@ -80,10 +74,8 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
                 draws += 1
         except:
             continue
-    
     total = len(h2h_matches)
     avg_goals = round(total_goals / total, 1) if total else 0
-    
     return {
         'home_wins': home_wins,
         'away_wins': away_wins,
@@ -106,32 +98,29 @@ def run_daily_analysis():
 
         top_10 = fixtures[:10]
         logger.info(f"Analyzing top {len(top_10)} matches")
-        
+
         analyzed = 0
         for item in top_10:
             try:
                 home_name = item['teams']['home']['name']
                 away_name = item['teams']['away']['name']
-                
                 logger.info(f"Fetching stats for {home_name} vs {away_name}")
-                
-                # Gerçek istatistikleri çek
+
                 home_matches = get_team_last_matches(home_name, last=5)
-                time.sleep(2)
+                time.sleep(1)
                 away_matches = get_team_last_matches(away_name, last=5)
-                time.sleep(2)
+                time.sleep(1)
                 h2h = get_h2h(home_name, away_name, last=5)
-                time.sleep(2)
-                
-                # Form ve istatistik hesapla
+                time.sleep(1)
+
                 home_form = extract_form_from_fixtures(home_matches, home_name)
                 away_form = extract_form_from_fixtures(away_matches, away_name)
                 home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
                 away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
                 h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
-                
+
                 logger.info(f"Stats: {home_name} form={home_form} avg={home_goals_avg}, {away_name} form={away_form} avg={away_goals_avg}")
-                
+
                 analysis = analyze_with_claude(
                     fixture=item,
                     h2h_data=h2h,
@@ -152,7 +141,7 @@ def run_daily_analysis():
             except Exception as e:
                 logger.error(f"Error analyzing match {item['teams']['home']['name']}: {e}")
                 continue
-        
+
         log_run(today, 'success', len(fixtures), analyzed)
         logger.info(f"Done. Analyzed {analyzed} matches.")
     except Exception as e:
