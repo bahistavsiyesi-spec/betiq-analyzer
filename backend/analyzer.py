@@ -121,7 +121,7 @@ def run_daily_analysis():
                 if analysis:
                     save_analysis(analysis)
                     analyzed += 1
-                time.sleep(5)
+                time.sleep(8)
             except Exception as e:
                 logger.error(f"Error analyzing match: {e}")
                 continue
