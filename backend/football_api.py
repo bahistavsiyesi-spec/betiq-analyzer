@@ -6,10 +6,11 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 API_KEY = os.environ.get('FOOTBALL_API_KEY', '')
-BASE_URL = 'https://v3.football.api-sports.io'
+BASE_URL = 'https://api-football-v1.p.rapidapi.com/v3'
 
 HEADERS = {
-    'x-apisports-key': API_KEY
+    'x-rapidapi-key': API_KEY,
+    'x-rapidapi-host': 'api-football-v1.p.rapidapi.com'
 }
 
 PRIORITY_LEAGUES = [
@@ -51,10 +52,26 @@ def get_todays_fixtures():
     return priority + other
 
 def get_h2h(team1_id, team2_id, last=5):
-    return []
+    results = _get('fixtures/headtohead', {
+        'h2h': f"{team1_id}-{team2_id}",
+        'status': 'FT'
+    })
+    if not results:
+        return []
+    return results[:last]
 
 def get_team_last_matches(team_id, last=10):
+    for season in [2024, 2023, 2022]:
+        results = _get('fixtures', {
+            'team': team_id,
+            'season': season,
+            'status': 'FT'
+        })
+        if results:
+            results.sort(key=lambda x: x['fixture']['date'], reverse=True)
+            return results[:last]
     return []
 
 def get_standings(league_id, season=2024):
-    return []
+    results = _get('standings', {'league': league_id, 'season': season})
+    return results or []
