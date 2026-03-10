@@ -30,17 +30,43 @@ def call_groq(prompt):
             'messages': [
                 {
                     'role': 'system',
-                    'content': 'You are an expert football statistician and betting analyst. You must provide UNIQUE and SPECIFIC analysis for each match based on the actual teams involved. Never use generic or identical statistics for different matches. Base your analysis on your knowledge of each team\'s actual performance, style, and history.'
+                    'content': '''Sen profesyonel bir futbol bahis analistisin. Her maç için GERÇEKÇI ve BİRBİRİNDEN FARKLI istatistikler üretmelisin.
+
+KURALLAR:
+- Tüm yanıtlar TÜRKÇE olacak
+- Şampiyonlar Ligi maçlarında gol oranları daha yüksek olmalı (%65-80)
+- Alt lig maçlarında gol oranları daha düşük olmalı (%35-55)
+- Her takımın gerçek özelliklerini yansıt
+- Hiçbir zaman iki farklı maç için aynı yüzdeleri kullanma
+- Ev sahibi avantajını gerçekçi değerlendir'''
                 },
                 {'role': 'user', 'content': prompt}
             ],
             'max_tokens': 1000,
-            'temperature': 0.7
+            'temperature': 0.8
         },
         timeout=30
     )
     response.raise_for_status()
     return response.json()['choices'][0]['message']['content'].strip()
+
+def call_anthropic(prompt):
+    response = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        },
+        json={
+            'model': 'claude-sonnet-4-20250514',
+            'max_tokens': 1000,
+            'messages': [{'role': 'user', 'content': prompt}]
+        },
+        timeout=30
+    )
+    response.raise_for_status()
+    return response.json()['content'][0]['text'].strip()
 
 def analyze_with_claude(fixture, h2h_data, home_matches, away_matches):
     home_team = fixture['teams']['home']['name']
@@ -48,38 +74,30 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches):
     league = fixture['league']['name']
     match_time = fixture['fixture']['date']
 
-    prompt = f"""Analyze this specific football match: {home_team} vs {away_team} in {league}.
+    prompt = f"""Aşağıdaki maçı analiz et ve SADECE JSON formatında yanıt ver, başka hiçbir şey yazma:
 
-You must provide REALISTIC and SPECIFIC statistics based on what you know about {home_team} and {away_team}.
+Maç: {home_team} - {away_team}
+Lig: {league}
+Tarih: {match_time}
 
-Consider:
-- {home_team}'s actual playing style, recent form, and scoring patterns
-- {away_team}'s actual playing style, defensive record, and away performance  
-- Historical results between these specific teams
-- The importance and context of this {league} match
+Bu maç için gerçekçi istatistikler üret. {home_team} ve {away_team} hakkında bildiklerini kullan.
+Şampiyonlar Ligi veya büyük lig maçıysa gol oranlarını yüksek tut.
+Alt lig veya bilinmeyen takımsa daha düşük ve temkinli tahmin yap.
 
-Do NOT use generic 55%/25%/45% values. Use your actual knowledge of these teams.
-
-For example:
-- A Champions League match between top teams should have higher over2.5 probability
-- A lower league match between defensive teams should have lower probabilities
-- Home advantage matters differently for different teams
-
-Respond ONLY with valid JSON, no other text:
-
+SADECE şu JSON formatında yanıt ver:
 {{
-  "prediction_1x2": "1 or X or 2",
-  "over25_pct": <realistic number based on these specific teams>,
-  "ht2g_pct": <realistic number based on these specific teams>,
-  "btts_pct": <realistic number based on these specific teams>,
-  "predicted_score": "specific score prediction",
-  "confidence": "Düşük or Orta or Yüksek or Çok Yüksek",
+  "prediction_1x2": "1 veya X veya 2",
+  "over25_pct": <bu maça özel gerçekçi sayı>,
+  "ht2g_pct": <bu maça özel gerçekçi sayı>,
+  "btts_pct": <bu maça özel gerçekçi sayı>,
+  "predicted_score": "tahmin edilen skor",
+  "confidence": "Düşük veya Orta veya Yüksek veya Çok Yüksek",
   "reasoning": [
-    "specific fact about {home_team}",
-    "specific fact about {away_team}",
-    "specific H2H or context fact"
+    "{home_team} hakkında spesifik bir bilgi",
+    "{away_team} hakkında spesifik bir bilgi",
+    "Bu maça özel H2H veya bağlam bilgisi"
   ],
-  "h2h_summary": "specific H2H history between {home_team} and {away_team}"
+  "h2h_summary": "{home_team} ile {away_team} arasındaki tarihsel H2H özeti"
 }}"""
 
     raw_text = None
@@ -120,24 +138,6 @@ Respond ONLY with valid JSON, no other text:
     except Exception as e:
         logger.error(f"AI analysis failed: {e}, raw: {raw_text}")
         return mock_analysis(fixture)
-
-def call_anthropic(prompt):
-    response = requests.post(
-        'https://api.anthropic.com/v1/messages',
-        headers={
-            'x-api-key': ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json'
-        },
-        json={
-            'model': 'claude-sonnet-4-20250514',
-            'max_tokens': 1000,
-            'messages': [{'role': 'user', 'content': prompt}]
-        },
-        timeout=30
-    )
-    response.raise_for_status()
-    return response.json()['content'][0]['text'].strip()
 
 def mock_analysis(fixture):
     home_team = fixture['teams']['home']['name']
