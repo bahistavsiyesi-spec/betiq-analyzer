@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetIQ — Geçmiş Analizler</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        .gecmis-container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .date-selector { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
+        .date-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid #333; background: #1a1a2e; color: #aaa; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.2s; }
+        .date-btn:hover { border-color: #7c3aed; color: #fff; }
+        .date-btn.active { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+        .summary-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; padding: 16px; background: #1a1a2e; border-radius: 12px; border: 1px solid #333; }
+        .summary-item { text-align: center; }
+        .summary-item .s-value { font-size: 22px; font-weight: 800; color: #7c3aed; }
+        .summary-item .s-label { font-size: 11px; color: #666; margin-top: 2px; }
+        .result-card { background: #12121f; border: 1px solid #2a2a3e; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+        .result-card.correct { border-left: 3px solid #22c55e; }
+        .result-card.wrong { border-left: 3px solid #ef4444; }
+        .result-card.pending { border-left: 3px solid #f59e0b; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+        .result-teams { font-size: 16px; font-weight: 700; color: #fff; }
+        .result-score { font-size: 20px; font-weight: 800; color: #7c3aed; }
+        .result-score.pending-score { color: #f59e0b; font-size: 14px; }
+        .result-preds { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .pred-item { display: flex; align-items: center; gap: 6px; background: #1a1a2e; padding: 6px 12px; border-radius: 8px; font-size: 12px; }
+        .pred-item .tick { font-size: 14px; }
+        .pred-label { color: #888; }
+        .pred-value { color: #fff; font-weight: 600; }
+        .back-btn { display: inline-flex; align-items: center; gap: 8px; color: #7c3aed; text-decoration: none; font-weight: 600; margin-bottom: 20px; font-size: 14px; }
+        .back-btn:hover { color: #a855f7; }
+        .no-data { text-align: center; padding: 60px 20px; color: #555; }
+        .league-small { font-size: 11px; color: #666; margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">⚡</span>
+                    <span class="logo-text">BetIQ</span>
+                    <span class="logo-sub">ANALYZER</span>
+                </div>
+            </div>
+        </header>
+        <main class="main-content">
+            <div class="gecmis-container">
+                <a href="/" class="back-btn">← Ana Sayfa</a>
+                <h2 style="color:#fff; margin-bottom:20px;">📅 Geçmiş Analizler</h2>
+
+                <div class="date-selector" id="dateSelector">
+                    <span style="color:#666; font-size:13px;">Tarih yükleniyor...</span>
+                </div>
+
+                <div id="summaryBar" style="display:none;" class="summary-bar">
+                    <div class="summary-item">
+                        <div class="s-value" id="totalMatches">0</div>
+                        <div class="s-label">Toplam Maç</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="s-value" id="correct1x2">0%</div>
+                        <div class="s-label">1X2 Doğru</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="s-value" id="correctOver25">0%</div>
+                        <div class="s-label">2.5 Gol Doğru</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="s-value" id="correctBtts">0%</div>
+                        <div class="s-label">KG Var Doğru</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="s-value" id="correctScore">0</div>
+                        <div class="s-label">Skor Doğru</div>
+                    </div>
+                </div>
+
+                <div id="matchesContainer">
+                    <div class="no-data">Yukarıdan bir tarih seç</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let currentDate = null;
+
+        async function loadDates() {
+            const resp = await fetch('/api/dates');
+            const dates = await resp.json();
+            const selector = document.getElementById('dateSelector');
+
+            if (!dates.length) {
+                selector.innerHTML = '<span style="color:#666;">Henüz analiz yapılmadı.</span>';
+                return;
+            }
+
+            selector.innerHTML = dates.map(d => `
+                <button class="date-btn" onclick="loadDate('${d}')">${formatDate(d)}</button>
+            `).join('');
+
+            // İlk tarihi otomatik yükle
+            loadDate(dates[0]);
+        }
+
+        async function loadDate(date) {
+            currentDate = date;
+
+            // Aktif butonu güncelle
+            document.querySelectorAll('.date-btn').forEach(b => {
+                b.classList.toggle('active', b.textContent === formatDate(date));
+            });
+
+            document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Yükleniyor...</div>';
+            document.getElementById('summaryBar').style.display = 'none';
+
+            const resp = await fetch(`/api/matches/date/${date}`);
+            const matches = await resp.json();
+
+            if (!matches.length) {
+                document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Bu tarihte analiz bulunamadı.</div>';
+                return;
+            }
+
+            renderSummary(matches);
+            renderMatches(matches);
+        }
+
+        function renderSummary(matches) {
+            const withResults = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
+            const total = matches.length;
+            const bar = document.getElementById('summaryBar');
+
+            document.getElementById('totalMatches').textContent = total;
+
+            if (withResults.length > 0) {
+                const c1x2 = withResults.filter(m => m.pred_1x2_correct).length;
+                const cOver = withResults.filter(m => m.over25_correct).length;
+                const cBtts = withResults.filter(m => m.btts_correct).length;
+                const cScore = withResults.filter(m => m.score_correct).length;
+
+                document.getElementById('correct1x2').textContent = `${Math.round(c1x2/withResults.length*100)}%`;
+                document.getElementById('correctOver25').textContent = `${Math.round(cOver/withResults.length*100)}%`;
+                document.getElementById('correctBtts').textContent = `${Math.round(cBtts/withResults.length*100)}%`;
+                document.getElementById('correctScore').textContent = cScore;
+            } else {
+                document.getElementById('correct1x2').textContent = '-';
+                document.getElementById('correctOver25').textContent = '-';
+                document.getElementById('correctBtts').textContent = '-';
+                document.getElementById('correctScore').textContent = '-';
+            }
+
+            bar.style.display = 'flex';
+        }
+
+        function renderMatches(matches) {
+            const container = document.getElementById('matchesContainer');
+            container.innerHTML = matches.map(m => createCard(m)).join('');
+        }
+
+        function createCard(m) {
+            const hasResult = m.home_score !== null && m.home_score !== undefined;
+            const cardClass = hasResult ? (m.pred_1x2_correct ? 'correct' : 'wrong') : 'pending';
+
+            const scoreHtml = hasResult
+                ? `<div class="result-score">${m.home_score} - ${m.away_score}</div>`
+                : `<div class="result-score pending-score">⏳ Sonuç Bekleniyor</div>`;
+
+            const pred = m.prediction_1x2 || '?';
+            const predText = { '1': `1 (Ev)`, 'X': 'X (Beraberlik)', '2': '2 (Dep)' }[pred] || pred;
+
+            const predsHtml = hasResult ? `
+                <div class="result-preds">
+                    <div class="pred-item">
+                        <span class="tick">${m.pred_1x2_correct ? '✅' : '❌'}</span>
+                        <span class="pred-label">1X2:</span>
+                        <span class="pred-value">${predText} → ${m.actual_1x2}</span>
+                    </div>
+                    <div class="pred-item">
+                        <span class="tick">${m.over25_correct ? '✅' : '❌'}</span>
+                        <span class="pred-label">2.5 Gol:</span>
+                        <span class="pred-value">%${Math.round(m.over25_pct)} → ${m.actual_over25 ? 'Üstü' : 'Altı'}</span>
+                    </div>
+                    <div class="pred-item">
+                        <span class="tick">${m.btts_correct ? '✅' : '❌'}</span>
+                        <span class="pred-label">KG Var:</span>
+                        <span class="pred-value">%${Math.round(m.btts_pct)} → ${m.actual_btts ? 'Var' : 'Yok'}</span>
+                    </div>
+                    <div class="pred-item">
+                        <span class="tick">${m.score_correct ? '✅' : '❌'}</span>
+                        <span class="pred-label">Skor:</span>
+                        <span class="pred-value">${m.predicted_score || '?-?'}</span>
+                    </div>
+                </div>` : `
+                <div class="result-preds">
+                    <div class="pred-item">
+                        <span class="pred-label">1X2 Tahmini:</span>
+                        <span class="pred-value">${predText}</span>
+                    </div>
+                    <div class="pred-item">
+                        <span class="pred-label">2.5 Gol:</span>
+                        <span class="pred-value">%${Math.round(m.over25_pct || 0)}</span>
+                    </div>
+                    <div class="pred-item">
+                        <span class="pred-label">KG Var:</span>
+                        <span class="pred-value">%${Math.round(m.btts_pct || 0)}</span>
+                    </div>
+                    <div class="pred-item">
+                        <span class="pred-label">Tahmini Skor:</span>
+                        <span class="pred-value">${m.predicted_score || '?-?'}</span>
+                    </div>
+                </div>`;
+
+            return `
+                <div class="result-card ${cardClass}">
+                    <div class="result-header">
+                        <div>
+                            <div class="result-teams">${m.home_team} vs ${m.away_team}</div>
+                            <div class="league-small">🏆 ${m.league || ''} &nbsp; 🕐 ${formatTime(m.match_time)}</div>
+                        </div>
+                        ${scoreHtml}
+                    </div>
+                    ${predsHtml}
+                </div>`;
+        }
+
+        function formatDate(d) {
+            const [y, m, day] = d.split('-');
+            return `${day}/${m}/${y}`;
+        }
+
+        function formatTime(dateStr) {
+            try {
+                const d = new Date(dateStr);
+                return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+            } catch { return '--:--'; }
+        }
+
+        loadDates();
+    </script>
+</body>
+</html>
