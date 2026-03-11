@@ -137,8 +137,34 @@ def get_analyses_by_date(date_str):
     conn.close()
     return [dict(r) for r in rows]
 
+def get_analyses_by_date_with_results(date_str):
+    """Analizleri maç sonuçlarıyla birlikte getir"""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('''
+        SELECT 
+            a.*,
+            r.home_score,
+            r.away_score,
+            r.actual_1x2,
+            r.pred_1x2_correct,
+            r.actual_over25,
+            r.over25_correct,
+            r.actual_btts,
+            r.btts_correct,
+            r.score_correct,
+            r.total_goals
+        FROM analyses a
+        LEFT JOIN match_results r ON a.id = r.analysis_id
+        WHERE a.analysis_date = %s
+        ORDER BY a.confidence DESC, a.over25_pct DESC
+    ''', (date_str,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [dict(r) for r in rows]
+
 def get_available_dates():
-    """Analiz yapılmış tarihleri getir"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
