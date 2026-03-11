@@ -217,6 +217,84 @@ def api_daily_report():
         logger.error(f"Daily report error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/parse/image', methods=['POST'])
+def api_parse_image():
+    try:
+        import anthropic
+        from datetime import datetime
+
+        data = request.get_json()
+        image_data = data.get('image')
+        media_type = data.get('media_type', 'image/jpeg')
+
+        if not image_data:
+            return jsonify({"status": "error", "message": "Görsel eksik"}), 400
+
+        client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+        today = datetime.now().strftime('%Y-%m-%d')
+
+        message = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": f"""Bu görseldeki maç programını analiz et. Bugünün tarihi: {today}.
+
+Görseldeki TÜM maçları JSON formatında döndür. Her maç için:
+- home_team: ev sahibi takım adı
+- away_team: deplasman takımı adı
+- league: lig adı (görünüyorsa, yoksa "Bilinmeyen Lig")
+- time: maç saati HH:MM formatında (görünüyorsa, yoksa null)
+
+Sadece JSON array döndür, başka hiçbir şey yazma. Örnek:
+[{{"home_team": "Fenerbahçe", "away_team": "Galatasaray", "league": "Süper Lig", "time": "20:00"}}]
+
+Eğer görsel bir maç programı değilse boş array [] döndür."""
+                        }
+                    ],
+                }
+            ],
+        )
+
+        import json
+        raw = message.content[0].text.strip()
+        raw = raw.replace('```json', '').replace('```', '').strip()
+        parsed = json.loads(raw)
+
+        matches = []
+        for m in parsed:
+            match_date = datetime.now()
+            if m.get('time'):
+                try:
+                    h, mi = m['time'].split(':')
+                    match_date = match_date.replace(hour=int(h), minute=int(mi), second=0)
+                except:
+                    pass
+            matches.append({
+                'home_team': m.get('home_team', ''),
+                'away_team': m.get('away_team', ''),
+                'league': m.get('league', 'Bilinmeyen Lig'),
+                'date': match_date.isoformat()
+            })
+
+        return jsonify({"status": "success", "matches": matches})
+
+    except Exception as e:
+        logger.error(f"Image parse error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
