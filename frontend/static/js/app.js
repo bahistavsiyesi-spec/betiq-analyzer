@@ -16,7 +16,6 @@ async function loadFixtures() {
             return;
         }
 
-        // Lige göre grupla
         const grouped = {};
         fixtures.forEach(f => {
             const league = f.league || 'Diğer';
@@ -67,7 +66,6 @@ function selectAll() {
     
     items.forEach(item => {
         const id = parseInt(item.dataset.id);
-        const teams = item.querySelector('.fixture-teams').textContent.split(' vs ');
         if (allSelected) {
             delete selectedFixtures[id];
             document.getElementById(`check-${id}`).textContent = '☐';
@@ -92,16 +90,28 @@ function addManualMatch() {
     const home = document.getElementById('homeTeam').value.trim();
     const away = document.getElementById('awayTeam').value.trim();
     const league = document.getElementById('leagueName').value.trim() || 'Manuel Maç';
+    const time = document.getElementById('matchTime').value;
 
     if (!home || !away) {
         alert('Ev sahibi ve deplasman takımı gerekli!');
         return;
     }
 
-    manualMatches.push({ home_team: home, away_team: away, league });
+    let matchDate;
+    if (time) {
+        const today = new Date();
+        const [hours, minutes] = time.split(':');
+        today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        matchDate = today.toISOString();
+    } else {
+        matchDate = new Date().toISOString();
+    }
+
+    manualMatches.push({ home_team: home, away_team: away, league, date: matchDate });
     document.getElementById('homeTeam').value = '';
     document.getElementById('awayTeam').value = '';
     document.getElementById('leagueName').value = '';
+    document.getElementById('matchTime').value = '';
     renderManualList();
     updateSelectedCount();
 }
@@ -118,12 +128,14 @@ function renderManualList() {
         container.innerHTML = '';
         return;
     }
-    container.innerHTML = manualMatches.map((m, i) => `
+    container.innerHTML = manualMatches.map((m, i) => {
+        const timeStr = m.date ? formatTime(m.date) : '--:--';
+        return `
         <div class="manual-item">
-            <span>⚽ ${m.home_team} vs ${m.away_team} <small>(${m.league})</small></span>
+            <span>⚽ ${m.home_team} vs ${m.away_team} <small>(${m.league})</small> 🕐 ${timeStr}</span>
             <button onclick="removeManual(${i})" class="btn-remove">✕</button>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 // ===== ANALYSIS =====
@@ -140,7 +152,7 @@ async function runAnalysis() {
             <div class="status-spinner"></div>
             <div class="status-text">
                 <strong>🔍 ${total} maç analiz ediliyor...</strong>
-                <span>Groq AI çalışıyor, yaklaşık ${total * 10} saniye sürer.</span>
+                <span>Claude AI çalışıyor, yaklaşık ${total * 10} saniye sürer.</span>
                 <div class="progress-bar-wrap">
                     <div class="progress-bar-fill" id="progressBar"></div>
                 </div>
