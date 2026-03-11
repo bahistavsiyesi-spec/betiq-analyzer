@@ -13,11 +13,15 @@ RAPIDAPI_HEADERS = {
     'x-rapidapi-host': 'free-api-live-football-data.p.rapidapi.com'
 }
 
+FOOTBALL_DATA_KEY = os.environ.get('FOOTBALL_DATA_KEY', '')
+FOOTBALL_DATA_BASE = 'https://api.football-data.org/v4'
+FOOTBALL_DATA_HEADERS = {'X-Auth-Token': FOOTBALL_DATA_KEY}
+
 TR_TZ = timezone(timedelta(hours=3))
 
 
-def get_fixture_result(fixture_id):
-    """API'den maç sonucunu çek"""
+def get_fixture_result_rapidapi(fixture_id):
+    """RapidAPI'den maç sonucunu çek"""
     if not RAPIDAPI_KEY:
         return None
     try:
@@ -41,8 +45,70 @@ def get_fixture_result(fixture_id):
             return None
         return {'home_score': int(home_score), 'away_score': int(away_score)}
     except Exception as e:
-        logger.error(f"Error fetching fixture {fixture_id}: {e}")
+        logger.error(f"RapidAPI error for fixture {fixture_id}: {e}")
         return None
+
+
+def get_fixture_result_footballdata(home_team, away_team, match_date):
+    """football-data.org'dan takım adı ve tarihle maç sonucunu çek"""
+    if not FOOTBALL_DATA_KEY:
+        return None
+    try:
+        # Maç tarihini al
+        dt = datetime.fromisoformat(match_date.replace('Z', '+00:00'))
+        date_from = dt.strftime('%Y-%m-%d')
+        date_to = dt.strftime('%Y-%m-%d')
+
+        resp = requests.get(
+            f"{FOOTBALL_DATA_BASE}/matches",
+            headers=FOOTBALL_DATA_HEADERS,
+            params={'dateFrom': date_from, 'dateTo': date_to},
+            timeout=15
+        )
+        if resp.status_code == 429:
+            logger.warning("Football-data rate limit hit")
+            return None
+        resp.raise_for_status()
+        matches = resp.json().get('matches', [])
+
+        home_lower = home_team.lower().split()[0]
+        away_lower = away_team.lower().split()[0]
+
+        for m in matches:
+            mh = m.get('homeTeam', {}).get('name', '').lower()
+            ma = m.get('awayTeam', {}).get('name', '').lower()
+            if home_lower in mh and away_lower in ma:
+                status = m.get('status', '')
+                if status != 'FINISHED':
+                    return None
+                score = m.get('score', {}).get('fullTime', {})
+                hs = score.get('home')
+                as_ = score.get('away')
+                if hs is None or as_ is None:
+                    return None
+                logger.info(f"Football-data result: {home_team} {hs}-{as_} {away_team}")
+                return {'home_score': int(hs), 'away_score': int(as_)}
+    except Exception as e:
+        logger.error(f"Football-data error: {e}")
+    return None
+
+
+def get_fixture_result(fixture_id, home_team='', away_team='', match_time=''):
+    """Önce RapidAPI, olmadı football-data.org dene"""
+    # RapidAPI dene
+    result = get_fixture_result_rapidapi(fixture_id)
+    if result:
+        logger.info(f"Result from RapidAPI: {home_team} vs {away_team}")
+        return result
+
+    # football-data.org dene
+    if home_team and away_team and match_time:
+        result = get_fixture_result_footballdata(home_team, away_team, match_time)
+        if result:
+            logger.info(f"Result from football-data: {home_team} vs {away_team}")
+            return result
+
+    return None
 
 
 def calculate_outcomes(analysis, home_score, away_score):
@@ -85,9 +151,6 @@ def calculate_outcomes(analysis, home_score, away_score):
 def send_result_to_telegram(analysis, home_score, away_score, outcomes):
     """Sonucu Telegram'a gönder"""
     from backend.telegram_sender import send_message
-    from datetime import timezone, timedelta
-
-    TR_TZ = timezone(timedelta(hours=3))
 
     match_time = analysis.get('match_time', '')
     try:
@@ -135,18 +198,23 @@ def check_and_send_results():
 
     for analysis in pending:
         try:
-            # Maç saatini kontrol et — bitmesi için en az 2 saat geçmiş olmalı
             match_time = analysis.get('match_time', '')
             try:
                 dt = datetime.fromisoformat(match_time.replace('Z', '+00:00'))
                 dt = dt.astimezone(TR_TZ)
-                if (now_tr - dt).total_seconds() < 7200:  # 2 saat
+                if (now_tr - dt).total_seconds() < 7200:
                     logger.info(f"Match not finished yet: {analysis['home_team']} vs {analysis['away_team']}")
                     continue
             except:
                 pass
 
-            result = get_fixture_result(analysis['fixture_id'])
+            result = get_fixture_result(
+                fixture_id=analysis['fixture_id'],
+                home_team=analysis.get('home_team', ''),
+                away_team=analysis.get('away_team', ''),
+                match_time=match_time
+            )
+
             if not result:
                 logger.info(f"No result yet: {analysis['home_team']} vs {analysis['away_team']}")
                 continue
