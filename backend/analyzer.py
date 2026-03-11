@@ -85,7 +85,6 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
     }
 
 def analyze_fixture(fixture):
-    """Tek bir maçı analiz et"""
     from backend.ai_analyzer import analyze_with_claude
     
     home_name = fixture['teams']['home']['name']
@@ -120,31 +119,29 @@ def analyze_fixture(fixture):
     )
 
 def run_selected_analysis(fixture_ids=[], manual_matches=[]):
-    """Seçilen maçları analiz et"""
     today = datetime.now().strftime('%Y-%m-%d')
     logger.info(f"Starting selected analysis: {len(fixture_ids)} fixtures, {len(manual_matches)} manual")
     
     try:
         clear_today_analyses()
         analyzed = 0
-        
-        # API'den gelen seçili maçlar
+        all_analyses = []
+
         if fixture_ids:
             all_fixtures = get_todays_fixtures()
             selected = [f for f in all_fixtures if f['fixture']['id'] in fixture_ids]
-            
             for fixture in selected:
                 try:
                     analysis = analyze_fixture(fixture)
                     if analysis:
                         save_analysis(analysis)
+                        all_analyses.append(analysis)
                         analyzed += 1
                     time.sleep(1)
                 except Exception as e:
                     logger.error(f"Error analyzing fixture: {e}")
                     continue
-        
-        # Manuel eklenen maçlar
+
         for m in manual_matches:
             try:
                 manual_fixture = {
@@ -159,22 +156,27 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                 analysis = analyze_fixture(manual_fixture)
                 if analysis:
                     save_analysis(analysis)
+                    all_analyses.append(analysis)
                     analyzed += 1
-                time.sleep(4)
+                time.sleep(1)
             except Exception as e:
                 logger.error(f"Error analyzing manual match: {e}")
                 continue
-        
+
+        # Tüm maçlar bittikten sonra Telegram'a gönder
+        if all_analyses:
+            from backend.telegram_sender import send_daily_analysis
+            send_daily_analysis(all_analyses)
+
         log_run(today, 'success', len(fixture_ids) + len(manual_matches), analyzed)
         logger.info(f"Done. Analyzed {analyzed} matches.")
-        
+
     except Exception as e:
         logger.error(f"Selected analysis failed: {e}")
         log_run(today, 'error', 0, 0, str(e))
         raise
 
 def run_daily_analysis():
-    """Geriye dönük uyumluluk için"""
     today = datetime.now().strftime('%Y-%m-%d')
     fixtures = get_todays_fixtures()
     fixture_ids = [f['fixture']['id'] for f in fixtures[:10]]
