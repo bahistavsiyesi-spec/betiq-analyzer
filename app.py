@@ -122,6 +122,14 @@ def api_manual_result():
 
         outcomes = calculate_outcomes(analysis, home_score, away_score)
 
+        # Boolean → integer dönüşümü
+        outcomes['pred_1x2_correct'] = int(outcomes['pred_1x2_correct'])
+        outcomes['actual_over25'] = int(outcomes['actual_over25'])
+        outcomes['over25_correct'] = int(outcomes['over25_correct'])
+        outcomes['actual_btts'] = int(outcomes['actual_btts'])
+        outcomes['btts_correct'] = int(outcomes['btts_correct'])
+        outcomes['score_correct'] = int(outcomes['score_correct'])
+
         save_match_result(
             analysis_id=analysis_id,
             fixture_id=analysis.get('fixture_id'),
