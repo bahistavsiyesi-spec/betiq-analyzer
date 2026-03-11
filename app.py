@@ -102,6 +102,55 @@ def api_check_results():
     thread.start()
     return jsonify({"status": "success", "message": "Sonuçlar kontrol ediliyor..."})
 
+@app.route('/api/results/manual', methods=['POST'])
+def api_manual_result():
+    try:
+        data = request.get_json()
+        analysis_id = data.get('analysis_id')
+        home_score = data.get('home_score')
+        away_score = data.get('away_score')
+
+        if analysis_id is None or home_score is None or away_score is None:
+            return jsonify({"status": "error", "message": "Eksik veri"}), 400
+
+        from backend.database import get_analysis_by_id, save_match_result
+        analysis = get_analysis_by_id(analysis_id)
+        if not analysis:
+            return jsonify({"status": "error", "message": "Analiz bulunamadı"}), 404
+
+        total_goals = home_score + away_score
+        actual_1x2 = '1' if home_score > away_score else ('X' if home_score == away_score else '2')
+        pred_1x2_correct = analysis.get('prediction_1x2') == actual_1x2
+        actual_over25 = total_goals > 2.5
+        over25_correct = (analysis.get('over25_pct', 0) >= 50) == actual_over25
+        actual_btts = home_score > 0 and away_score > 0
+        btts_correct = (analysis.get('btts_pct', 0) >= 50) == actual_btts
+        try:
+            ph, pa = analysis.get('predicted_score', '?-?').split('-')
+            score_correct = int(ph) == home_score and int(pa) == away_score
+        except:
+            score_correct = False
+
+        save_match_result(
+            analysis_id=analysis_id,
+            fixture_id=analysis.get('fixture_id'),
+            home_score=home_score,
+            away_score=away_score,
+            actual_1x2=actual_1x2,
+            pred_1x2_correct=pred_1x2_correct,
+            actual_over25=actual_over25,
+            over25_correct=over25_correct,
+            actual_btts=actual_btts,
+            btts_correct=btts_correct,
+            score_correct=score_correct,
+            total_goals=total_goals,
+            source='manual'
+        )
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Manual result error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
