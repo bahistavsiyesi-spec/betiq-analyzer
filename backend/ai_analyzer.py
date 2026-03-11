@@ -12,10 +12,22 @@ ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 # Aktif mod: 'claude' veya 'groq' veya 'both' (ikisinin ortalaması)
 ANALYSIS_MODE = os.environ.get('ANALYSIS_MODE', 'claude')
 
+def detect_match_importance(league):
+    """Lig adından maç önemini tespit et"""
+    league_lower = league.lower()
+    if any(x in league_lower for x in ['champions league', 'şampiyonlar ligi', 'uefa', 'europa league', 'conference']):
+        return 'Avrupa kupası maçı — eleme baskısı yüksek, iki takım da temkinli oynayabilir'
+    if any(x in league_lower for x in ['cup', 'kupa', 'fa cup', 'copa', 'pokal']):
+        return 'Kupa maçı — tek maçlık eleme, beklenmedik sonuçlar olabilir'
+    if any(x in league_lower for x in ['friendly', 'hazırlık']):
+        return 'Hazırlık maçı — motivasyon düşük olabilir, sonuç güvenilirliği az'
+    return 'Lig maçı — puan kaybı istemeyen iki takım'
+
 def build_prompt(home_team, away_team, league, match_time,
                  home_form, away_form, home_goals_avg, away_goals_avg,
-                 home_conceded_avg, away_conceded_avg, h2h_summary):
-    
+                 home_conceded_avg, away_conceded_avg, h2h_summary,
+                 home_home_avg=None, away_away_avg=None):
+
     h2h_text = ''
     if h2h_summary:
         h2h_text = f"""
@@ -27,23 +39,32 @@ H2H (Son {h2h_summary['total']} maç):
 
     stats_text = ''
     if home_goals_avg > 0 or away_goals_avg > 0:
+        home_venue = f"(evde ort. {home_home_avg} gol atar)" if home_home_avg is not None else ""
+        away_venue = f"(deplasmanda ort. {away_away_avg} gol atar)" if away_away_avg is not None else ""
         stats_text = f"""
 Gerçek İstatistikler (son 5 maç):
-- {home_team}: {home_goals_avg} gol atar / {home_conceded_avg} gol yer (ortalama)
-- {away_team}: {away_goals_avg} gol atar / {away_conceded_avg} gol yer (ortalama)
+- {home_team}: {home_goals_avg} gol atar {home_venue} / {home_conceded_avg} gol yer (ortalama)
+- {away_team}: {away_goals_avg} gol atar {away_venue} / {away_conceded_avg} gol yer (ortalama)
 - {home_team} form: {home_form if home_form else 'Bilinmiyor'}
 - {away_team} form: {away_form if away_form else 'Bilinmiyor'}"""
+
+    match_importance = detect_match_importance(league)
 
     return f"""Aşağıdaki futbol maçını analiz et ve SADECE JSON formatında yanıt ver:
 
 Maç: {home_team} vs {away_team}
 Lig: {league}
 Tarih: {match_time}
+Maç Tipi: {match_importance}
 {stats_text}
 {h2h_text}
 
-Yukarıdaki GERÇEK istatistikleri kullanarak analiz yap. İstatistik yoksa kendi bilginle tahmin et.
-Tüm yanıtlar TÜRKÇE olacak.
+Analiz yaparken şu faktörleri göz önünde bulundur:
+1. Ev sahibi avantajı: {home_team} kendi sahasında oynadığı için psikolojik ve fiziksel avantaja sahip
+2. Maç önemi: {match_importance}
+3. Motivasyon: Kendi bilginle {home_team} ve {away_team} takımlarının mevcut sezondaki durumunu, küme düşme baskısını, şampiyonluk yarışını veya Avrupa kupası hedefini değerlendir
+4. Yukarıdaki GERÇEK istatistikleri kullan, yoksa kendi bilginle tahmin et
+5. Tüm yanıtlar TÜRKÇE olacak
 
 SADECE şu JSON formatında yanıt ver, başka hiçbir şey yazma:
 {{
@@ -54,9 +75,9 @@ SADECE şu JSON formatında yanıt ver, başka hiçbir şey yazma:
   "predicted_score": "örn: 2-1",
   "confidence": "Düşük veya Orta veya Yüksek veya Çok Yüksek",
   "reasoning": [
-    "{home_team} hakkında istatistiğe dayalı Türkçe bilgi",
-    "{away_team} hakkında istatistiğe dayalı Türkçe bilgi",
-    "H2H veya genel bağlam Türkçe"
+    "{home_team} hakkında istatistik ve motivasyon değerlendirmesi",
+    "{away_team} hakkında istatistik ve motivasyon değerlendirmesi",
+    "Maç önemi ve H2H bağlamı"
   ],
   "h2h_summary": "H2H özeti Türkçe"
 }}"""
@@ -114,23 +135,14 @@ def parse_result(raw_text):
 def merge_results(r1, r2):
     """İki analizin ortalamasını al (BOTH modu için)"""
     conf_order = ['Düşük', 'Orta', 'Yüksek', 'Çok Yüksek']
-    
-    # 1X2: ikisi aynıysa o, farklıysa düşük güven
     pred = r1.get('prediction_1x2') if r1.get('prediction_1x2') == r2.get('prediction_1x2') else r1.get('prediction_1x2')
-    
-    # Sayısal değerlerin ortalaması
     over25 = round((float(r1.get('over25_pct', 50)) + float(r2.get('over25_pct', 50))) / 2)
     ht2g = round((float(r1.get('ht2g_pct', 30)) + float(r2.get('ht2g_pct', 30))) / 2)
     btts = round((float(r1.get('btts_pct', 40)) + float(r2.get('btts_pct', 40))) / 2)
-    
-    # Güven: düşük olanı al (daha güvenli)
     c1 = conf_order.index(r1.get('confidence', 'Orta')) if r1.get('confidence') in conf_order else 1
     c2 = conf_order.index(r2.get('confidence', 'Orta')) if r2.get('confidence') in conf_order else 1
     confidence = conf_order[min(c1, c2)]
-    
-    # Reasoning: Claude'unkini kullan
     reasoning = r1.get('reasoning', r2.get('reasoning', []))
-    
     return {
         'prediction_1x2': pred,
         'over25_pct': over25,
@@ -147,18 +159,41 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_goals_avg=0, away_goals_avg=0,
                         home_conceded_avg=0, away_conceded_avg=0,
                         h2h_summary=None):
-    
+
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
     league = fixture['league']['name']
     match_time = fixture['fixture']['date']
+
+    # Ev/deplasman ayrı istatistik hesapla
+    home_home_avg = None
+    away_away_avg = None
+    try:
+        home_home_goals = [
+            m['goals']['home'] for m in home_matches
+            if home_team.lower().split()[0] in m['teams']['home']['name'].lower()
+            and m['goals']['home'] is not None
+        ]
+        if home_home_goals:
+            home_home_avg = round(sum(home_home_goals) / len(home_home_goals), 1)
+
+        away_away_goals = [
+            m['goals']['away'] for m in away_matches
+            if away_team.lower().split()[0] in m['teams']['away']['name'].lower()
+            and m['goals']['away'] is not None
+        ]
+        if away_away_goals:
+            away_away_avg = round(sum(away_away_goals) / len(away_away_goals), 1)
+    except:
+        pass
 
     prompt = build_prompt(
         home_team, away_team, league, match_time,
         home_form, away_form,
         home_goals_avg, away_goals_avg,
         home_conceded_avg, away_conceded_avg,
-        h2h_summary
+        h2h_summary,
+        home_home_avg, away_away_avg
     )
 
     result = None
@@ -173,7 +208,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 logger.info(f"Claude OK: {home_team} vs {away_team}")
             except Exception as e:
                 logger.error(f"Claude failed: {e}")
-        # Claude başarısız → Groq yedek
         if not result and GROQ_API_KEY:
             try:
                 raw = call_groq(prompt)
@@ -191,7 +225,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 logger.info(f"Groq OK: {home_team} vs {away_team}")
             except Exception as e:
                 logger.error(f"Groq failed: {e}")
-        # Groq başarısız → Claude yedek
         if not result and ANTHROPIC_API_KEY:
             try:
                 raw = call_anthropic(prompt)
@@ -200,7 +233,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             except Exception as e:
                 logger.error(f"Claude failed: {e}")
 
-    # --- BOTH modu (ikisinin ortalaması) ---
+    # --- BOTH modu ---
     elif mode == 'both':
         r_claude = None
         r_groq = None
