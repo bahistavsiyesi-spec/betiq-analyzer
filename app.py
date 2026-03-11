@@ -11,7 +11,17 @@ app = Flask(__name__, template_folder='frontend/templates', static_folder='front
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 init_db()
+
+# Zamanlayıcı — her 30 dakikada maç sonuçlarını kontrol et
+def scheduled_result_check():
+    try:
+        from backend.results_checker import check_and_send_results
+        check_and_send_results()
+    except Exception as e:
+        logger.error(f"Scheduled result check failed: {e}")
+
 scheduler = BackgroundScheduler()
+scheduler.add_job(scheduled_result_check, 'interval', minutes=30, id='result_check')
 scheduler.start()
 
 @app.route('/')
@@ -60,6 +70,20 @@ def api_analyze_selected():
         "message": f"{total} maç analiz ediliyor...",
         "total": total
     })
+
+@app.route('/api/results/check', methods=['POST'])
+def api_check_results():
+    """Manuel tetikleme için"""
+    def check():
+        try:
+            from backend.results_checker import check_and_send_results
+            check_and_send_results()
+        except Exception as e:
+            logger.error(f"Manual result check failed: {e}")
+    thread = threading.Thread(target=check)
+    thread.daemon = False
+    thread.start()
+    return jsonify({"status": "success", "message": "Sonuçlar kontrol ediliyor..."})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
