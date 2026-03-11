@@ -139,7 +139,7 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                     if analysis:
                         save_analysis(analysis)
                         analyzed += 1
-                    time.sleep(4)
+                    time.sleep(2)
                 except Exception as e:
                     logger.error(f"Error analyzing fixture: {e}")
                     continue
