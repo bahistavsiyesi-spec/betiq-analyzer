@@ -138,7 +138,6 @@ def get_analyses_by_date(date_str):
     return [dict(r) for r in rows]
 
 def get_analyses_by_date_with_results(date_str):
-    """Analizleri maç sonuçlarıyla birlikte getir"""
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute('''
@@ -163,6 +162,15 @@ def get_analyses_by_date_with_results(date_str):
     cur.close()
     conn.close()
     return [dict(r) for r in rows]
+
+def get_analysis_by_id(analysis_id):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT * FROM analyses WHERE id = %s', (analysis_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return dict(row) if row else None
 
 def get_available_dates():
     conn = get_conn()
