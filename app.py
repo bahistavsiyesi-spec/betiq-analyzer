@@ -122,7 +122,6 @@ def api_manual_result():
 
         outcomes = calculate_outcomes(analysis, home_score, away_score)
 
-        # Boolean → integer dönüşümü
         outcomes['pred_1x2_correct'] = int(outcomes['pred_1x2_correct'])
         outcomes['actual_over25'] = int(outcomes['actual_over25'])
         outcomes['over25_correct'] = int(outcomes['over25_correct'])
@@ -145,6 +144,77 @@ def api_manual_result():
         return jsonify({"status": "success"})
     except Exception as e:
         logger.error(f"Manual result error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/report/daily', methods=['POST'])
+def api_daily_report():
+    try:
+        data = request.get_json()
+        date_str = data.get('date')
+        if not date_str:
+            return jsonify({"status": "error", "message": "Tarih eksik"}), 400
+
+        from backend.database import get_analyses_by_date_with_results
+        from backend.telegram_sender import send_message
+
+        matches = get_analyses_by_date_with_results(date_str)
+        if not matches:
+            return jsonify({"status": "error", "message": "Bu tarihte analiz yok"}), 404
+
+        with_results = [m for m in matches if m.get('home_score') is not None]
+        total = len(matches)
+        total_results = len(with_results)
+
+        if total_results > 0:
+            c1x2 = sum(1 for m in with_results if m.get('pred_1x2_correct'))
+            c_over25 = sum(1 for m in with_results if m.get('over25_correct'))
+            c_btts = sum(1 for m in with_results if m.get('btts_correct'))
+            c_score = sum(1 for m in with_results if m.get('score_correct'))
+
+            pct_1x2 = round(c1x2 / total_results * 100)
+            pct_over25 = round(c_over25 / total_results * 100)
+            pct_btts = round(c_btts / total_results * 100)
+
+            details = ''
+            for m in with_results:
+                pred = m.get('prediction_1x2', '?')
+                tick_1x2 = '✅' if m.get('pred_1x2_correct') else '❌'
+                tick_over = '✅' if m.get('over25_correct') else '❌'
+                tick_btts = '✅' if m.get('btts_correct') else '❌'
+                tick_score = '✅' if m.get('score_correct') else '❌'
+                details += f"\n⚽ <b>{m['home_team']} {m['home_score']}-{m['away_score']} {m['away_team']}</b>\n"
+                details += f"   {tick_1x2} 1X2: {pred}  {tick_over} 2.5 Gol  {tick_btts} KG Var  {tick_score} Skor\n"
+
+            msg = f"""
+<b>{'─' * 28}</b>
+📊 <b>GÜNLÜK RAPOR — {date_str}</b>
+<b>{'─' * 28}</b>
+
+📋 Toplam Analiz: <b>{total}</b>
+✅ Sonuç Girilmiş: <b>{total_results}</b>
+
+<b>Başarı Oranları:</b>
+🎯 1X2: <b>{c1x2}/{total_results} (%{pct_1x2})</b>
+⚽ 2.5 Gol Üstü: <b>{c_over25}/{total_results} (%{pct_over25})</b>
+🔁 KG Var: <b>{c_btts}/{total_results} (%{pct_btts})</b>
+🏆 Skor Doğru: <b>{c_score}/{total_results}</b>
+{details}
+<b>{'─' * 28}</b>"""
+        else:
+            msg = f"""
+<b>{'─' * 28}</b>
+📊 <b>GÜNLÜK RAPOR — {date_str}</b>
+<b>{'─' * 28}</b>
+
+📋 Toplam Analiz: <b>{total}</b>
+⏳ Henüz sonuç girilmemiş maçlar var.
+<b>{'─' * 28}</b>"""
+
+        send_message(msg)
+        return jsonify({"status": "success"})
+
+    except Exception as e:
+        logger.error(f"Daily report error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
