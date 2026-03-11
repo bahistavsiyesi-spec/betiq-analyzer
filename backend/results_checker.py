@@ -21,7 +21,6 @@ TR_TZ = timezone(timedelta(hours=3))
 
 
 def get_fixture_result_rapidapi(fixture_id):
-    """RapidAPI'den maç sonucunu çek"""
     if not RAPIDAPI_KEY:
         return None
     try:
@@ -50,11 +49,9 @@ def get_fixture_result_rapidapi(fixture_id):
 
 
 def get_fixture_result_footballdata(home_team, away_team, match_date):
-    """football-data.org'dan takım adı ve tarihle maç sonucunu çek"""
     if not FOOTBALL_DATA_KEY:
         return None
     try:
-        # Maç tarihini al
         dt = datetime.fromisoformat(match_date.replace('Z', '+00:00'))
         date_from = dt.strftime('%Y-%m-%d')
         date_to = dt.strftime('%Y-%m-%d')
@@ -94,14 +91,11 @@ def get_fixture_result_footballdata(home_team, away_team, match_date):
 
 
 def get_fixture_result(fixture_id, home_team='', away_team='', match_time=''):
-    """Önce RapidAPI, olmadı football-data.org dene"""
-    # RapidAPI dene
     result = get_fixture_result_rapidapi(fixture_id)
     if result:
         logger.info(f"Result from RapidAPI: {home_team} vs {away_team}")
         return result
 
-    # football-data.org dene
     if home_team and away_team and match_time:
         result = get_fixture_result_footballdata(home_team, away_team, match_time)
         if result:
@@ -112,8 +106,8 @@ def get_fixture_result(fixture_id, home_team='', away_team='', match_time=''):
 
 
 def calculate_outcomes(analysis, home_score, away_score):
-    """Tahminleri gerçek skorla karşılaştır"""
     total_goals = home_score + away_score
+
     if home_score > away_score:
         actual_1x2 = '1'
     elif home_score == away_score:
@@ -122,12 +116,14 @@ def calculate_outcomes(analysis, home_score, away_score):
         actual_1x2 = '2'
 
     pred_1x2_correct = (analysis.get('prediction_1x2') == actual_1x2)
+
+    # 2.5 gol üstü gerçekten oldu mu?
     actual_over25 = total_goals > 2.5
-    pred_over25 = analysis.get('over25_pct', 0) >= 50
-    over25_correct = (pred_over25 == actual_over25)
+    over25_correct = actual_over25
+
+    # KG var gerçekten oldu mu?
     actual_btts = home_score > 0 and away_score > 0
-    pred_btts = analysis.get('btts_pct', 0) >= 50
-    btts_correct = (pred_btts == actual_btts)
+    btts_correct = actual_btts
 
     predicted = analysis.get('predicted_score', '?-?')
     try:
@@ -149,7 +145,6 @@ def calculate_outcomes(analysis, home_score, away_score):
 
 
 def send_result_to_telegram(analysis, home_score, away_score, outcomes):
-    """Sonucu Telegram'a gönder"""
     from backend.telegram_sender import send_message
 
     match_time = analysis.get('match_time', '')
@@ -180,14 +175,13 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes):
 
 <b>Tahmin Sonuçları:</b>
 {tick(outcomes['pred_1x2_correct'])} 1X2: {pred_text} → <b>{outcomes['actual_1x2']}</b>
-{tick(outcomes['over25_correct'])} 2.5 Gol Üstü: %{int(analysis.get('over25_pct',0))} → <b>{'Üstü' if outcomes['actual_over25'] else 'Altı'}</b>
-{tick(outcomes['btts_correct'])} KG Var: %{int(analysis.get('btts_pct',0))} → <b>{'Var' if outcomes['actual_btts'] else 'Yok'}</b>"""
+{tick(outcomes['over25_correct'])} 2.5 Gol Üstü: %{int(analysis.get('over25_pct',0))} → <b>{'Üstü ✓' if outcomes['actual_over25'] else 'Altı ✗'}</b>
+{tick(outcomes['btts_correct'])} KG Var: %{int(analysis.get('btts_pct',0))} → <b>{'Var ✓' if outcomes['actual_btts'] else 'Yok ✗'}</b>"""
 
     send_message(msg)
 
 
 def check_and_send_results():
-    """Biten maçların sonuçlarını çek ve Telegram'a gönder"""
     pending = get_pending_result_checks()
     if not pending:
         logger.info("No pending result checks")
