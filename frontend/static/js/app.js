@@ -85,6 +85,73 @@ function updateSelectedCount() {
     document.getElementById('analyzeBtn').disabled = total === 0;
 }
 
+// ===== IMAGE UPLOAD =====
+function initImageUpload() {
+    const btn = document.getElementById('imageUploadBtn');
+    const input = document.getElementById('imageUpload');
+
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Önizleme göster
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            document.getElementById('previewImg').src = ev.target.result;
+            document.getElementById('imagePreview').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+
+        // API'ye gönder
+        const status = document.getElementById('imageStatus');
+        status.textContent = '🔍 Görsel analiz ediliyor...';
+        btn.disabled = true;
+
+        try {
+            const base64 = await fileToBase64(file);
+            const resp = await fetch('/api/parse/image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64, media_type: file.type })
+            });
+            const data = await resp.json();
+
+            if (data.status === 'success' && data.matches.length > 0) {
+                data.matches.forEach(m => {
+                    // Duplicate kontrolü
+                    const exists = manualMatches.some(
+                        x => x.home_team === m.home_team && x.away_team === m.away_team
+                    );
+                    if (!exists) manualMatches.push(m);
+                });
+                renderManualList();
+                updateSelectedCount();
+                status.textContent = `✅ ${data.matches.length} maç eklendi!`;
+                status.style.color = '#22c55e';
+            } else {
+                status.textContent = '❌ Maç bulunamadı, tekrar dene.';
+                status.style.color = '#ef4444';
+            }
+        } catch (err) {
+            status.textContent = '❌ Hata: ' + err.message;
+            status.style.color = '#ef4444';
+        }
+
+        btn.disabled = false;
+        input.value = '';
+    });
+}
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
 // ===== MANUAL MATCHES =====
 function addManualMatch() {
     const home = document.getElementById('homeTeam').value.trim();
@@ -327,4 +394,5 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshFixtures').addEventListener('click', loadFixtures);
     document.getElementById('selectAll').addEventListener('click', selectAll);
     document.getElementById('addManual').addEventListener('click', addManualMatch);
+    initImageUpload();
 });
