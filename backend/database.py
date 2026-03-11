@@ -36,7 +36,6 @@ def init_db():
             away_goals_avg REAL,
             created_at TEXT DEFAULT (datetime('now'))
         );
-
         CREATE TABLE IF NOT EXISTS run_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             run_date TEXT,
@@ -45,6 +44,26 @@ def init_db():
             matches_analyzed INTEGER,
             error_message TEXT,
             created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS match_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            analysis_id INTEGER NOT NULL,
+            fixture_id INTEGER,
+            home_score INTEGER NOT NULL,
+            away_score INTEGER NOT NULL,
+            actual_1x2 TEXT,
+            pred_1x2_correct INTEGER DEFAULT 0,
+            actual_over25 INTEGER DEFAULT 0,
+            over25_correct INTEGER DEFAULT 0,
+            actual_btts INTEGER DEFAULT 0,
+            btts_correct INTEGER DEFAULT 0,
+            score_correct INTEGER DEFAULT 0,
+            total_goals INTEGER DEFAULT 0,
+            source TEXT DEFAULT 'auto',
+            telegram_sent INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now')),
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (analysis_id) REFERENCES analyses(id)
         );
     ''')
     conn.commit()
@@ -93,6 +112,72 @@ def get_recent_analyses(days=7):
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+def get_pending_result_checks():
+    """Skoru henüz girilmemiş, maç saati geçmiş analizleri getir"""
+    from datetime import timezone, timedelta
+    tr_tz = timezone(timedelta(hours=3))
+    now_tr = datetime.now(tr_tz).strftime('%Y-%m-%dT%H:%M')
+    since = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
+    conn = get_conn()
+    rows = conn.execute('''
+        SELECT a.* FROM analyses a
+        LEFT JOIN match_results r ON a.id = r.analysis_id
+        WHERE r.id IS NULL
+          AND a.analysis_date >= ?
+          AND a.fixture_id IS NOT NULL
+          AND a.fixture_id > 0
+        ORDER BY a.match_time ASC
+    ''', (since,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def save_match_result(analysis_id, fixture_id, home_score, away_score,
+                      actual_1x2, pred_1x2_correct,
+                      actual_over25, over25_correct,
+                      actual_btts, btts_correct,
+                      score_correct, total_goals, source='auto'):
+    conn = get_conn()
+    existing = conn.execute(
+        'SELECT id FROM match_results WHERE analysis_id = ?', (analysis_id,)
+    ).fetchone()
+    if existing:
+        conn.execute('''
+            UPDATE match_results SET
+                home_score=?, away_score=?, actual_1x2=?,
+                pred_1x2_correct=?, actual_over25=?, over25_correct=?,
+                actual_btts=?, btts_correct=?, score_correct=?,
+                total_goals=?, source=?, updated_at=datetime('now')
+            WHERE analysis_id=?
+        ''', (home_score, away_score, actual_1x2,
+              pred_1x2_correct, actual_over25, over25_correct,
+              actual_btts, btts_correct, score_correct,
+              total_goals, source, analysis_id))
+    else:
+        conn.execute('''
+            INSERT INTO match_results (
+                analysis_id, fixture_id, home_score, away_score,
+                actual_1x2, pred_1x2_correct,
+                actual_over25, over25_correct,
+                actual_btts, btts_correct,
+                score_correct, total_goals, source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (analysis_id, fixture_id, home_score, away_score,
+              actual_1x2, pred_1x2_correct,
+              actual_over25, over25_correct,
+              actual_btts, btts_correct,
+              score_correct, total_goals, source))
+    conn.commit()
+    conn.close()
+
+def mark_telegram_sent(analysis_id):
+    conn = get_conn()
+    conn.execute(
+        'UPDATE match_results SET telegram_sent=1 WHERE analysis_id=?',
+        (analysis_id,)
+    )
+    conn.commit()
+    conn.close()
 
 def log_run(run_date, status, matches_found=0, matches_analyzed=0, error=None):
     conn = get_conn()
