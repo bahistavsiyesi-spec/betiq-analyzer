@@ -5,14 +5,13 @@ import os
 import threading
 from backend.football_api import get_todays_fixtures
 from backend.analyzer import run_selected_analysis
-from backend.database import init_db, get_today_matches
+from backend.database import init_db, get_today_matches, get_analyses_by_date, get_available_dates
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 init_db()
 
-# Zamanlayıcı — her 30 dakikada maç sonuçlarını kontrol et
 def scheduled_result_check():
     try:
         from backend.results_checker import check_and_send_results
@@ -27,6 +26,10 @@ scheduler.start()
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/gecmis')
+def gecmis():
+    return render_template('gecmis.html')
 
 @app.route('/api/fixtures/today')
 def api_today_fixtures():
@@ -46,6 +49,21 @@ def api_today_fixtures():
 def api_today_matches():
     matches = get_today_matches()
     return jsonify(matches)
+
+@app.route('/api/matches/date/<date_str>')
+def api_matches_by_date(date_str):
+    try:
+        from backend.database import get_analyses_by_date_with_results
+        matches = get_analyses_by_date_with_results(date_str)
+        return jsonify(matches)
+    except Exception as e:
+        logger.error(f"Error fetching matches by date: {e}")
+        return jsonify([])
+
+@app.route('/api/dates')
+def api_available_dates():
+    dates = get_available_dates()
+    return jsonify(dates)
 
 @app.route('/api/analyze/selected', methods=['POST'])
 def api_analyze_selected():
@@ -73,7 +91,6 @@ def api_analyze_selected():
 
 @app.route('/api/results/check', methods=['POST'])
 def api_check_results():
-    """Manuel tetikleme için"""
     def check():
         try:
             from backend.results_checker import check_and_send_results
