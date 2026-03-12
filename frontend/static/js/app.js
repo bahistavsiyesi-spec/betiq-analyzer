@@ -348,7 +348,9 @@ function createMatchCard(match) {
                     <span class="team-name">${match.home_team}</span>
                     <span class="team-form">${match.home_form || 'N/A'}</span>
                 </div>
-                <div class="vs-badge prediction-${prediction.toLowerCase()}">${prediction}</div>
+                <div class="vs-badge prediction-${prediction.toLowerCase()}">
+                    <img src="/static/img/logo.png" alt="GL" onerror="this.parentElement.innerHTML='${prediction}'">
+                </div>
                 <div class="team away-team">
                     <span class="team-name">${match.away_team}</span>
                     <span class="team-form">${match.away_form || 'N/A'}</span>
