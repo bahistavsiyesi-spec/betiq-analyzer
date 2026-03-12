@@ -19,7 +19,6 @@ FOOTBALL_DATA_HEADERS = {
     'X-Auth-Token': FOOTBALL_DATA_KEY
 }
 
-# Sadece bilinen büyük takımlar - API'ye gitmeden direkt ID
 KNOWN_TEAM_IDS = {
     'galatasaray': 2290,
     'fenerbahce': 1007,
@@ -68,77 +67,120 @@ def _get_rapidapi(endpoint, params={}):
     if not RAPIDAPI_KEY:
         return None
     try:
-        resp = requests.get(f"{RAPIDAPI_BASE}/{endpoint}", headers=RAPIDAPI_HEADERS, params=params, timeout=15)
+        resp = requests.get(RAPIDAPI_BASE + '/' + endpoint, headers=RAPIDAPI_HEADERS, params=params, timeout=15)
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        logger.error(f"RapidAPI request failed: {e}")
+        logger.error('RapidAPI request failed: ' + str(e))
         return None
 
 def _get_football_data(endpoint, params={}):
     if not FOOTBALL_DATA_KEY:
         return None
     try:
-        resp = requests.get(f"{FOOTBALL_DATA_BASE}/{endpoint}", headers=FOOTBALL_DATA_HEADERS, params=params, timeout=15)
+        resp = requests.get(FOOTBALL_DATA_BASE + '/' + endpoint, headers=FOOTBALL_DATA_HEADERS, params=params, timeout=15)
         if resp.status_code == 429:
             logger.warning("Football-Data rate limit hit, skipping")
             return None
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        logger.error(f"Football-Data request failed: {e}")
+        logger.error('Football-Data request failed: ' + str(e))
         return None
+
+def get_todays_fixtures_from_clubelo():
+    import csv
+    import io
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    try:
+        resp = requests.get('http://api.clubelo.com/Fixtures', timeout=10)
+        resp.raise_for_status()
+        reader = csv.DictReader(io.StringIO(resp.text))
+        rows = list(reader)
+        fixtures = []
+        for i, row in enumerate(rows):
+            row_date = row.get('Date', '')
+            if row_date != today_str:
+                continue
+            home = row.get('Home', '').strip()
+            away = row.get('Away', '').strip()
+            country = row.get('Country', '').strip()
+            if not home or not away:
+                continue
+            fixtures.append({
+                'fixture': {
+                    'id': i + 900000,
+                    'date': today_str + 'T00:00:00'
+                },
+                'league': {
+                    'id': 0,
+                    'name': country if country else 'Bilinmeyen Lig'
+                },
+                'teams': {
+                    'home': {'id': 0, 'name': home},
+                    'away': {'id': 0, 'name': away}
+                },
+                'goals': {'home': None, 'away': None}
+            })
+        logger.info('ClubElo fixtures today: ' + str(len(fixtures)) + ' matches')
+        return fixtures
+    except Exception as e:
+        logger.error('ClubElo fixtures fetch failed: ' + str(e))
+        return []
 
 def get_todays_fixtures():
     today = datetime.now().strftime('%Y%m%d')
     today_str = datetime.now().strftime('%Y-%m-%d')
+
+    # Önce RapidAPI dene
     result = _get_rapidapi('football-get-matches-by-date', {'date': today})
-    if not result:
-        return []
-    try:
-        matches = result.get('response', {}).get('matches', [])
-        logger.info(f"Found {len(matches)} matches from API")
-        fixtures = []
-        for m in matches:
-            match_time = m.get('status', {}).get('utcTime', '')
-            if today_str not in match_time:
-                continue
-            if m.get('cancelled') or m.get('finished'):
-                continue
-            home_name = m.get('home', {}).get('name') or m.get('home', {}).get('longName', '?')
-            away_name = m.get('away', {}).get('name') or m.get('away', {}).get('longName', '?')
-            fixtures.append({
-                'fixture': {'id': m.get('id', 0), 'date': match_time},
-                'league': {'id': m.get('leagueId', 0), 'name': m.get('tournamentStage', 'Bilinmeyen Lig')},
-                'teams': {
-                    'home': {'id': m.get('home', {}).get('id', 0), 'name': home_name},
-                    'away': {'id': m.get('away', {}).get('id', 0), 'name': away_name}
-                },
-                'goals': {'home': None, 'away': None}
-            })
-        logger.info(f"Filtered to {len(fixtures)} upcoming fixtures today")
-        return fixtures
-    except Exception as e:
-        logger.error(f"Error parsing fixtures: {e}")
-        return []
+    if result:
+        try:
+            matches = result.get('response', {}).get('matches', [])
+            logger.info('Found ' + str(len(matches)) + ' matches from RapidAPI')
+            fixtures = []
+            for m in matches:
+                match_time = m.get('status', {}).get('utcTime', '')
+                if today_str not in match_time:
+                    continue
+                if m.get('cancelled') or m.get('finished'):
+                    continue
+                home_name = m.get('home', {}).get('name') or m.get('home', {}).get('longName', '?')
+                away_name = m.get('away', {}).get('name') or m.get('away', {}).get('longName', '?')
+                fixtures.append({
+                    'fixture': {'id': m.get('id', 0), 'date': match_time},
+                    'league': {'id': m.get('leagueId', 0), 'name': m.get('tournamentStage', 'Bilinmeyen Lig')},
+                    'teams': {
+                        'home': {'id': m.get('home', {}).get('id', 0), 'name': home_name},
+                        'away': {'id': m.get('away', {}).get('id', 0), 'name': away_name}
+                    },
+                    'goals': {'home': None, 'away': None}
+                })
+            if fixtures:
+                logger.info('Filtered to ' + str(len(fixtures)) + ' upcoming fixtures from RapidAPI')
+                return fixtures
+        except Exception as e:
+            logger.error('Error parsing RapidAPI fixtures: ' + str(e))
+
+    # RapidAPI boş veya hata verdiyse ClubElo'dan çek
+    logger.info('RapidAPI empty or failed, falling back to ClubElo fixtures')
+    return get_todays_fixtures_from_clubelo()
 
 def search_team(team_name):
-    """Sadece cache'den bul, API'ye gitme"""
     team_lower = team_name.lower().strip()
     for key, team_id in KNOWN_TEAM_IDS.items():
         if key in team_lower or team_lower in key:
-            logger.info(f"Found cached ID for {team_name}: {team_id}")
+            logger.info('Found cached ID for ' + team_name + ': ' + str(team_id))
             return team_id
-    logger.info(f"No cached ID for {team_name}, skipping stats")
+    logger.info('No cached ID for ' + team_name + ', skipping stats')
     return None
 
 def get_team_last_matches(team_name, last=5):
-    """Sadece bilinen takımlar için istatistik çek"""
     team_id = search_team(team_name)
     if not team_id:
         return []
 
-    result = _get_football_data(f'teams/{team_id}/matches', {
+    result = _get_football_data('teams/' + str(team_id) + '/matches', {
         'status': 'FINISHED',
         'limit': last
     })
@@ -162,16 +204,15 @@ def get_team_last_matches(team_name, last=5):
         except:
             continue
 
-    logger.info(f"Got {len(converted)} matches for {team_name}")
+    logger.info('Got ' + str(len(converted)) + ' matches for ' + team_name)
     return converted
 
 def get_h2h(team1_name, team2_name, last=5):
-    """H2H - sadece bilinen takımlar için"""
     team1_id = search_team(team1_name)
     if not team1_id:
         return []
 
-    result = _get_football_data(f'teams/{team1_id}/matches', {
+    result = _get_football_data('teams/' + str(team1_id) + '/matches', {
         'status': 'FINISHED',
         'limit': 20
     })
@@ -203,7 +244,7 @@ def get_h2h(team1_name, team2_name, last=5):
     return h2h_matches[:last]
 
 def get_standings(league_code, season=2024):
-    result = _get_football_data(f'competitions/{league_code}/standings', {'season': season})
+    result = _get_football_data('competitions/' + str(league_code) + '/standings', {'season': season})
     if not result:
         return []
     return result
