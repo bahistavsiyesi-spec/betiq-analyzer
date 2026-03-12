@@ -90,7 +90,6 @@ def analyze_fixture(fixture):
     home_name = fixture['teams']['home']['name']
     away_name = fixture['teams']['away']['name']
 
-    # Boş takım adı kontrolü
     if not home_name or not away_name or home_name == '?' or away_name == '?':
         logger.error(f"Skipping match with missing team names: {home_name} vs {away_name}")
         return None
@@ -133,7 +132,6 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
     try:
         clear_today_analyses()
         analyzed = 0
-        all_analyses = []
 
         if fixture_ids:
             all_fixtures = get_todays_fixtures()
@@ -143,7 +141,6 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                     analysis = analyze_fixture(fixture)
                     if analysis:
                         save_analysis(analysis)
-                        all_analyses.append(analysis)
                         analyzed += 1
                     time.sleep(1)
                 except Exception as e:
@@ -171,16 +168,11 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                 analysis = analyze_fixture(manual_fixture)
                 if analysis:
                     save_analysis(analysis)
-                    all_analyses.append(analysis)
                     analyzed += 1
                 time.sleep(1)
             except Exception as e:
                 logger.error(f"Error analyzing manual match: {e}")
                 continue
-
-        if all_analyses:
-            from backend.telegram_sender import send_daily_analysis
-            send_daily_analysis(all_analyses)
 
         log_run(today, 'success', len(fixture_ids) + len(manual_matches), analyzed)
         logger.info(f"Done. Analyzed {analyzed} matches.")
