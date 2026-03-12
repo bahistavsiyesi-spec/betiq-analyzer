@@ -54,6 +54,8 @@ def init_db():
             fixture_id INTEGER,
             home_score INTEGER NOT NULL,
             away_score INTEGER NOT NULL,
+            ht_home_score INTEGER,
+            ht_away_score INTEGER,
             actual_1x2 TEXT,
             pred_1x2_correct INTEGER DEFAULT 0,
             actual_over25 INTEGER DEFAULT 0,
@@ -61,6 +63,7 @@ def init_db():
             actual_btts INTEGER DEFAULT 0,
             btts_correct INTEGER DEFAULT 0,
             score_correct INTEGER DEFAULT 0,
+            ht_correct INTEGER DEFAULT 0,
             total_goals INTEGER DEFAULT 0,
             source TEXT DEFAULT 'auto',
             telegram_sent INTEGER DEFAULT 0,
@@ -69,6 +72,16 @@ def init_db():
             FOREIGN KEY (analysis_id) REFERENCES analyses(id)
         )
     ''')
+
+    # Mevcut tabloya kolon ekle (zaten varsa hata vermez)
+    try:
+        cur.execute('ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER')
+        cur.execute('ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_away_score INTEGER')
+        cur.execute('ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_correct INTEGER DEFAULT 0')
+        conn.commit()
+    except:
+        conn.rollback()
+
     conn.commit()
     cur.close()
     conn.close()
@@ -145,6 +158,8 @@ def get_analyses_by_date_with_results(date_str):
             a.*,
             r.home_score,
             r.away_score,
+            r.ht_home_score,
+            r.ht_away_score,
             r.actual_1x2,
             r.pred_1x2_correct,
             r.actual_over25,
@@ -152,6 +167,7 @@ def get_analyses_by_date_with_results(date_str):
             r.actual_btts,
             r.btts_correct,
             r.score_correct,
+            r.ht_correct,
             r.total_goals
         FROM analyses a
         LEFT JOIN match_results r ON a.id = r.analysis_id
@@ -205,7 +221,8 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                       actual_1x2, pred_1x2_correct,
                       actual_over25, over25_correct,
                       actual_btts, btts_correct,
-                      score_correct, total_goals, source='auto'):
+                      score_correct, total_goals, source='auto',
+                      ht_home_score=None, ht_away_score=None, ht_correct=0):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute('SELECT id FROM match_results WHERE analysis_id = %s', (analysis_id,))
@@ -213,29 +230,39 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
     if existing:
         cur.execute('''
             UPDATE match_results SET
-                home_score=%s, away_score=%s, actual_1x2=%s,
-                pred_1x2_correct=%s, actual_over25=%s, over25_correct=%s,
-                actual_btts=%s, btts_correct=%s, score_correct=%s,
+                home_score=%s, away_score=%s,
+                ht_home_score=%s, ht_away_score=%s,
+                actual_1x2=%s, pred_1x2_correct=%s,
+                actual_over25=%s, over25_correct=%s,
+                actual_btts=%s, btts_correct=%s,
+                score_correct=%s, ht_correct=%s,
                 total_goals=%s, source=%s
             WHERE analysis_id=%s
-        ''', (home_score, away_score, actual_1x2,
-              pred_1x2_correct, actual_over25, over25_correct,
-              actual_btts, btts_correct, score_correct,
+        ''', (home_score, away_score,
+              ht_home_score, ht_away_score,
+              actual_1x2, pred_1x2_correct,
+              actual_over25, over25_correct,
+              actual_btts, btts_correct,
+              score_correct, ht_correct,
               total_goals, source, analysis_id))
     else:
         cur.execute('''
             INSERT INTO match_results (
                 analysis_id, fixture_id, home_score, away_score,
+                ht_home_score, ht_away_score,
                 actual_1x2, pred_1x2_correct,
                 actual_over25, over25_correct,
                 actual_btts, btts_correct,
-                score_correct, total_goals, source
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                score_correct, ht_correct,
+                total_goals, source
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (analysis_id, fixture_id, home_score, away_score,
+              ht_home_score, ht_away_score,
               actual_1x2, pred_1x2_correct,
               actual_over25, over25_correct,
               actual_btts, btts_correct,
-              score_correct, total_goals, source))
+              score_correct, ht_correct,
+              total_goals, source))
     conn.commit()
     cur.close()
     conn.close()
