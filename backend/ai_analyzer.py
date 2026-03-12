@@ -8,12 +8,11 @@ logger = logging.getLogger(__name__)
 
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
-# Aktif mod: 'claude' veya 'groq' veya 'both' (ikisinin ortalaması)
 ANALYSIS_MODE = os.environ.get('ANALYSIS_MODE', 'claude')
 
 def detect_match_importance(league):
-    """Lig adından maç önemini tespit et"""
     league_lower = league.lower()
     if any(x in league_lower for x in ['champions league', 'şampiyonlar ligi', 'uefa', 'europa league', 'conference']):
         return 'Avrupa kupası maçı — eleme baskısı yüksek, iki takım da temkinli oynayabilir'
@@ -125,6 +124,30 @@ def call_anthropic(prompt):
     response.raise_for_status()
     return response.json()['content'][0]['text'].strip()
 
+def call_gemini(prompt):
+    response = requests.post(
+        f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}',
+        headers={'Content-Type': 'application/json'},
+        json={
+            'contents': [
+                {
+                    'parts': [
+                        {
+                            'text': 'Sen profesyonel bir futbol bahis analistisin. Verilen gerçek istatistikleri kullanarak analiz yap. Tüm yanıtlar TÜRKÇE olacak. Her maç için farklı ve gerçekçi tahminler üret.\n\n' + prompt
+                        }
+                    ]
+                }
+            ],
+            'generationConfig': {
+                'maxOutputTokens': 1000,
+                'temperature': 0.7
+            }
+        },
+        timeout=30
+    )
+    response.raise_for_status()
+    return response.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+
 def parse_result(raw_text):
     if '```json' in raw_text:
         raw_text = raw_text.split('```json')[1].split('```')[0].strip()
@@ -133,7 +156,7 @@ def parse_result(raw_text):
     return json.loads(raw_text)
 
 def merge_results(r1, r2):
-    """İki analizin ortalamasını al (BOTH modu için)"""
+    """İki analizin ortalamasını al"""
     conf_order = ['Düşük', 'Orta', 'Yüksek', 'Çok Yüksek']
     pred = r1.get('prediction_1x2') if r1.get('prediction_1x2') == r2.get('prediction_1x2') else r1.get('prediction_1x2')
     over25 = round((float(r1.get('over25_pct', 50)) + float(r2.get('over25_pct', 50))) / 2)
@@ -165,7 +188,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     league = fixture['league']['name']
     match_time = fixture['fixture']['date']
 
-    # Ev/deplasman ayrı istatistik hesapla
     home_home_avg = None
     away_away_avg = None
     try:
@@ -199,7 +221,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     result = None
     mode = ANALYSIS_MODE
 
-    # --- CLAUDE modu (varsayılan) ---
+    # --- CLAUDE modu ---
     if mode == 'claude':
         if ANTHROPIC_API_KEY:
             try:
@@ -208,15 +230,56 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 logger.info(f"Claude OK: {home_team} vs {away_team}")
             except Exception as e:
                 logger.error(f"Claude failed: {e}")
-        if not result and GROQ_API_KEY:
+        if not result and GEMINI_API_KEY:
             try:
-                raw = call_groq(prompt)
+                raw = call_gemini(prompt)
                 result = parse_result(raw)
-                logger.info(f"Groq (yedek) OK: {home_team} vs {away_team}")
+                logger.info(f"Gemini (yedek) OK: {home_team} vs {away_team}")
             except Exception as e:
-                logger.error(f"Groq failed: {e}")
+                logger.error(f"Gemini fallback failed: {e}")
 
-    # --- GROQ modu ---
+    # --- GEMINI modu ---
+    elif mode == 'gemini':
+        if GEMINI_API_KEY:
+            try:
+                raw = call_gemini(prompt)
+                result = parse_result(raw)
+                logger.info(f"Gemini OK: {home_team} vs {away_team}")
+            except Exception as e:
+                logger.error(f"Gemini failed: {e}")
+        if not result and ANTHROPIC_API_KEY:
+            try:
+                raw = call_anthropic(prompt)
+                result = parse_result(raw)
+                logger.info(f"Claude (yedek) OK: {home_team} vs {away_team}")
+            except Exception as e:
+                logger.error(f"Claude fallback failed: {e}")
+
+    # --- BOTH modu: Claude + Gemini ortalaması ---
+    elif mode == 'both':
+        r_claude = None
+        r_gemini = None
+        if ANTHROPIC_API_KEY:
+            try:
+                raw = call_anthropic(prompt)
+                r_claude = parse_result(raw)
+                logger.info(f"Claude OK: {home_team} vs {away_team}")
+            except Exception as e:
+                logger.error(f"Claude failed: {e}")
+        if GEMINI_API_KEY:
+            try:
+                raw = call_gemini(prompt)
+                r_gemini = parse_result(raw)
+                logger.info(f"Gemini OK: {home_team} vs {away_team}")
+            except Exception as e:
+                logger.error(f"Gemini failed: {e}")
+        if r_claude and r_gemini:
+            result = merge_results(r_claude, r_gemini)
+            logger.info(f"Claude+Gemini merged: {home_team} vs {away_team}")
+        else:
+            result = r_claude or r_gemini
+
+    # --- GROQ modu (eski yedek) ---
     elif mode == 'groq':
         if GROQ_API_KEY:
             try:
@@ -225,37 +288,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 logger.info(f"Groq OK: {home_team} vs {away_team}")
             except Exception as e:
                 logger.error(f"Groq failed: {e}")
-        if not result and ANTHROPIC_API_KEY:
-            try:
-                raw = call_anthropic(prompt)
-                result = parse_result(raw)
-                logger.info(f"Claude (yedek) OK: {home_team} vs {away_team}")
-            except Exception as e:
-                logger.error(f"Claude failed: {e}")
-
-    # --- BOTH modu ---
-    elif mode == 'both':
-        r_claude = None
-        r_groq = None
-        if ANTHROPIC_API_KEY:
-            try:
-                raw = call_anthropic(prompt)
-                r_claude = parse_result(raw)
-                logger.info(f"Claude OK: {home_team} vs {away_team}")
-            except Exception as e:
-                logger.error(f"Claude failed: {e}")
-        if GROQ_API_KEY:
-            try:
-                raw = call_groq(prompt)
-                r_groq = parse_result(raw)
-                logger.info(f"Groq OK: {home_team} vs {away_team}")
-            except Exception as e:
-                logger.error(f"Groq failed: {e}")
-        if r_claude and r_groq:
-            result = merge_results(r_claude, r_groq)
-            logger.info(f"Both merged: {home_team} vs {away_team}")
-        else:
-            result = r_claude or r_groq
 
     if not result:
         return mock_analysis(fixture, home_form, away_form, home_goals_avg, away_goals_avg)
