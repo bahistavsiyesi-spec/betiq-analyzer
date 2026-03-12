@@ -25,8 +25,7 @@ async function loadFixtures() {
 
         let html = '';
         for (const [league, matches] of Object.entries(grouped)) {
-            html += `<div class="league-group">
-                <div class="league-title">🏆 ${league}</div>`;
+            html += `<div class="league-group"><div class="league-title">🏆 ${league}</div>`;
             matches.forEach(f => {
                 const time = formatTime(f.date);
                 html += `
@@ -40,7 +39,6 @@ async function loadFixtures() {
             });
             html += `</div>`;
         }
-
         container.innerHTML = html;
     } catch (e) {
         container.innerHTML = `<div class="no-matches"><p>📭 API kotası doldu.<br>📸 Görsel yükle veya manuel ekle.</p></div>`;
@@ -63,7 +61,6 @@ function toggleFixture(id, home, away, league, date) {
 function selectAll() {
     const items = document.querySelectorAll('.fixture-item');
     const allSelected = items.length === Object.keys(selectedFixtures).length;
-    
     items.forEach(item => {
         const id = parseInt(item.dataset.id);
         if (allSelected) {
@@ -189,10 +186,7 @@ function removeManual(index) {
 
 function renderManualList() {
     const container = document.getElementById('manualList');
-    if (manualMatches.length === 0) {
-        container.innerHTML = '';
-        return;
-    }
+    if (manualMatches.length === 0) { container.innerHTML = ''; return; }
     container.innerHTML = manualMatches.map((m, i) => {
         const timeStr = m.date ? formatTime(m.date) : '--:--';
         return `
@@ -288,6 +282,41 @@ function showError(statusDiv, btn, message) {
     btn.innerHTML = '🔍 Seçilenleri Analiz Et';
 }
 
+// ===== TELEGRAM =====
+async function sendToTelegram() {
+    const btn = document.getElementById('telegramBtn');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Gönderiliyor...';
+
+    try {
+        const resp = await fetch('/api/telegram/send', { method: 'POST' });
+        const data = await resp.json();
+
+        if (data.status === 'success') {
+            btn.innerHTML = '✅ Gönderildi!';
+            btn.style.background = '#22c55e';
+            setTimeout(() => {
+                btn.innerHTML = '📨 Telegram\'a Gönder';
+                btn.style.background = '';
+                btn.disabled = false;
+            }, 3000);
+        } else {
+            btn.innerHTML = '❌ Hata!';
+            btn.style.background = '#ef4444';
+            alert('Hata: ' + data.message);
+            setTimeout(() => {
+                btn.innerHTML = '📨 Telegram\'a Gönder';
+                btn.style.background = '';
+                btn.disabled = false;
+            }, 3000);
+        }
+    } catch (e) {
+        btn.innerHTML = '❌ Hata!';
+        alert('Hata: ' + e.message);
+        btn.disabled = false;
+    }
+}
+
 // ===== MATCHES =====
 async function loadMatches() {
     const container = document.getElementById('matchesContainer');
@@ -311,7 +340,10 @@ function renderMatches(matches) {
         return;
     }
     container.innerHTML = `
-        <div style="display:flex; justify-content:flex-end; margin-bottom:12px; padding:0 4px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:0 4px;">
+            <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px; border-radius:8px; border:none; background:#2563eb; color:#fff; font-size:13px; cursor:pointer; font-family:inherit; font-weight:600;">
+                📨 Telegram'a Gönder
+            </button>
             <button onclick="clearAllMatches()" style="padding:6px 14px; border-radius:8px; border:1px solid #ef4444; background:transparent; color:#ef4444; font-size:12px; cursor:pointer; font-family:inherit;">
                 🗑️ Tümünü Sil
             </button>
