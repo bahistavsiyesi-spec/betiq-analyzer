@@ -95,7 +95,6 @@ function initImageUpload() {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Önizleme göster
         const reader = new FileReader();
         reader.onload = (ev) => {
             document.getElementById('previewImg').src = ev.target.result;
@@ -103,9 +102,9 @@ function initImageUpload() {
         };
         reader.readAsDataURL(file);
 
-        // API'ye gönder
         const status = document.getElementById('imageStatus');
         status.textContent = '🔍 Görsel analiz ediliyor...';
+        status.style.color = '#888';
         btn.disabled = true;
 
         try {
@@ -119,7 +118,6 @@ function initImageUpload() {
 
             if (data.status === 'success' && data.matches.length > 0) {
                 data.matches.forEach(m => {
-                    // Duplicate kontrolü
                     const exists = manualMatches.some(
                         x => x.home_team === m.home_team && x.away_team === m.away_team
                     );
@@ -308,7 +306,18 @@ async function loadMatches() {
 
 function renderMatches(matches) {
     const container = document.getElementById('matchesContainer');
-    container.innerHTML = matches.map(m => createMatchCard(m)).join('');
+    if (!matches || matches.length === 0) {
+        container.innerHTML = `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
+        return;
+    }
+    container.innerHTML = `
+        <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+            <button onclick="clearAllMatches()" style="padding:6px 14px; border-radius:8px; border:1px solid #ef4444; background:transparent; color:#ef4444; font-size:12px; cursor:pointer; font-family:inherit;">
+                🗑️ Tümünü Sil
+            </button>
+        </div>
+        ${matches.map(m => createMatchCard(m)).join('')}
+    `;
 }
 
 function createMatchCard(match) {
@@ -324,7 +333,10 @@ function createMatchCard(match) {
     try { reasoning = JSON.parse(match.reasoning || '[]'); } catch (e) {}
 
     return `
-        <div class="match-card">
+        <div class="match-card" id="matchcard-${match.id}">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:-6px;">
+                <button onclick="deleteMatch(${match.id})" style="background:transparent; border:none; color:#555; font-size:16px; cursor:pointer; padding:0;" title="Sil">🗑️</button>
+            </div>
             <div class="match-header">
                 <span class="league-badge">⚽ ${match.league || 'Bilinmeyen Lig'}</span>
                 <span class="match-time">${formatTime(match.match_time)}</span>
@@ -377,22 +389,31 @@ function createMatchCard(match) {
     `;
 }
 
-function formatTime(dateStr) {
+async function deleteMatch(id) {
+    if (!confirm('Bu analizi silmek istediğine emin misin?')) return;
     try {
-        const d = new Date(dateStr);
-        return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
-    } catch {
-        return dateStr ? dateStr.substring(11, 16) : '--:--';
+        await fetch(`/api/matches/delete/${id}`, { method: 'DELETE' });
+        document.getElementById(`matchcard-${id}`)?.remove();
+        const remaining = document.querySelectorAll('.match-card');
+        if (remaining.length === 0) {
+            document.getElementById('matchesContainer').innerHTML =
+                `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
+        }
+    } catch (e) {
+        alert('Silme hatası: ' + e.message);
     }
 }
 
-// ===== INIT =====
-document.addEventListener('DOMContentLoaded', () => {
-    loadFixtures();
-    loadMatches();
-    document.getElementById('analyzeBtn').addEventListener('click', runAnalysis);
-    document.getElementById('refreshFixtures').addEventListener('click', loadFixtures);
-    document.getElementById('selectAll').addEventListener('click', selectAll);
-    document.getElementById('addManual').addEventListener('click', addManualMatch);
-    initImageUpload();
-});
+async function clearAllMatches() {
+    if (!confirm('Bugünün tüm analizleri silinecek. Emin misin?')) return;
+    try {
+        await fetch('/api/matches/clear', { method: 'DELETE' });
+        document.getElementById('matchesContainer').innerHTML =
+            `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
+    } catch (e) {
+        alert('Silme hatası: ' + e.message);
+    }
+}
+
+function formatTime(dateStr) {
+    try {
