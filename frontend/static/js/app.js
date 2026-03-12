@@ -395,7 +395,7 @@ function createMatchCard(match) {
                     <div class="stat-bar"><div class="stat-fill blue" style="width:${match.over25_pct}%"></div></div>
                 </div>
                 <div class="stat-box">
-                    <span class="stat-label">⚽ İY 2 GOL</span>
+                    <span class="stat-label">⚽ İY 0.5 ÜST</span>
                     <span class="stat-value">${match.ht2g_pct}%</span>
                     <div class="stat-bar"><div class="stat-fill" style="width:${match.ht2g_pct}%"></div></div>
                 </div>
