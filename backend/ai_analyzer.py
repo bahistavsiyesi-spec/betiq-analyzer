@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import requests
+import time
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -30,18 +31,18 @@ def build_prompt(home_team, away_team, league, match_time,
     h2h_text = ''
     if h2h_summary:
         h2h_text = f"""
-H2H (Son {h2h_summary['total']} maç):
+H2H (Son {h2h_summary['total']} mac):
 - {home_team} galibiyet: {h2h_summary['home_wins']}
 - {away_team} galibiyet: {h2h_summary['away_wins']}
 - Beraberlik: {h2h_summary['draws']}
-- Maç başı ortalama gol: {h2h_summary['avg_goals']}"""
+- Mac basi ortalama gol: {h2h_summary['avg_goals']}"""
 
     stats_text = ''
     if home_goals_avg > 0 or away_goals_avg > 0:
         home_venue = f"(evde ort. {home_home_avg} gol atar)" if home_home_avg is not None else ""
         away_venue = f"(deplasmanda ort. {away_away_avg} gol atar)" if away_away_avg is not None else ""
         stats_text = f"""
-Gerçek İstatistikler (son 5 maç):
+Gercek Istatistikler (son 5 mac):
 - {home_team}: {home_goals_avg} gol atar {home_venue} / {home_conceded_avg} gol yer (ortalama)
 - {away_team}: {away_goals_avg} gol atar {away_venue} / {away_conceded_avg} gol yer (ortalama)
 - {home_team} form: {home_form if home_form else 'Bilinmiyor'}
@@ -76,7 +77,7 @@ SADECE su JSON formatinda yanit ver, baska hicbir sey yazma:
   "reasoning": [
     "{home_team} hakkinda degerlendirme",
     "{away_team} hakkinda degerlendirme",
-    "Mac onemi ve H2H baglamı"
+    "Mac onemi ve H2H baglami"
   ],
   "h2h_summary": "H2H ozeti"
 }}"""
@@ -93,7 +94,7 @@ def call_groq(prompt):
             'messages': [
                 {
                     'role': 'system',
-                    'content': 'Sen profesyonel bir futbol bahis analistisin. Verilen gercek istatistikleri kullanarak analiz yap. Tum yanitlar TURKCE olacak. Her mac icin farkli ve gercekci tahminler uret.'
+                    'content': 'Sen profesyonel bir futbol bahis analistisin. Tum yanitlar TURKCE olacak.'
                 },
                 {'role': 'user', 'content': prompt}
             ],
@@ -116,7 +117,7 @@ def call_anthropic(prompt):
         json={
             'model': 'claude-sonnet-4-20250514',
             'max_tokens': 1000,
-            'system': 'Sen profesyonel bir futbol bahis analistisin. Verilen gercek istatistikleri kullanarak analiz yap. Tum yanitlar TURKCE olacak. Her mac icin farkli ve gercekci tahminler uret.',
+            'system': 'Sen profesyonel bir futbol bahis analistisin. Tum yanitlar TURKCE olacak.',
             'messages': [{'role': 'user', 'content': prompt}]
         },
         timeout=30
@@ -125,6 +126,7 @@ def call_anthropic(prompt):
     return response.json()['content'][0]['text'].strip()
 
 def call_gemini(prompt):
+    time.sleep(3)  # Rate limit için bekle
     response = requests.post(
         f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
         headers={'Content-Type': 'application/json'},
@@ -133,7 +135,7 @@ def call_gemini(prompt):
                 {
                     'parts': [
                         {
-                            'text': 'Sen profesyonel bir futbol bahis analistisin. Verilen gercek istatistikleri kullanarak analiz yap. Tum yanitlar TURKCE olacak. Her mac icin farkli ve gercekci tahminler uret. SADECE gecerli JSON dondur, baska hicbir sey yazma.\n\n' + prompt
+                            'text': 'Sen profesyonel bir futbol bahis analistisin. Tum yanitlar TURKCE olacak. SADECE gecerli JSON dondur, baska hicbir sey yazma.\n\n' + prompt
                         }
                     ]
                 }
@@ -155,7 +157,6 @@ def parse_result(raw_text):
         raw_text = raw_text.split('```json')[1].split('```')[0].strip()
     elif '```' in raw_text:
         raw_text = raw_text.split('```')[1].split('```')[0].strip()
-    # JSON bloğunu bul
     start = raw_text.find('{')
     end = raw_text.rfind('}')
     if start != -1 and end != -1:
