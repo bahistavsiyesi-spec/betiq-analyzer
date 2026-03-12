@@ -66,11 +66,16 @@ Analiz yaparken su faktorleri goz onunde bulundur:
 4. Yukaridaki GERCEK istatistikleri kullan, yoksa kendi bilginle tahmin et
 5. Tum yanitlar TURKCE olacak
 
+Alan aciklamalari:
+- over25_pct: Mac genelinde 2.5 gol ustu olma ihtimali (0-100)
+- ht2g_pct: Ilk yaride EN AZ 1 gol olma ihtimali yani ilk yari 0.5 ustu (0-100)
+- btts_pct: Her iki takimin da gol atma ihtimali (0-100)
+
 SADECE su JSON formatinda yanit ver, baska hicbir sey yazma:
 {{
   "prediction_1x2": "1 veya X veya 2",
   "over25_pct": 55,
-  "ht2g_pct": 30,
+  "ht2g_pct": 40,
   "btts_pct": 45,
   "predicted_score": "2-1",
   "confidence": "Orta",
@@ -126,7 +131,7 @@ def call_anthropic(prompt):
     return response.json()['content'][0]['text'].strip()
 
 def call_gemini(prompt):
-    time.sleep(3)  # Rate limit için bekle
+    time.sleep(3)
     response = requests.post(
         f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
         headers={'Content-Type': 'application/json'},
@@ -167,7 +172,7 @@ def merge_results(r1, r2):
     conf_order = ['Düşük', 'Orta', 'Yüksek', 'Çok Yüksek']
     pred = r1.get('prediction_1x2') if r1.get('prediction_1x2') == r2.get('prediction_1x2') else r1.get('prediction_1x2')
     over25 = round((float(r1.get('over25_pct', 50)) + float(r2.get('over25_pct', 50))) / 2)
-    ht2g = round((float(r1.get('ht2g_pct', 30)) + float(r2.get('ht2g_pct', 30))) / 2)
+    ht2g = round((float(r1.get('ht2g_pct', 40)) + float(r2.get('ht2g_pct', 40))) / 2)
     btts = round((float(r1.get('btts_pct', 40)) + float(r2.get('btts_pct', 40))) / 2)
     c1 = conf_order.index(r1.get('confidence', 'Orta')) if r1.get('confidence') in conf_order else 1
     c2 = conf_order.index(r2.get('confidence', 'Orta')) if r2.get('confidence') in conf_order else 1
@@ -304,7 +309,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         'match_time': match_time,
         'prediction_1x2': result.get('prediction_1x2', '?'),
         'over25_pct': float(result.get('over25_pct', 50)),
-        'ht2g_pct': float(result.get('ht2g_pct', 30)),
+        'ht2g_pct': float(result.get('ht2g_pct', 40)),
         'btts_pct': float(result.get('btts_pct', 40)),
         'predicted_score': result.get('predicted_score', '?-?'),
         'confidence': result.get('confidence', 'Orta'),
@@ -328,7 +333,7 @@ def mock_analysis(fixture, home_form='', away_form='', home_goals_avg=0, away_go
         'match_time': fixture['fixture']['date'],
         'prediction_1x2': '1',
         'over25_pct': 55,
-        'ht2g_pct': 25,
+        'ht2g_pct': 40,
         'btts_pct': 45,
         'predicted_score': '2-1',
         'confidence': 'Orta',
