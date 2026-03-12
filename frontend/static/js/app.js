@@ -311,12 +311,14 @@ function renderMatches(matches) {
         return;
     }
     container.innerHTML = `
-        <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+        <div style="display:flex; justify-content:flex-end; margin-bottom:12px; padding:0 4px;">
             <button onclick="clearAllMatches()" style="padding:6px 14px; border-radius:8px; border:1px solid #ef4444; background:transparent; color:#ef4444; font-size:12px; cursor:pointer; font-family:inherit;">
                 🗑️ Tümünü Sil
             </button>
         </div>
-        ${matches.map(m => createMatchCard(m)).join('')}
+        <div id="matchCardsList">
+            ${matches.map(m => createMatchCard(m)).join('')}
+        </div>
     `;
 }
 
@@ -334,8 +336,8 @@ function createMatchCard(match) {
 
     return `
         <div class="match-card" id="matchcard-${match.id}">
-            <div style="display:flex; justify-content:flex-end; margin-bottom:-6px;">
-                <button onclick="deleteMatch(${match.id})" style="background:transparent; border:none; color:#555; font-size:16px; cursor:pointer; padding:0;" title="Sil">🗑️</button>
+            <div style="display:flex; justify-content:flex-end; margin-bottom:4px;">
+                <button onclick="deleteMatch(${match.id})" style="background:transparent; border:none; color:#444; font-size:15px; cursor:pointer; padding:0; line-height:1;" title="Sil">🗑️</button>
             </div>
             <div class="match-header">
                 <span class="league-badge">⚽ ${match.league || 'Bilinmeyen Lig'}</span>
