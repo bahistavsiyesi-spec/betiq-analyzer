@@ -89,6 +89,19 @@ def api_analyze_selected():
         "total": total
     })
 
+@app.route('/api/telegram/send', methods=['POST'])
+def api_telegram_send():
+    try:
+        from backend.telegram_sender import send_daily_analysis
+        matches = get_today_matches()
+        if not matches:
+            return jsonify({"status": "error", "message": "Gönderilecek analiz yok"}), 400
+        send_daily_analysis(matches)
+        return jsonify({"status": "success", "message": f"{len(matches)} maç Telegram'a gönderildi!"})
+    except Exception as e:
+        logger.error(f"Telegram send error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/results/check', methods=['POST'])
 def api_check_results():
     def check():
