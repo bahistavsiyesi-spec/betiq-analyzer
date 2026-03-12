@@ -270,3 +270,26 @@ def clear_today_analyses():
     conn.commit()
     cur.close()
     conn.close()
+
+def delete_analysis(analysis_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM match_results WHERE analysis_id = %s', (analysis_id,))
+    cur.execute('DELETE FROM analyses WHERE id = %s', (analysis_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def delete_today_analyses():
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('''
+        DELETE FROM match_results WHERE analysis_id IN (
+            SELECT id FROM analyses WHERE analysis_date = %s
+        )
+    ''', (today,))
+    cur.execute('DELETE FROM analyses WHERE analysis_date = %s', (today,))
+    conn.commit()
+    cur.close()
+    conn.close()
