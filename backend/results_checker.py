@@ -105,7 +105,7 @@ def get_fixture_result(fixture_id, home_team='', away_team='', match_time=''):
     return None
 
 
-def calculate_outcomes(analysis, home_score, away_score):
+def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_away_score=None):
     total_goals = home_score + away_score
 
     if home_score > away_score:
@@ -117,11 +117,9 @@ def calculate_outcomes(analysis, home_score, away_score):
 
     pred_1x2_correct = (analysis.get('prediction_1x2') == actual_1x2)
 
-    # 2.5 gol üstü gerçekten oldu mu?
     actual_over25 = total_goals > 2.5
     over25_correct = actual_over25
 
-    # KG var gerçekten oldu mu?
     actual_btts = home_score > 0 and away_score > 0
     btts_correct = actual_btts
 
@@ -132,6 +130,11 @@ def calculate_outcomes(analysis, home_score, away_score):
     except:
         score_correct = False
 
+    # İY 0.5 üst — ilk yarıda en az 1 gol
+    ht_correct = False
+    if ht_home_score is not None and ht_away_score is not None:
+        ht_correct = (ht_home_score + ht_away_score) >= 1
+
     return {
         'actual_1x2': actual_1x2,
         'pred_1x2_correct': pred_1x2_correct,
@@ -140,11 +143,12 @@ def calculate_outcomes(analysis, home_score, away_score):
         'actual_btts': actual_btts,
         'btts_correct': btts_correct,
         'score_correct': score_correct,
+        'ht_correct': ht_correct,
         'total_goals': total_goals,
     }
 
 
-def send_result_to_telegram(analysis, home_score, away_score, outcomes):
+def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_score=None, ht_away_score=None):
     from backend.telegram_sender import send_message
 
     match_time = analysis.get('match_time', '')
@@ -165,6 +169,10 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes):
         '2': f"2 ({analysis.get('away_team','?')})"
     }.get(pred, pred)
 
+    ht_line = ''
+    if ht_home_score is not None and ht_away_score is not None:
+        ht_line = f"\n{tick(outcomes['ht_correct'])} İY 0.5 Üst: %{int(analysis.get('ht2g_pct', 0))} → <b>İY {ht_home_score}-{ht_away_score} ({'Var ✓' if outcomes['ht_correct'] else 'Yok ✗'})</b>"
+
     msg = f"""
 <b>{'─' * 28}</b>
 ⚽ <b>SONUÇ: {analysis.get('home_team')} vs {analysis.get('away_team')}</b>
@@ -176,7 +184,7 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes):
 <b>Tahmin Sonuçları:</b>
 {tick(outcomes['pred_1x2_correct'])} 1X2: {pred_text} → <b>{outcomes['actual_1x2']}</b>
 {tick(outcomes['over25_correct'])} 2.5 Gol Üstü: %{int(analysis.get('over25_pct',0))} → <b>{'Üstü ✓' if outcomes['actual_over25'] else 'Altı ✗'}</b>
-{tick(outcomes['btts_correct'])} KG Var: %{int(analysis.get('btts_pct',0))} → <b>{'Var ✓' if outcomes['actual_btts'] else 'Yok ✗'}</b>"""
+{tick(outcomes['btts_correct'])} KG Var: %{int(analysis.get('btts_pct',0))} → <b>{'Var ✓' if outcomes['actual_btts'] else 'Yok ✗'}</b>{ht_line}"""
 
     send_message(msg)
 
@@ -214,6 +222,14 @@ def check_and_send_results():
                 continue
 
             outcomes = calculate_outcomes(analysis, result['home_score'], result['away_score'])
+            outcomes['pred_1x2_correct'] = int(outcomes['pred_1x2_correct'])
+            outcomes['actual_over25'] = int(outcomes['actual_over25'])
+            outcomes['over25_correct'] = int(outcomes['over25_correct'])
+            outcomes['actual_btts'] = int(outcomes['actual_btts'])
+            outcomes['btts_correct'] = int(outcomes['btts_correct'])
+            outcomes['score_correct'] = int(outcomes['score_correct'])
+            outcomes['ht_correct'] = int(outcomes['ht_correct'])
+
             save_match_result(
                 analysis_id=analysis['id'],
                 fixture_id=analysis['fixture_id'],
