@@ -12,7 +12,7 @@ async function loadFixtures() {
         const fixtures = await resp.json();
         
         if (!fixtures || fixtures.length === 0) {
-            container.innerHTML = `<div class="no-matches"><p>📭 Bugün maç bulunamadı.</p></div>`;
+            container.innerHTML = `<div class="no-matches"><p>📭 API kotası doldu.<br>📸 Görsel yükle veya manuel ekle.</p></div>`;
             return;
         }
 
@@ -43,7 +43,7 @@ async function loadFixtures() {
 
         container.innerHTML = html;
     } catch (e) {
-        container.innerHTML = `<div class="no-matches"><p>❌ Maçlar yüklenemedi. Tekrar deneyin.</p></div>`;
+        container.innerHTML = `<div class="no-matches"><p>📭 API kotası doldu.<br>📸 Görsel yükle veya manuel ekle.</p></div>`;
     }
 }
 
@@ -417,3 +417,20 @@ async function clearAllMatches() {
 
 function formatTime(dateStr) {
     try {
+        const d = new Date(dateStr);
+        return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+    } catch {
+        return dateStr ? dateStr.substring(11, 16) : '--:--';
+    }
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+    loadFixtures();
+    loadMatches();
+    document.getElementById('analyzeBtn').addEventListener('click', runAnalysis);
+    document.getElementById('refreshFixtures').addEventListener('click', loadFixtures);
+    document.getElementById('selectAll').addEventListener('click', selectAll);
+    document.getElementById('addManual').addEventListener('click', addManualMatch);
+    initImageUpload();
+});
