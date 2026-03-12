@@ -86,24 +86,32 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
 
 def analyze_fixture(fixture):
     from backend.ai_analyzer import analyze_with_claude
-    
+
     home_name = fixture['teams']['home']['name']
     away_name = fixture['teams']['away']['name']
-    
+
+    # Boş takım adı kontrolü
+    if not home_name or not away_name or home_name == '?' or away_name == '?':
+        logger.error(f"Skipping match with missing team names: {home_name} vs {away_name}")
+        return None
+
+    home_name = str(home_name).strip()
+    away_name = str(away_name).strip()
+
     logger.info(f"Analyzing: {home_name} vs {away_name}")
-    
+
     home_matches = get_team_last_matches(home_name, last=5)
     away_matches = get_team_last_matches(away_name, last=5)
     h2h = get_h2h(home_name, away_name, last=5)
-    
+
     home_form = extract_form_from_fixtures(home_matches, home_name)
     away_form = extract_form_from_fixtures(away_matches, away_name)
     home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
     away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
     h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
-    
+
     logger.info(f"Stats: {home_name} form={home_form} avg={home_goals_avg}, {away_name} form={away_form} avg={away_goals_avg}")
-    
+
     return analyze_with_claude(
         fixture=fixture,
         h2h_data=h2h,
@@ -121,7 +129,7 @@ def analyze_fixture(fixture):
 def run_selected_analysis(fixture_ids=[], manual_matches=[]):
     today = datetime.now().strftime('%Y-%m-%d')
     logger.info(f"Starting selected analysis: {len(fixture_ids)} fixtures, {len(manual_matches)} manual")
-    
+
     try:
         clear_today_analyses()
         analyzed = 0
@@ -144,12 +152,19 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
 
         for m in manual_matches:
             try:
+                home_team = str(m.get('home_team', '') or '').strip()
+                away_team = str(m.get('away_team', '') or '').strip()
+
+                if not home_team or not away_team:
+                    logger.error(f"Skipping manual match with missing teams: {m}")
+                    continue
+
                 manual_fixture = {
                     'fixture': {'id': int(time.time()), 'date': m.get('date', datetime.now().isoformat())},
                     'league': {'id': 0, 'name': m.get('league', 'Manuel Maç')},
                     'teams': {
-                        'home': {'id': 0, 'name': m.get('home_team', '?')},
-                        'away': {'id': 0, 'name': m.get('away_team', '?')}
+                        'home': {'id': 0, 'name': home_team},
+                        'away': {'id': 0, 'name': away_team}
                     },
                     'goals': {'home': None, 'away': None}
                 }
@@ -163,7 +178,6 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                 logger.error(f"Error analyzing manual match: {e}")
                 continue
 
-        # Tüm maçlar bittikten sonra Telegram'a gönder
         if all_analyses:
             from backend.telegram_sender import send_daily_analysis
             send_daily_analysis(all_analyses)
