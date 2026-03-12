@@ -86,6 +86,7 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
 
 def analyze_fixture(fixture):
     from backend.ai_analyzer import analyze_with_claude
+    from backend.clubelo import get_elo_for_match
 
     home_name = fixture['teams']['home']['name']
     away_name = fixture['teams']['away']['name']
@@ -109,6 +110,17 @@ def analyze_fixture(fixture):
     away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
     h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
 
+    # ClubElo verisi
+    elo_data = None
+    try:
+        elo_data = get_elo_for_match(home_name, away_name)
+        if elo_data:
+            logger.info(f"ClubElo: {home_name} {elo_data.get('home_elo','?')} vs {away_name} {elo_data.get('away_elo','?')}")
+        else:
+            logger.info(f"ClubElo: no data for {home_name} vs {away_name}")
+    except Exception as e:
+        logger.warning(f"ClubElo failed: {e}")
+
     logger.info(f"Stats: {home_name} form={home_form} avg={home_goals_avg}, {away_name} form={away_form} avg={away_goals_avg}")
 
     return analyze_with_claude(
@@ -122,7 +134,8 @@ def analyze_fixture(fixture):
         away_goals_avg=away_goals_avg,
         home_conceded_avg=home_conceded_avg,
         away_conceded_avg=away_conceded_avg,
-        h2h_summary=h2h_summary
+        h2h_summary=h2h_summary,
+        elo_data=elo_data
     )
 
 def run_selected_analysis(fixture_ids=[], manual_matches=[]):
