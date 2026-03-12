@@ -313,8 +313,14 @@ body {
     transition: width 1s ease;
 }
 
-/* MATCHES GRID */
+/* MATCHES CONTAINER */
 #matchesContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+#matchCardsList {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
     gap: 16px;
@@ -324,7 +330,6 @@ body {
     text-align: center;
     padding: 60px 20px;
     color: #444;
-    grid-column: 1/-1;
 }
 .no-matches p { font-size: 1rem; margin-bottom: 8px; }
 
@@ -375,8 +380,8 @@ body {
 .team-form { font-size: 0.7rem; color: #666; font-family: 'JetBrains Mono', monospace; }
 
 .vs-badge {
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -384,10 +389,22 @@ body {
     font-weight: 800;
     font-size: 0.9rem;
     flex-shrink: 0;
+    overflow: hidden;
+    background: #1a1a2e;
+    border: 2px solid #333;
+    padding: 4px;
 }
-.prediction-1 { background: #00d4aa22; color: #00d4aa; border: 2px solid #00d4aa; }
-.prediction-x { background: #ffa50022; color: #ffa500; border: 2px solid #ffa500; }
-.prediction-2 { background: #7c6fff22; color: #7c6fff; border: 2px solid #7c6fff; }
+
+.vs-badge img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 50%;
+}
+
+.prediction-1 { border-color: #00d4aa; }
+.prediction-x { border-color: #ffa500; }
+.prediction-2 { border-color: #7c6fff; }
 
 .stats-grid {
     display: grid;
