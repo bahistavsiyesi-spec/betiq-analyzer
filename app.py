@@ -295,6 +295,26 @@ Eğer görsel bir maç programı değilse boş array [] döndür."""
         logger.error(f"Image parse error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/matches/delete/<int:analysis_id>', methods=['DELETE'])
+def api_delete_match(analysis_id):
+    try:
+        from backend.database import delete_analysis
+        delete_analysis(analysis_id)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Delete error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/matches/clear', methods=['DELETE'])
+def api_clear_matches():
+    try:
+        from backend.database import delete_today_analyses
+        delete_today_analyses()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Clear error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
