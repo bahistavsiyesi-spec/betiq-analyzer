@@ -34,12 +34,47 @@ def get_fixtures_elo():
         resp.raise_for_status()
         reader = csv.DictReader(io.StringIO(resp.text))
         rows = list(reader)
-        if rows:
-            logger.info('ClubElo fixtures columns: ' + str(list(rows[0].keys())))
         return rows
     except Exception as e:
         logger.warning('ClubElo fixtures error: ' + str(e))
         return []
+
+
+def calc_probs_from_row(f):
+    try:
+        prob_home = 0.0
+        prob_draw = 0.0
+        prob_away = 0.0
+        for k, v in f.items():
+            try:
+                val = float(v or 0)
+            except:
+                continue
+            k = k.strip()
+            if k == 'GD=0':
+                prob_draw += val
+            elif k.startswith('GD=') or k.startswith('GD>'):
+                try:
+                    num = float(k.replace('GD=', '').replace('GD>', ''))
+                    if num > 0:
+                        prob_home += val
+                    elif num < 0:
+                        prob_away += val
+                except:
+                    pass
+            elif k.startswith('GD<'):
+                try:
+                    num = float(k.replace('GD<', ''))
+                    if num < 0:
+                        prob_away += val
+                    elif num > 0:
+                        prob_home += val
+                except:
+                    pass
+        return round(prob_home * 100, 1), round(prob_draw * 100, 1), round(prob_away * 100, 1)
+    except Exception as e:
+        logger.warning('ClubElo prob calc error: ' + str(e))
+        return None, None, None
 
 
 def find_match_in_fixtures(home_team, away_team, fixtures=None):
@@ -53,59 +88,35 @@ def find_match_in_fixtures(home_team, away_team, fixtures=None):
         fh = f.get('Home', '').lower().replace(' ', '').replace('-', '')
         fa = f.get('Away', '').lower().replace(' ', '').replace('-', '')
         if (home_lower in fh or fh in home_lower) and (away_lower in fa or fa in away_lower):
-            logger.info('ClubElo raw row: ' + str(dict(f)))
-            try:
-                keys = list(f.keys())
-                home_elo_val = 0
-                away_elo_val = 0
-                prob_home_val = 0
-                prob_draw_val = 0
-                prob_away_val = 0
-                for k in keys:
-                    kl = k.lower().replace(' ', '')
-                    if kl == 'elohome':
-                        home_elo_val = float(f[k] or 0)
-                    if kl == 'eloaway':
-                        away_elo_val = float(f[k] or 0)
-                    if kl == 'probhome':
-                        prob_home_val = float(f[k] or 0)
-                    if kl == 'probdraw':
-                        prob_draw_val = float(f[k] or 0)
-                    if kl == 'probaway':
-                        prob_away_val = float(f[k] or 0)
+            prob_home, prob_draw, prob_away = calc_probs_from_row(f)
+            if prob_home is not None:
+                logger.info('ClubElo probs: ' + home_team + ' %' + str(prob_home) + ' | Draw %' + str(prob_draw) + ' | ' + away_team + ' %' + str(prob_away))
                 return {
-                    'home_elo': round(home_elo_val),
-                    'away_elo': round(away_elo_val),
-                    'prob_home': round(prob_home_val * 100, 1),
-                    'prob_draw': round(prob_draw_val * 100, 1),
-                    'prob_away': round(prob_away_val * 100, 1),
+                    'prob_home': prob_home,
+                    'prob_draw': prob_draw,
+                    'prob_away': prob_away,
                 }
-            except Exception as e:
-                logger.warning('ClubElo parse error: ' + str(e))
-                return None
     return None
 
 
 def get_elo_for_match(home_team, away_team):
+    # Önce fixtures'dan olasılıkları al
     fixtures = get_fixtures_elo()
     match_data = find_match_in_fixtures(home_team, away_team, fixtures)
-    if match_data:
-        logger.info('ClubElo fixtures found: ' + home_team + ' vs ' + away_team)
-        return match_data
 
+    # Takım Elo puanlarını ayrı çek
     home_elo = get_team_elo(home_team)
     away_elo = get_team_elo(away_team)
 
-    if not home_elo and not away_elo:
-        return None
+    result = match_data or {}
 
-    result = {}
     if home_elo:
         result['home_elo'] = home_elo['elo']
     if away_elo:
         result['away_elo'] = away_elo['elo']
 
-    if home_elo and away_elo:
+    # Elo puanları var ama olasılık yoksa hesapla
+    if home_elo and away_elo and 'prob_home' not in result:
         dr = home_elo['elo'] - away_elo['elo']
         prob_home = round(1 / (10 ** (-dr / 400) + 1) * 100, 1)
         prob_away = round(1 / (10 ** (dr / 400) + 1) * 100, 1)
@@ -114,5 +125,8 @@ def get_elo_for_match(home_team, away_team):
         result['prob_draw'] = prob_draw
         result['prob_away'] = prob_away
 
-    logger.info('ClubElo individual: ' + home_team + ' ' + str(result.get('home_elo', '?')) + ' vs ' + away_team + ' ' + str(result.get('away_elo', '?')))
-    return result if result else None
+    if result:
+        logger.info('ClubElo final: ' + home_team + ' elo=' + str(result.get('home_elo', '?')) + ' vs ' + away_team + ' elo=' + str(result.get('away_elo', '?')))
+        return result
+
+    return None
