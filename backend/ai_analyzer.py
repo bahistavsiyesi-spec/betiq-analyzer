@@ -26,7 +26,7 @@ def detect_match_importance(league):
 def build_prompt(home_team, away_team, league, match_time,
                  home_form, away_form, home_goals_avg, away_goals_avg,
                  home_conceded_avg, away_conceded_avg, h2h_summary,
-                 home_home_avg=None, away_away_avg=None):
+                 home_home_avg=None, away_away_avg=None, elo_data=None):
 
     h2h_text = ''
     if h2h_summary:
@@ -48,6 +48,27 @@ Gercek Istatistikler (son 5 mac):
 - {home_team} form: {home_form if home_form else 'Bilinmiyor'}
 - {away_team} form: {away_form if away_form else 'Bilinmiyor'}"""
 
+    elo_text = ''
+    if elo_data:
+        home_elo = elo_data.get('home_elo')
+        away_elo = elo_data.get('away_elo')
+        prob_home = elo_data.get('prob_home')
+        prob_draw = elo_data.get('prob_draw')
+        prob_away = elo_data.get('prob_away')
+
+        if home_elo and away_elo:
+            elo_diff = home_elo - away_elo
+            elo_text = f"""
+ClubElo Guc Analizi (Matematiksel):
+- {home_team} Elo puani: {home_elo}
+- {away_team} Elo puani: {away_elo}
+- Elo farki: {elo_diff:+d} ({home_team} {'daha guclu' if elo_diff > 0 else 'daha zayif'})"""
+
+        if prob_home and prob_draw and prob_away:
+            elo_text += f"""
+- Matematiksel 1X2 olasiliklari: {home_team} %{prob_home} | Beraberlik %{prob_draw} | {away_team} %{prob_away}
+- NOT: Bu olasiliklar Elo sistemine gore hesaplanmis bilimsel degerlerdir, analizinde mutlaka dikkate al"""
+
     match_importance = detect_match_importance(league)
 
     return f"""Asagidaki futbol macini analiz et ve SADECE JSON formatinda yanit ver:
@@ -58,11 +79,12 @@ Tarih: {match_time}
 Mac Tipi: {match_importance}
 {stats_text}
 {h2h_text}
+{elo_text}
 
 Analiz yaparken su faktorleri goz onunde bulundur:
 1. Ev sahibi avantaji: {home_team} kendi sahasinda oynadigi icin psikolojik ve fiziksel avantaja sahip
 2. Mac onemi: {match_importance}
-3. Motivasyon: Kendi bilginle {home_team} ve {away_team} takimlarinin mevcut sezondaki durumunu degerlendir
+3. ClubElo matematiksel olasiliklari varsa bunlari temel referans olarak kullan
 4. Yukaridaki GERCEK istatistikleri kullan, yoksa kendi bilginle tahmin et
 5. Tum yanitlar TURKCE olacak
 
@@ -193,7 +215,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_form='', away_form='',
                         home_goals_avg=0, away_goals_avg=0,
                         home_conceded_avg=0, away_conceded_avg=0,
-                        h2h_summary=None):
+                        h2h_summary=None, elo_data=None):
 
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
@@ -227,7 +249,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         home_goals_avg, away_goals_avg,
         home_conceded_avg, away_conceded_avg,
         h2h_summary,
-        home_home_avg, away_away_avg
+        home_home_avg, away_away_avg,
+        elo_data
     )
 
     result = None
