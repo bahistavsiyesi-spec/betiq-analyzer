@@ -1,395 +1,349 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BetIQ — Geçmiş Analizler</title>
-    <link rel="stylesheet" href="/static/css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        .gecmis-container { max-width: 900px; margin: 0 auto; padding: 20px; }
-        .date-selector { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
-        .date-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid #333; background: #1a1a2e; color: #aaa; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.2s; }
-        .date-btn:hover { border-color: #7c3aed; color: #fff; }
-        .date-btn.active { background: #7c3aed; border-color: #7c3aed; color: #fff; }
-        .summary-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; padding: 16px; background: #1a1a2e; border-radius: 12px; border: 1px solid #333; }
-        .summary-item { text-align: center; }
-        .summary-item .s-value { font-size: 22px; font-weight: 800; color: #7c3aed; }
-        .summary-item .s-label { font-size: 11px; color: #666; margin-top: 2px; }
-        .result-card { background: #12121f; border: 1px solid #2a2a3e; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
-        .result-card.correct { border-left: 3px solid #22c55e; }
-        .result-card.wrong { border-left: 3px solid #ef4444; }
-        .result-card.pending { border-left: 3px solid #f59e0b; }
-        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
-        .result-teams { font-size: 16px; font-weight: 700; color: #fff; }
-        .result-score { font-size: 20px; font-weight: 800; color: #7c3aed; }
-        .result-score.pending-score { color: #f59e0b; font-size: 14px; }
-        .result-preds { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-        .pred-item { display: flex; align-items: center; gap: 6px; background: #1a1a2e; padding: 6px 12px; border-radius: 8px; font-size: 12px; }
-        .pred-item .tick { font-size: 14px; }
-        .pred-label { color: #888; }
-        .pred-value { color: #fff; font-weight: 600; }
-        .back-btn { display: inline-flex; align-items: center; gap: 8px; color: #7c3aed; text-decoration: none; font-weight: 600; margin-bottom: 20px; font-size: 14px; }
-        .back-btn:hover { color: #a855f7; }
-        .no-data { text-align: center; padding: 60px 20px; color: #555; }
-        .league-small { font-size: 11px; color: #666; margin-top: 2px; }
-        .score-form { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-        .score-input { width: 52px; padding: 6px 8px; border-radius: 8px; border: 1px solid #333; background: #1a1a2e; color: #fff; font-size: 16px; font-weight: 700; text-align: center; font-family: inherit; }
-        .score-input:focus { outline: none; border-color: #7c3aed; }
-        .score-sep { color: #666; font-size: 18px; font-weight: 700; }
-        .score-label-text { font-size: 11px; color: #666; margin-right: 4px; }
-        .btn-save-score { padding: 6px 14px; border-radius: 8px; border: none; background: #7c3aed; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.2s; }
-        .btn-save-score:hover { background: #a855f7; }
-        .btn-enter-score { padding: 5px 12px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #888; font-size: 11px; cursor: pointer; font-family: inherit; margin-top: 10px; transition: all 0.2s; }
-        .btn-enter-score:hover { border-color: #7c3aed; color: #7c3aed; }
-        .btn-edit-score { padding: 5px 12px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #888; font-size: 11px; cursor: pointer; font-family: inherit; margin-top: 10px; transition: all 0.2s; }
-        .btn-edit-score:hover { border-color: #f59e0b; color: #f59e0b; }
-        .save-msg { font-size: 12px; color: #22c55e; margin-left: 8px; }
-        .btn-report { padding: 10px 20px; border-radius: 10px; border: none; background: #7c3aed; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.2s; margin-bottom: 20px; }
-        .btn-report:hover { background: #a855f7; }
-        .ht-divider { width: 100%; font-size: 11px; color: #555; margin: 6px 0 2px 0; }
-    </style>
-</head>
-<body>
-    <div class="app-container">
-        <header class="app-header">
-            <div class="header-content">
-                <div class="logo">
-                    <span class="logo-icon">⚡</span>
-                    <span class="logo-text">BetIQ</span>
-                    <span class="logo-sub">ANALYZER</span>
-                </div>
-            </div>
-        </header>
-        <main class="main-content">
-            <div class="gecmis-container">
-                <a href="/" class="back-btn">← Ana Sayfa</a>
-                <h2 style="color:#fff; margin-bottom:20px;">📅 Geçmiş Analizler</h2>
+from flask import Flask, render_template, jsonify, request
+from apscheduler.schedulers.background import BackgroundScheduler
+import logging
+import os
+import threading
+from backend.football_api import get_todays_fixtures
+from backend.analyzer import run_selected_analysis
+from backend.database import init_db, get_today_matches, get_analyses_by_date, get_available_dates
 
-                <div class="date-selector" id="dateSelector">
-                    <span style="color:#666; font-size:13px;">Tarih yükleniyor...</span>
-                </div>
+app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+init_db()
 
-                <div id="summaryBar" style="display:none;" class="summary-bar">
-                    <div class="summary-item">
-                        <div class="s-value" id="totalMatches">0</div>
-                        <div class="s-label">Toplam Maç</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correct1x2">0%</div>
-                        <div class="s-label">1X2 Doğru</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correctOver25">0%</div>
-                        <div class="s-label">2.5 Üstü</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correctBtts">0%</div>
-                        <div class="s-label">KG Var</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correctHt">-</div>
-                        <div class="s-label">İY 0.5 Üst</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correctScore">0</div>
-                        <div class="s-label">Skor Doğru</div>
-                    </div>
-                </div>
+def scheduled_result_check():
+    try:
+        from backend.results_checker import check_and_send_results
+        check_and_send_results()
+    except Exception as e:
+        logger.error(f"Scheduled result check failed: {e}")
 
-                <div id="reportBtnWrapper" style="display:none;">
-                    <button class="btn-report" onclick="sendReport()">📊 Telegram'a Rapor Gönder</button>
-                    <span id="reportMsg" style="font-size:13px; margin-left:10px;"></span>
-                </div>
+scheduler = BackgroundScheduler()
+scheduler.add_job(scheduled_result_check, 'interval', minutes=30, id='result_check')
+scheduler.start()
 
-                <div id="matchesContainer">
-                    <div class="no-data">Yukarıdan bir tarih seç</div>
-                </div>
-            </div>
-        </main>
-    </div>
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-    <script>
-        let currentDate = null;
-        let currentMatches = [];
+@app.route('/gecmis')
+def gecmis():
+    return render_template('gecmis.html')
 
-        async function loadDates() {
-            const resp = await fetch('/api/dates');
-            const dates = await resp.json();
-            const selector = document.getElementById('dateSelector');
+@app.route('/api/fixtures/today')
+def api_today_fixtures():
+    fixtures = get_todays_fixtures()
+    result = []
+    for f in fixtures:
+        result.append({
+            'id': f['fixture']['id'],
+            'date': f['fixture']['date'],
+            'league': f['league']['name'],
+            'home_team': f['teams']['home']['name'],
+            'away_team': f['teams']['away']['name'],
+        })
+    return jsonify(result)
 
-            if (!dates.length) {
-                selector.innerHTML = '<span style="color:#666;">Henüz analiz yapılmadı.</span>';
-                return;
-            }
+@app.route('/api/matches/today')
+def api_today_matches():
+    matches = get_today_matches()
+    return jsonify(matches)
 
-            selector.innerHTML = dates.map(d => `
-                <button class="date-btn" onclick="loadDate('${d}')">${formatDate(d)}</button>
-            `).join('');
+@app.route('/api/matches/date/<date_str>')
+def api_matches_by_date(date_str):
+    try:
+        from backend.database import get_analyses_by_date_with_results
+        matches = get_analyses_by_date_with_results(date_str)
+        return jsonify(matches)
+    except Exception as e:
+        logger.error(f"Error fetching matches by date: {e}")
+        return jsonify([])
 
-            loadDate(dates[0]);
-        }
+@app.route('/api/dates')
+def api_available_dates():
+    dates = get_available_dates()
+    return jsonify(dates)
 
-        async function loadDate(date) {
-            currentDate = date;
-            document.querySelectorAll('.date-btn').forEach(b => {
-                b.classList.toggle('active', b.textContent === formatDate(date));
-            });
+@app.route('/api/analyze/selected', methods=['POST'])
+def api_analyze_selected():
+    data = request.get_json()
+    selected_ids = data.get('fixture_ids', [])
+    manual_matches = data.get('manual_matches', [])
+    if not selected_ids and not manual_matches:
+        return jsonify({"status": "error", "message": "Hiç maç seçilmedi!"}), 400
 
-            document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Yükleniyor...</div>';
-            document.getElementById('summaryBar').style.display = 'none';
-            document.getElementById('reportBtnWrapper').style.display = 'none';
+    def run_analysis():
+        try:
+            run_selected_analysis(selected_ids, manual_matches)
+        except Exception as e:
+            logger.error(f"Analysis error: {e}")
 
-            const resp = await fetch(`/api/matches/date/${date}`);
-            const matches = await resp.json();
-            currentMatches = matches;
+    thread = threading.Thread(target=run_analysis)
+    thread.daemon = False
+    thread.start()
+    total = len(selected_ids) + len(manual_matches)
+    return jsonify({
+        "status": "success",
+        "message": f"{total} maç analiz ediliyor...",
+        "total": total
+    })
 
-            if (!matches.length) {
-                document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Bu tarihte analiz bulunamadı.</div>';
-                return;
-            }
+@app.route('/api/telegram/send', methods=['POST'])
+def api_telegram_send():
+    try:
+        from backend.telegram_sender import send_daily_analysis
+        matches = get_today_matches()
+        if not matches:
+            return jsonify({"status": "error", "message": "Gönderilecek analiz yok"}), 400
+        send_daily_analysis(matches)
+        return jsonify({"status": "success", "message": f"{len(matches)} maç Telegram'a gönderildi!"})
+    except Exception as e:
+        logger.error(f"Telegram send error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-            renderSummary(matches);
-            renderMatches(matches);
-            document.getElementById('reportBtnWrapper').style.display = 'block';
-        }
+@app.route('/api/results/check', methods=['POST'])
+def api_check_results():
+    def check():
+        try:
+            from backend.results_checker import check_and_send_results
+            check_and_send_results()
+        except Exception as e:
+            logger.error(f"Manual result check failed: {e}")
+    thread = threading.Thread(target=check)
+    thread.daemon = False
+    thread.start()
+    return jsonify({"status": "success", "message": "Sonuçlar kontrol ediliyor..."})
 
-        function renderSummary(matches) {
-            const withResults = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
-            const withHt = withResults.filter(m => m.ht_home_score !== null && m.ht_home_score !== undefined);
-            const total = matches.length;
+@app.route('/api/results/manual', methods=['POST'])
+def api_manual_result():
+    try:
+        data = request.get_json()
+        analysis_id = data.get('analysis_id')
+        home_score = data.get('home_score')
+        away_score = data.get('away_score')
+        ht_home_score = data.get('ht_home_score')
+        ht_away_score = data.get('ht_away_score')
 
-            document.getElementById('totalMatches').textContent = total;
+        if analysis_id is None or home_score is None or away_score is None:
+            return jsonify({"status": "error", "message": "Eksik veri"}), 400
 
-            if (withResults.length > 0) {
-                const c1x2 = withResults.filter(m => m.pred_1x2_correct).length;
-                const cOver = withResults.filter(m => m.over25_correct).length;
-                const cBtts = withResults.filter(m => m.btts_correct).length;
-                const cScore = withResults.filter(m => m.score_correct).length;
-                const cHt = withHt.filter(m => m.ht_correct).length;
+        from backend.database import get_analysis_by_id, save_match_result, mark_telegram_sent
+        from backend.results_checker import send_result_to_telegram, calculate_outcomes
 
-                document.getElementById('correct1x2').textContent = `${Math.round(c1x2/withResults.length*100)}%`;
-                document.getElementById('correctOver25').textContent = `${Math.round(cOver/withResults.length*100)}%`;
-                document.getElementById('correctBtts').textContent = `${Math.round(cBtts/withResults.length*100)}%`;
-                document.getElementById('correctScore').textContent = cScore;
-                document.getElementById('correctHt').textContent = withHt.length > 0
-                    ? `${Math.round(cHt/withHt.length*100)}%`
-                    : '-';
-            } else {
-                document.getElementById('correct1x2').textContent = '-';
-                document.getElementById('correctOver25').textContent = '-';
-                document.getElementById('correctBtts').textContent = '-';
-                document.getElementById('correctScore').textContent = '-';
-                document.getElementById('correctHt').textContent = '-';
-            }
+        analysis = get_analysis_by_id(analysis_id)
+        if not analysis:
+            return jsonify({"status": "error", "message": "Analiz bulunamadı"}), 404
 
-            document.getElementById('summaryBar').style.display = 'flex';
-        }
+        # İY skoru girilmişse None yerine int yap
+        ht_hs = int(ht_home_score) if ht_home_score is not None and ht_home_score != '' else None
+        ht_as = int(ht_away_score) if ht_away_score is not None and ht_away_score != '' else None
 
-        function renderMatches(matches) {
-            const container = document.getElementById('matchesContainer');
-            container.innerHTML = matches.map(m => createCard(m)).join('');
-        }
+        outcomes = calculate_outcomes(analysis, home_score, away_score, ht_hs, ht_as)
 
-        function createCard(m) {
-            const hasResult = m.home_score !== null && m.home_score !== undefined;
-            const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
-            const cardClass = hasResult ? (m.pred_1x2_correct ? 'correct' : 'wrong') : 'pending';
+        outcomes['pred_1x2_correct'] = int(outcomes['pred_1x2_correct'])
+        outcomes['actual_over25'] = int(outcomes['actual_over25'])
+        outcomes['over25_correct'] = int(outcomes['over25_correct'])
+        outcomes['actual_btts'] = int(outcomes['actual_btts'])
+        outcomes['btts_correct'] = int(outcomes['btts_correct'])
+        outcomes['score_correct'] = int(outcomes['score_correct'])
+        outcomes['ht_correct'] = int(outcomes['ht_correct'])
 
-            const scoreHtml = hasResult
-                ? `<div>
-                    <div class="result-score">${m.home_score} - ${m.away_score}</div>
-                    ${hasHt ? `<div style="font-size:11px; color:#888; text-align:right;">İY: ${m.ht_home_score}-${m.ht_away_score}</div>` : ''}
-                   </div>`
-                : `<div class="result-score pending-score">⏳ Sonuç Bekleniyor</div>`;
+        save_match_result(
+            analysis_id=analysis_id,
+            fixture_id=analysis.get('fixture_id'),
+            home_score=home_score,
+            away_score=away_score,
+            ht_home_score=ht_hs,
+            ht_away_score=ht_as,
+            source='manual',
+            **outcomes
+        )
 
-            const pred = m.prediction_1x2 || '?';
-            const predText = { '1': '1 (Ev)', 'X': 'X (Beraberlik)', '2': '2 (Dep)' }[pred] || pred;
+        send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_hs, ht_as)
+        mark_telegram_sent(analysis_id)
 
-            const scoreFormHtml = `
-                <div style="margin-top:10px;">
-                    <button class="btn-${hasResult ? 'edit' : 'enter'}-score" onclick="toggleScoreForm(${m.id})">
-                        ${hasResult ? '✏️ Skoru Düzenle' : '✏️ Skor Gir'}
-                    </button>
-                    <div id="scoreForm-${m.id}" style="display:none; margin-top:10px;">
-                        <div style="font-size:11px; color:#888; margin-bottom:6px;">Maç Sonu Skoru</div>
-                        <div class="score-form">
-                            <input type="number" min="0" max="20" class="score-input" id="hs-${m.id}" placeholder="0" value="${hasResult ? m.home_score : ''}">
-                            <span class="score-sep">-</span>
-                            <input type="number" min="0" max="20" class="score-input" id="as-${m.id}" placeholder="0" value="${hasResult ? m.away_score : ''}">
-                        </div>
-                        <div style="font-size:11px; color:#888; margin: 8px 0 6px 0;">İlk Yarı Skoru <span style="color:#555;">(opsiyonel)</span></div>
-                        <div class="score-form">
-                            <input type="number" min="0" max="20" class="score-input" id="hths-${m.id}" placeholder="0" value="${hasHt ? m.ht_home_score : ''}">
-                            <span class="score-sep">-</span>
-                            <input type="number" min="0" max="20" class="score-input" id="htas-${m.id}" placeholder="0" value="${hasHt ? m.ht_away_score : ''}">
-                        </div>
-                        <div style="margin-top:10px;">
-                            <button class="btn-save-score" onclick="saveScore(${m.id})">💾 Kaydet</button>
-                            <span class="save-msg" id="saveMsg-${m.id}"></span>
-                        </div>
-                    </div>
-                </div>`;
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Manual result error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-            const htPredHtml = hasHt ? `
-                <div class="pred-item">
-                    <span class="tick">${m.ht_correct ? '✅' : '❌'}</span>
-                    <span class="pred-label">İY 0.5 Üst:</span>
-                    <span class="pred-value">%${Math.round(m.ht2g_pct || 0)} → İY ${m.ht_home_score}-${m.ht_away_score}</span>
-                </div>` : '';
+@app.route('/api/report/daily', methods=['POST'])
+def api_daily_report():
+    try:
+        data = request.get_json()
+        date_str = data.get('date')
+        if not date_str:
+            return jsonify({"status": "error", "message": "Tarih eksik"}), 400
 
-            const predsHtml = hasResult ? `
-                <div class="result-preds">
-                    <div class="pred-item">
-                        <span class="tick">${m.pred_1x2_correct ? '✅' : '❌'}</span>
-                        <span class="pred-label">1X2:</span>
-                        <span class="pred-value">${predText} → ${m.actual_1x2}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="tick">${m.over25_correct ? '✅' : '❌'}</span>
-                        <span class="pred-label">2.5 Gol:</span>
-                        <span class="pred-value">%${Math.round(m.over25_pct)} → ${m.actual_over25 ? 'Üstü' : 'Altı'}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="tick">${m.btts_correct ? '✅' : '❌'}</span>
-                        <span class="pred-label">KG Var:</span>
-                        <span class="pred-value">%${Math.round(m.btts_pct)} → ${m.actual_btts ? 'Var' : 'Yok'}</span>
-                    </div>
-                    ${htPredHtml}
-                    <div class="pred-item">
-                        <span class="tick">${m.score_correct ? '✅' : '❌'}</span>
-                        <span class="pred-label">Skor:</span>
-                        <span class="pred-value">${m.predicted_score || '?-?'}</span>
-                    </div>
-                </div>
-                ${scoreFormHtml}` : `
-                <div class="result-preds">
-                    <div class="pred-item">
-                        <span class="pred-label">1X2 Tahmini:</span>
-                        <span class="pred-value">${predText}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="pred-label">2.5 Gol:</span>
-                        <span class="pred-value">%${Math.round(m.over25_pct || 0)}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="pred-label">KG Var:</span>
-                        <span class="pred-value">%${Math.round(m.btts_pct || 0)}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="pred-label">İY 0.5 Üst:</span>
-                        <span class="pred-value">%${Math.round(m.ht2g_pct || 0)}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="pred-label">Tahmini Skor:</span>
-                        <span class="pred-value">${m.predicted_score || '?-?'}</span>
-                    </div>
-                </div>
-                ${scoreFormHtml}`;
+        from backend.database import get_analyses_by_date_with_results
+        from backend.telegram_sender import send_message
 
-            return `
-                <div class="result-card ${cardClass}" id="card-${m.id}">
-                    <div class="result-header">
-                        <div>
-                            <div class="result-teams">${m.home_team} vs ${m.away_team}</div>
-                            <div class="league-small">🏆 ${m.league || ''} &nbsp; 🕐 ${formatTime(m.match_time)}</div>
-                        </div>
-                        ${scoreHtml}
-                    </div>
-                    ${predsHtml}
-                </div>`;
-        }
+        matches = get_analyses_by_date_with_results(date_str)
+        if not matches:
+            return jsonify({"status": "error", "message": "Bu tarihte analiz yok"}), 404
 
-        function toggleScoreForm(id) {
-            const form = document.getElementById(`scoreForm-${id}`);
-            form.style.display = form.style.display === 'none' ? 'block' : 'none';
-        }
+        with_results = [m for m in matches if m.get('home_score') is not None]
+        total = len(matches)
+        total_results = len(with_results)
 
-        async function saveScore(analysisId) {
-            const hs = parseInt(document.getElementById(`hs-${analysisId}`).value);
-            const as_ = parseInt(document.getElementById(`as-${analysisId}`).value);
-            const hths = document.getElementById(`hths-${analysisId}`).value;
-            const htas = document.getElementById(`htas-${analysisId}`).value;
-            const msg = document.getElementById(`saveMsg-${analysisId}`);
+        if total_results > 0:
+            c1x2 = sum(1 for m in with_results if m.get('pred_1x2_correct'))
+            c_over25 = sum(1 for m in with_results if m.get('over25_correct'))
+            c_btts = sum(1 for m in with_results if m.get('btts_correct'))
+            c_score = sum(1 for m in with_results if m.get('score_correct'))
+            c_ht = sum(1 for m in with_results if m.get('ht_correct'))
 
-            if (isNaN(hs) || isNaN(as_)) {
-                msg.textContent = '❌ Maç sonu skorunu gir!';
-                msg.style.color = '#ef4444';
-                return;
-            }
+            pct_1x2 = round(c1x2 / total_results * 100)
+            pct_over25 = round(c_over25 / total_results * 100)
+            pct_btts = round(c_btts / total_results * 100)
 
-            const body = {
-                analysis_id: analysisId,
-                home_score: hs,
-                away_score: as_,
-                ht_home_score: hths !== '' ? parseInt(hths) : null,
-                ht_away_score: htas !== '' ? parseInt(htas) : null
-            };
+            with_ht = [m for m in with_results if m.get('ht_home_score') is not None]
+            ht_line = f"\n⚽ İY 0.5 Üst: <b>{c_ht}/{len(with_ht)}</b>" if with_ht else ''
 
-            try {
-                const resp = await fetch('/api/results/manual', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                const data = await resp.json();
-                if (data.status === 'success') {
-                    msg.textContent = '✅ Kaydedildi!';
-                    msg.style.color = '#22c55e';
-                    setTimeout(() => loadDate(currentDate), 1000);
-                } else {
-                    msg.textContent = '❌ Hata!';
-                    msg.style.color = '#ef4444';
+            details = ''
+            for m in with_results:
+                pred = m.get('prediction_1x2', '?')
+                tick_1x2 = '✅' if m.get('pred_1x2_correct') else '❌'
+                tick_over = '✅' if m.get('over25_correct') else '❌'
+                tick_btts = '✅' if m.get('btts_correct') else '❌'
+                tick_score = '✅' if m.get('score_correct') else '❌'
+                tick_ht = ''
+                if m.get('ht_home_score') is not None:
+                    tick_ht = f"  {'✅' if m.get('ht_correct') else '❌'} İY {m['ht_home_score']}-{m['ht_away_score']}"
+                details += f"\n⚽ <b>{m['home_team']} {m['home_score']}-{m['away_score']} {m['away_team']}</b>\n"
+                details += f"   {tick_1x2} 1X2: {pred}  {tick_over} 2.5 Gol  {tick_btts} KG Var  {tick_score} Skor{tick_ht}\n"
+
+            msg = f"""
+<b>{'─' * 28}</b>
+📊 <b>GÜNLÜK RAPOR — {date_str}</b>
+<b>{'─' * 28}</b>
+
+📋 Toplam Analiz: <b>{total}</b>
+✅ Sonuç Girilmiş: <b>{total_results}</b>
+
+<b>Başarı Oranları:</b>
+🎯 1X2: <b>{c1x2}/{total_results} (%{pct_1x2})</b>
+⚽ 2.5 Gol Üstü: <b>{c_over25}/{total_results} (%{pct_over25})</b>
+🔁 KG Var: <b>{c_btts}/{total_results} (%{pct_btts})</b>
+🏆 Skor Doğru: <b>{c_score}/{total_results}</b>{ht_line}
+{details}
+<b>{'─' * 28}</b>"""
+        else:
+            msg = f"""
+<b>{'─' * 28}</b>
+📊 <b>GÜNLÜK RAPOR — {date_str}</b>
+<b>{'─' * 28}</b>
+
+📋 Toplam Analiz: <b>{total}</b>
+⏳ Henüz sonuç girilmemiş maçlar var.
+<b>{'─' * 28}</b>"""
+
+        send_message(msg)
+        return jsonify({"status": "success"})
+
+    except Exception as e:
+        logger.error(f"Daily report error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/parse/image', methods=['POST'])
+def api_parse_image():
+    try:
+        import anthropic
+        from datetime import datetime
+
+        data = request.get_json()
+        image_data = data.get('image')
+        media_type = data.get('media_type', 'image/jpeg')
+
+        if not image_data:
+            return jsonify({"status": "error", "message": "Görsel eksik"}), 400
+
+        client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+        today = datetime.now().strftime('%Y-%m-%d')
+
+        message = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": f"""Bu görseldeki maç programını analiz et. Bugünün tarihi: {today}.
+
+Görseldeki TÜM maçları JSON formatında döndür. Her maç için:
+- home_team: ev sahibi takım adı
+- away_team: deplasman takımı adı
+- league: lig adı (görünüyorsa, yoksa "Bilinmeyen Lig")
+- time: maç saati HH:MM formatında (görünüyorsa, yoksa null)
+
+Sadece JSON array döndür, başka hiçbir şey yazma. Örnek:
+[{{"home_team": "Fenerbahçe", "away_team": "Galatasaray", "league": "Süper Lig", "time": "20:00"}}]
+
+Eğer görsel bir maç programı değilse boş array [] döndür."""
+                        }
+                    ],
                 }
-            } catch (e) {
-                msg.textContent = '❌ Hata!';
-                msg.style.color = '#ef4444';
-            }
-        }
+            ],
+        )
 
-        async function sendReport() {
-            const btn = document.querySelector('.btn-report');
-            const msgEl = document.getElementById('reportMsg');
-            btn.disabled = true;
-            btn.textContent = '⏳ Gönderiliyor...';
-            msgEl.textContent = '';
+        import json
+        raw = message.content[0].text.strip()
+        raw = raw.replace('```json', '').replace('```', '').strip()
+        parsed = json.loads(raw)
 
-            try {
-                const resp = await fetch('/api/report/daily', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date: currentDate })
-                });
-                const data = await resp.json();
-                if (data.status === 'success') {
-                    msgEl.textContent = '✅ Rapor gönderildi!';
-                    msgEl.style.color = '#22c55e';
-                } else {
-                    msgEl.textContent = '❌ Hata!';
-                    msgEl.style.color = '#ef4444';
-                }
-            } catch (e) {
-                msgEl.textContent = '❌ Hata!';
-                msgEl.style.color = '#ef4444';
-            }
+        matches = []
+        for m in parsed:
+            match_date = datetime.now()
+            if m.get('time'):
+                try:
+                    h, mi = m['time'].split(':')
+                    match_date = match_date.replace(hour=int(h), minute=int(mi), second=0)
+                except:
+                    pass
+            matches.append({
+                'home_team': m.get('home_team', ''),
+                'away_team': m.get('away_team', ''),
+                'league': m.get('league', 'Bilinmeyen Lig'),
+                'date': match_date.isoformat()
+            })
 
-            btn.disabled = false;
-            btn.textContent = '📊 Telegram\'a Rapor Gönder';
-        }
+        return jsonify({"status": "success", "matches": matches})
 
-        function formatDate(d) {
-            const [y, m, day] = d.split('-');
-            return `${day}/${m}/${y}`;
-        }
+    except Exception as e:
+        logger.error(f"Image parse error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-        function formatTime(dateStr) {
-            try {
-                const d = new Date(dateStr);
-                return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
-            } catch { return '--:--'; }
-        }
+@app.route('/api/matches/delete/<int:analysis_id>', methods=['DELETE'])
+def api_delete_match(analysis_id):
+    try:
+        from backend.database import delete_analysis
+        delete_analysis(analysis_id)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Delete error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-        loadDates();
-    </script>
-</body>
-</html>
+@app.route('/api/matches/clear', methods=['DELETE'])
+def api_clear_matches():
+    try:
+        from backend.database import delete_today_analyses
+        delete_today_analyses()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Clear error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
