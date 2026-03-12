@@ -49,36 +49,36 @@ Gerçek İstatistikler (son 5 maç):
 
     match_importance = detect_match_importance(league)
 
-    return f"""Aşağıdaki futbol maçını analiz et ve SADECE JSON formatında yanıt ver:
+    return f"""Asagidaki futbol macini analiz et ve SADECE JSON formatinda yanit ver:
 
-Maç: {home_team} vs {away_team}
+Mac: {home_team} vs {away_team}
 Lig: {league}
 Tarih: {match_time}
-Maç Tipi: {match_importance}
+Mac Tipi: {match_importance}
 {stats_text}
 {h2h_text}
 
-Analiz yaparken şu faktörleri göz önünde bulundur:
-1. Ev sahibi avantajı: {home_team} kendi sahasında oynadığı için psikolojik ve fiziksel avantaja sahip
-2. Maç önemi: {match_importance}
-3. Motivasyon: Kendi bilginle {home_team} ve {away_team} takımlarının mevcut sezondaki durumunu, küme düşme baskısını, şampiyonluk yarışını veya Avrupa kupası hedefini değerlendir
-4. Yukarıdaki GERÇEK istatistikleri kullan, yoksa kendi bilginle tahmin et
-5. Tüm yanıtlar TÜRKÇE olacak
+Analiz yaparken su faktorleri goz onunde bulundur:
+1. Ev sahibi avantaji: {home_team} kendi sahasinda oynadigi icin psikolojik ve fiziksel avantaja sahip
+2. Mac onemi: {match_importance}
+3. Motivasyon: Kendi bilginle {home_team} ve {away_team} takimlarinin mevcut sezondaki durumunu degerlendir
+4. Yukaridaki GERCEK istatistikleri kullan, yoksa kendi bilginle tahmin et
+5. Tum yanitlar TURKCE olacak
 
-SADECE şu JSON formatında yanıt ver, başka hiçbir şey yazma:
+SADECE su JSON formatinda yanit ver, baska hicbir sey yazma:
 {{
   "prediction_1x2": "1 veya X veya 2",
-  "over25_pct": <gerçekçi sayı 0-100>,
-  "ht2g_pct": <gerçekçi sayı 0-100>,
-  "btts_pct": <gerçekçi sayı 0-100>,
-  "predicted_score": "örn: 2-1",
-  "confidence": "Düşük veya Orta veya Yüksek veya Çok Yüksek",
+  "over25_pct": 55,
+  "ht2g_pct": 30,
+  "btts_pct": 45,
+  "predicted_score": "2-1",
+  "confidence": "Orta",
   "reasoning": [
-    "{home_team} hakkında istatistik ve motivasyon değerlendirmesi",
-    "{away_team} hakkında istatistik ve motivasyon değerlendirmesi",
-    "Maç önemi ve H2H bağlamı"
+    "{home_team} hakkinda degerlendirme",
+    "{away_team} hakkinda degerlendirme",
+    "Mac onemi ve H2H baglamı"
   ],
-  "h2h_summary": "H2H özeti Türkçe"
+  "h2h_summary": "H2H ozeti"
 }}"""
 
 def call_groq(prompt):
@@ -93,7 +93,7 @@ def call_groq(prompt):
             'messages': [
                 {
                     'role': 'system',
-                    'content': 'Sen profesyonel bir futbol bahis analistisin. Verilen gerçek istatistikleri kullanarak analiz yap. Tüm yanıtlar TÜRKÇE olacak. Her maç için farklı ve gerçekçi tahminler üret.'
+                    'content': 'Sen profesyonel bir futbol bahis analistisin. Verilen gercek istatistikleri kullanarak analiz yap. Tum yanitlar TURKCE olacak. Her mac icin farkli ve gercekci tahminler uret.'
                 },
                 {'role': 'user', 'content': prompt}
             ],
@@ -116,7 +116,7 @@ def call_anthropic(prompt):
         json={
             'model': 'claude-sonnet-4-20250514',
             'max_tokens': 1000,
-            'system': 'Sen profesyonel bir futbol bahis analistisin. Verilen gerçek istatistikleri kullanarak analiz yap. Tüm yanıtlar TÜRKÇE olacak. Her maç için farklı ve gerçekçi tahminler üret.',
+            'system': 'Sen profesyonel bir futbol bahis analistisin. Verilen gercek istatistikleri kullanarak analiz yap. Tum yanitlar TURKCE olacak. Her mac icin farkli ve gercekci tahminler uret.',
             'messages': [{'role': 'user', 'content': prompt}]
         },
         timeout=30
@@ -126,21 +126,22 @@ def call_anthropic(prompt):
 
 def call_gemini(prompt):
     response = requests.post(
-        f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}',
+        f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
         headers={'Content-Type': 'application/json'},
         json={
             'contents': [
                 {
                     'parts': [
                         {
-                            'text': 'Sen profesyonel bir futbol bahis analistisin. Verilen gerçek istatistikleri kullanarak analiz yap. Tüm yanıtlar TÜRKÇE olacak. Her maç için farklı ve gerçekçi tahminler üret.\n\n' + prompt
+                            'text': 'Sen profesyonel bir futbol bahis analistisin. Verilen gercek istatistikleri kullanarak analiz yap. Tum yanitlar TURKCE olacak. Her mac icin farkli ve gercekci tahminler uret. SADECE gecerli JSON dondur, baska hicbir sey yazma.\n\n' + prompt
                         }
                     ]
                 }
             ],
             'generationConfig': {
                 'maxOutputTokens': 1000,
-                'temperature': 0.7
+                'temperature': 0.7,
+                'responseMimeType': 'application/json'
             }
         },
         timeout=30
@@ -149,14 +150,19 @@ def call_gemini(prompt):
     return response.json()['candidates'][0]['content']['parts'][0]['text'].strip()
 
 def parse_result(raw_text):
+    raw_text = raw_text.strip()
     if '```json' in raw_text:
         raw_text = raw_text.split('```json')[1].split('```')[0].strip()
     elif '```' in raw_text:
         raw_text = raw_text.split('```')[1].split('```')[0].strip()
+    # JSON bloğunu bul
+    start = raw_text.find('{')
+    end = raw_text.rfind('}')
+    if start != -1 and end != -1:
+        raw_text = raw_text[start:end+1]
     return json.loads(raw_text)
 
 def merge_results(r1, r2):
-    """İki analizin ortalamasını al"""
     conf_order = ['Düşük', 'Orta', 'Yüksek', 'Çok Yüksek']
     pred = r1.get('prediction_1x2') if r1.get('prediction_1x2') == r2.get('prediction_1x2') else r1.get('prediction_1x2')
     over25 = round((float(r1.get('over25_pct', 50)) + float(r2.get('over25_pct', 50))) / 2)
@@ -221,7 +227,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     result = None
     mode = ANALYSIS_MODE
 
-    # --- CLAUDE modu ---
     if mode == 'claude':
         if ANTHROPIC_API_KEY:
             try:
@@ -238,7 +243,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             except Exception as e:
                 logger.error(f"Gemini fallback failed: {e}")
 
-    # --- GEMINI modu ---
     elif mode == 'gemini':
         if GEMINI_API_KEY:
             try:
@@ -255,7 +259,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             except Exception as e:
                 logger.error(f"Claude fallback failed: {e}")
 
-    # --- BOTH modu: Claude + Gemini ortalaması ---
     elif mode == 'both':
         r_claude = None
         r_gemini = None
@@ -279,7 +282,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         else:
             result = r_claude or r_gemini
 
-    # --- GROQ modu (eski yedek) ---
     elif mode == 'groq':
         if GROQ_API_KEY:
             try:
