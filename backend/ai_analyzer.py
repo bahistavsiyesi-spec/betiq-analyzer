@@ -68,29 +68,31 @@ def build_prompt(home_team, away_team, league, match_time,
             elo_diff = home_elo - away_elo
             guclu = home_team if elo_diff > 0 else away_team
             elo_text = (
-                '\nClubElo Guc ve Form Analizi (Matematiksel):\n' +
-                '- ' + home_team + ' Elo puani: ' + str(home_elo) + '\n' +
-                '- ' + away_team + ' Elo puani: ' + str(away_elo) + '\n' +
-                '- Elo farki: ' + ('+' if elo_diff >= 0 else '') + str(elo_diff) + ' (' + guclu + ' daha guclu)\n'
+                '\nGuc ve Form Analizi (Matematiksel):\n' +
+                '- ' + home_team + ' Guc Puani: ' + str(home_elo) + '\n' +
+                '- ' + away_team + ' Guc Puani: ' + str(away_elo) + '\n' +
+                '- Guc farki: ' + ('+' if elo_diff >= 0 else '') + str(elo_diff) + ' (' + guclu + ' daha guclu)\n'
             )
         elif home_elo:
-            elo_text = '\nClubElo Guc ve Form Analizi:\n- ' + home_team + ' Elo puani: ' + str(home_elo) + '\n'
+            elo_text = '\nGuc ve Form Analizi:\n- ' + home_team + ' Guc Puani: ' + str(home_elo) + '\n'
         elif away_elo:
-            elo_text = '\nClubElo Guc ve Form Analizi:\n- ' + away_team + ' Elo puani: ' + str(away_elo) + '\n'
+            elo_text = '\nGuc ve Form Analizi:\n- ' + away_team + ' Guc Puani: ' + str(away_elo) + '\n'
 
         if elo_text:
             if home_trend_label and home_trend_30d is not None:
                 trend_sign = '+' if home_trend_30d >= 0 else ''
-                elo_text += '- ' + home_team + ' form trendi: ' + home_trend_label + ' (son 30g: ' + trend_sign + str(home_trend_30d) + ' Elo, son 90g: ' + ('+' if (home_trend_90d or 0) >= 0 else '') + str(home_trend_90d or 0) + ' Elo)\n'
+                away_sign_90 = '+' if (home_trend_90d or 0) >= 0 else ''
+                elo_text += '- ' + home_team + ' form trendi: ' + home_trend_label + ' (son 30g: ' + trend_sign + str(home_trend_30d) + ' puan, son 90g: ' + away_sign_90 + str(home_trend_90d or 0) + ' puan)\n'
             if away_trend_label and away_trend_30d is not None:
                 trend_sign = '+' if away_trend_30d >= 0 else ''
-                elo_text += '- ' + away_team + ' form trendi: ' + away_trend_label + ' (son 30g: ' + trend_sign + str(away_trend_30d) + ' Elo, son 90g: ' + ('+' if (away_trend_90d or 0) >= 0 else '') + str(away_trend_90d or 0) + ' Elo)\n'
+                away_sign_90 = '+' if (away_trend_90d or 0) >= 0 else ''
+                elo_text += '- ' + away_team + ' form trendi: ' + away_trend_label + ' (son 30g: ' + trend_sign + str(away_trend_30d) + ' puan, son 90g: ' + away_sign_90 + str(away_trend_90d or 0) + ' puan)\n'
 
             if prob_home and prob_draw and prob_away:
                 elo_text += (
                     '- Matematiksel 1X2 olasiliklari: ' + home_team + ' %' + str(prob_home) +
                     ' | Beraberlik %' + str(prob_draw) + ' | ' + away_team + ' %' + str(prob_away) + '\n' +
-                    '- NOT: Bu olasiliklar ve form trendleri Elo sistemine gore hesaplanmis bilimsel degerlerdir, analizinde mutlaka dikkate al'
+                    '- NOT: Bu olasiliklar ve form trendleri matematiksel guc analizine gore hesaplanmis degerlerdir, analizinde mutlaka dikkate al'
                 )
 
     match_importance = detect_match_importance(league)
@@ -107,10 +109,11 @@ def build_prompt(home_team, away_team, league, match_time,
         'Analiz yaparken su faktorleri goz onunde bulundur:\n' +
         '1. Ev sahibi avantaji: ' + home_team + ' kendi sahasinda oynadigi icin psikolojik ve fiziksel avantaja sahip\n' +
         '2. Mac onemi: ' + match_importance + '\n' +
-        '3. ClubElo matematiksel olasiliklari varsa bunlari temel referans olarak kullan\n' +
+        '3. Matematiksel guc analizi varsa bunu temel referans olarak kullan\n' +
         '4. Form trendi cok onemli: Yukselende olan takim momentum avantajina sahiptir\n' +
         '5. Yukaridaki GERCEK istatistikleri kullan, yoksa kendi bilginle tahmin et\n' +
-        '6. Tum yanitlar TURKCE olacak\n\n' +
+        '6. Tum yanitlar TURKCE olacak\n' +
+        '7. Analizinde kesinlikle "Elo" kelimesini kullanma, bunun yerine "Guc Puani" kullan\n\n' +
         'Alan aciklamalari:\n' +
         '- over25_pct: Mac genelinde 2.5 gol ustu olma ihtimali (0-100)\n' +
         '- ht2g_pct: Ilk yaride EN AZ 1 gol olma ihtimali yani ilk yari 0.5 ustu (0-100)\n' +
@@ -145,7 +148,7 @@ def call_groq(prompt):
             'messages': [
                 {
                     'role': 'system',
-                    'content': 'Sen profesyonel bir futbol bahis analistisin. Tum yanitlar TURKCE olacak.'
+                    'content': 'Sen profesyonel bir futbol bahis analistisin. Tum yanitlar TURKCE olacak. Analizinde kesinlikle Elo kelimesini kullanma, bunun yerine Guc Puani kullan.'
                 },
                 {'role': 'user', 'content': prompt}
             ],
@@ -168,7 +171,7 @@ def call_anthropic(prompt):
         json={
             'model': 'claude-sonnet-4-20250514',
             'max_tokens': 1000,
-            'system': 'Sen profesyonel bir futbol bahis analistisin. Tum yanitlar TURKCE olacak.',
+            'system': 'Sen profesyonel bir futbol bahis analistisin. Tum yanitlar TURKCE olacak. Analizinde kesinlikle Elo kelimesini kullanma, bunun yerine Guc Puani kullan.',
             'messages': [{'role': 'user', 'content': prompt}]
         },
         timeout=30
@@ -186,7 +189,7 @@ def call_gemini(prompt):
                 {
                     'parts': [
                         {
-                            'text': 'Sen profesyonel bir futbol bahis analistisin. Tum yanitlar TURKCE olacak. SADECE gecerli JSON dondur, baska hicbir sey yazma.\n\n' + prompt
+                            'text': 'Sen profesyonel bir futbol bahis analistisin. Tum yanitlar TURKCE olacak. Analizinde kesinlikle Elo kelimesini kullanma, bunun yerine Guc Puani kullan. SADECE gecerli JSON dondur, baska hicbir sey yazma.\n\n' + prompt
                         }
                     ]
                 }
