@@ -26,7 +26,7 @@ def detect_match_importance(league):
 def build_prompt(home_team, away_team, league, match_time,
                  home_form, away_form, home_goals_avg, away_goals_avg,
                  home_conceded_avg, away_conceded_avg, h2h_summary,
-                 home_home_avg=None, away_away_avg=None, elo_data=None):
+                 home_home_avg=None, away_away_avg=None, elo_data=None, odds_data=None):
 
     h2h_text = ''
     if h2h_summary:
@@ -81,12 +81,12 @@ def build_prompt(home_team, away_team, league, match_time,
         if elo_text:
             if home_trend_label and home_trend_30d is not None:
                 trend_sign = '+' if home_trend_30d >= 0 else ''
-                away_sign_90 = '+' if (home_trend_90d or 0) >= 0 else ''
-                elo_text += '- ' + home_team + ' form trendi: ' + home_trend_label + ' (son 30g: ' + trend_sign + str(home_trend_30d) + ' puan, son 90g: ' + away_sign_90 + str(home_trend_90d or 0) + ' puan)\n'
+                h90_sign = '+' if (home_trend_90d or 0) >= 0 else ''
+                elo_text += '- ' + home_team + ' form trendi: ' + home_trend_label + ' (son 30g: ' + trend_sign + str(home_trend_30d) + ' puan, son 90g: ' + h90_sign + str(home_trend_90d or 0) + ' puan)\n'
             if away_trend_label and away_trend_30d is not None:
                 trend_sign = '+' if away_trend_30d >= 0 else ''
-                away_sign_90 = '+' if (away_trend_90d or 0) >= 0 else ''
-                elo_text += '- ' + away_team + ' form trendi: ' + away_trend_label + ' (son 30g: ' + trend_sign + str(away_trend_30d) + ' puan, son 90g: ' + away_sign_90 + str(away_trend_90d or 0) + ' puan)\n'
+                a90_sign = '+' if (away_trend_90d or 0) >= 0 else ''
+                elo_text += '- ' + away_team + ' form trendi: ' + away_trend_label + ' (son 30g: ' + trend_sign + str(away_trend_30d) + ' puan, son 90g: ' + a90_sign + str(away_trend_90d or 0) + ' puan)\n'
 
             if prob_home and prob_draw and prob_away:
                 elo_text += (
@@ -94,6 +94,28 @@ def build_prompt(home_team, away_team, league, match_time,
                     ' | Beraberlik %' + str(prob_draw) + ' | ' + away_team + ' %' + str(prob_away) + '\n' +
                     '- NOT: Bu olasiliklar ve form trendleri matematiksel guc analizine gore hesaplanmis degerlerdir, analizinde mutlaka dikkate al'
                 )
+
+    odds_text = ''
+    if odds_data:
+        home_odds = odds_data.get('home_odds')
+        draw_odds = odds_data.get('draw_odds')
+        away_odds = odds_data.get('away_odds')
+        bm_count = odds_data.get('bookmaker_count', 0)
+        if home_odds and away_odds:
+            # Oranlardan implicit olasılık hesapla
+            try:
+                imp_home = round(1 / home_odds * 100, 1)
+                imp_away = round(1 / away_odds * 100, 1)
+                imp_draw = round(1 / draw_odds * 100, 1) if draw_odds else None
+                odds_text = (
+                    '\nBahis Piyasasi (' + str(bm_count) + ' bahisci ortalamasi):\n' +
+                    '- ' + home_team + ' kazanir: ' + str(home_odds) + ' oran (piyasa olasiligi %' + str(imp_home) + ')\n' +
+                    ('- Beraberlik: ' + str(draw_odds) + ' oran (piyasa olasiligi %' + str(imp_draw) + ')\n' if draw_odds else '') +
+                    '- ' + away_team + ' kazanir: ' + str(away_odds) + ' oran (piyasa olasiligi %' + str(imp_away) + ')\n' +
+                    '- NOT: Dusuk oran = piyasa o sonucu daha muhtemel goruyor. Kendi analizin piyasayla cakisiyorsa guven artar, cakismiyorsa sebebini acikla'
+                )
+            except:
+                pass
 
     match_importance = detect_match_importance(league)
 
@@ -105,15 +127,17 @@ def build_prompt(home_team, away_team, league, match_time,
         'Mac Tipi: ' + match_importance + '\n' +
         stats_text + '\n' +
         h2h_text + '\n' +
-        elo_text + '\n\n' +
+        elo_text + '\n' +
+        odds_text + '\n\n' +
         'Analiz yaparken su faktorleri goz onunde bulundur:\n' +
         '1. Ev sahibi avantaji: ' + home_team + ' kendi sahasinda oynadigi icin psikolojik ve fiziksel avantaja sahip\n' +
         '2. Mac onemi: ' + match_importance + '\n' +
         '3. Matematiksel guc analizi varsa bunu temel referans olarak kullan\n' +
         '4. Form trendi cok onemli: Yukselende olan takim momentum avantajina sahiptir\n' +
-        '5. Yukaridaki GERCEK istatistikleri kullan, yoksa kendi bilginle tahmin et\n' +
-        '6. Tum yanitlar TURKCE olacak\n' +
-        '7. Analizinde kesinlikle "Elo" kelimesini kullanma, bunun yerine "Guc Puani" kullan\n\n' +
+        '5. Bahis piyasasi varsa bunu da dikkate al: piyasa genellikle dogrudur ama her zaman degil\n' +
+        '6. Yukaridaki GERCEK istatistikleri kullan, yoksa kendi bilginle tahmin et\n' +
+        '7. Tum yanitlar TURKCE olacak\n' +
+        '8. Analizinde kesinlikle "Elo" kelimesini kullanma, bunun yerine "Guc Puani" kullan\n\n' +
         'Alan aciklamalari:\n' +
         '- over25_pct: Mac genelinde 2.5 gol ustu olma ihtimali (0-100)\n' +
         '- ht2g_pct: Ilk yaride EN AZ 1 gol olma ihtimali yani ilk yari 0.5 ustu (0-100)\n' +
@@ -129,7 +153,7 @@ def build_prompt(home_team, away_team, league, match_time,
         '  "reasoning": [\n' +
         '    "' + home_team + ' hakkinda degerlendirme",\n' +
         '    "' + away_team + ' hakkinda degerlendirme",\n' +
-        '    "Mac onemi ve H2H baglami"\n' +
+        '    "Piyasa ve guc analizi baglami"\n' +
         '  ],\n' +
         '  "h2h_summary": "H2H ozeti"\n' +
         '}'
@@ -242,7 +266,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_form='', away_form='',
                         home_goals_avg=0, away_goals_avg=0,
                         home_conceded_avg=0, away_conceded_avg=0,
-                        h2h_summary=None, elo_data=None):
+                        h2h_summary=None, elo_data=None, odds_data=None):
 
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
@@ -277,7 +301,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         home_conceded_avg, away_conceded_avg,
         h2h_summary,
         home_home_avg, away_away_avg,
-        elo_data
+        elo_data,
+        odds_data
     )
 
     result = None
