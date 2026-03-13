@@ -166,7 +166,7 @@ function addManualMatch() {
         today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
         matchDate = today.toISOString();
     } else {
-        matchDate = new Date().toISOString();
+        matchDate = null;
     }
 
     manualMatches.push({ home_team: home, away_team: away, league, date: matchDate });
@@ -188,7 +188,7 @@ function renderManualList() {
     const container = document.getElementById('manualList');
     if (manualMatches.length === 0) { container.innerHTML = ''; return; }
     container.innerHTML = manualMatches.map((m, i) => {
-        const timeStr = m.date ? formatTime(m.date) : '--:--';
+        const timeStr = formatTime(m.date);
         return `
         <div class="manual-item">
             <span>⚽ ${m.home_team} vs ${m.away_team} <small>(${m.league})</small> 🕐 ${timeStr}</span>
@@ -452,11 +452,15 @@ async function clearAllMatches() {
 }
 
 function formatTime(dateStr) {
+    if (!dateStr) return 'Saat bilinmiyor';
     try {
         const d = new Date(dateStr);
-        return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+        if (isNaN(d.getTime())) return 'Saat bilinmiyor';
+        const timeStr = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+        if (timeStr === '00:00' || timeStr === '03:00') return 'Saat bilinmiyor';
+        return timeStr;
     } catch {
-        return dateStr ? dateStr.substring(11, 16) : '--:--';
+        return 'Saat bilinmiyor';
     }
 }
 
