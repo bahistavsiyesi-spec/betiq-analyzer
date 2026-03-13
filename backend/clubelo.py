@@ -2,6 +2,7 @@ import requests
 import logging
 import csv
 import io
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,91 @@ def get_team_elo(team_name):
         }
     except Exception as e:
         logger.warning('ClubElo error for ' + team_name + ': ' + str(e))
+        return None
+
+
+def get_team_elo_trend(team_name, days=90):
+    """
+    Son X günün Elo geçmişini çekip form trendi hesapla.
+    Döndürür:
+    - elo_current: güncel Elo
+    - elo_30d_ago: 30 gün önceki Elo
+    - elo_90d_ago: 90 gün önceki Elo
+    - trend_30d: son 30 günlük değişim (+/-)
+    - trend_90d: son 90 günlük değişim (+/-)
+    - trend_label: 'Yükselen', 'Düşen', 'Stabil'
+    """
+    formatted = team_name.replace(' ', '').replace('-', '')
+    try:
+        resp = requests.get(CLUBELO_BASE + '/' + formatted, timeout=10)
+        resp.raise_for_status()
+        reader = csv.DictReader(io.StringIO(resp.text))
+        rows = list(reader)
+        if not rows:
+            return None
+
+        today = datetime.now().date()
+        date_30d = today - timedelta(days=30)
+        date_90d = today - timedelta(days=90)
+
+        elo_current = None
+        elo_30d = None
+        elo_90d = None
+
+        for row in rows:
+            try:
+                row_from = datetime.strptime(row.get('From', ''), '%Y-%m-%d').date()
+                row_to_str = row.get('To', '')
+                row_to = datetime.strptime(row_to_str, '%Y-%m-%d').date() if row_to_str else today
+                elo_val = round(float(row.get('Elo', 0)))
+
+                if row_from <= today <= row_to:
+                    elo_current = elo_val
+                if row_from <= date_30d <= row_to:
+                    elo_30d = elo_val
+                if row_from <= date_90d <= row_to:
+                    elo_90d = elo_val
+            except:
+                continue
+
+        if not elo_current:
+            # En son satırı al
+            try:
+                elo_current = round(float(rows[-1].get('Elo', 0)))
+            except:
+                return None
+
+        if not elo_30d and len(rows) >= 2:
+            try:
+                elo_30d = round(float(rows[-2].get('Elo', 0)))
+            except:
+                elo_30d = elo_current
+
+        if not elo_90d:
+            elo_90d = elo_30d or elo_current
+
+        trend_30d = elo_current - elo_30d if elo_30d else 0
+        trend_90d = elo_current - elo_90d if elo_90d else 0
+
+        if trend_30d >= 15:
+            trend_label = 'Yükselen'
+        elif trend_30d <= -15:
+            trend_label = 'Düşen'
+        else:
+            trend_label = 'Stabil'
+
+        logger.info(team_name + ' Elo trend: ' + str(elo_current) + ' (30g: ' + str(trend_30d) + ', 90g: ' + str(trend_90d) + ') => ' + trend_label)
+
+        return {
+            'elo_current': elo_current,
+            'elo_30d_ago': elo_30d,
+            'elo_90d_ago': elo_90d,
+            'trend_30d': trend_30d,
+            'trend_90d': trend_90d,
+            'trend_label': trend_label,
+        }
+    except Exception as e:
+        logger.warning('ClubElo trend error for ' + team_name + ': ' + str(e))
         return None
 
 
@@ -100,13 +186,15 @@ def find_match_in_fixtures(home_team, away_team, fixtures=None):
 
 
 def get_elo_for_match(home_team, away_team):
-    # Önce fixtures'dan olasılıkları al
+    # Fixtures'dan olasılıkları al
     fixtures = get_fixtures_elo()
     match_data = find_match_in_fixtures(home_team, away_team, fixtures)
 
-    # Takım Elo puanlarını ayrı çek
+    # Takım Elo puanları ve form trendleri
     home_elo = get_team_elo(home_team)
     away_elo = get_team_elo(away_team)
+    home_trend = get_team_elo_trend(home_team)
+    away_trend = get_team_elo_trend(away_team)
 
     result = match_data or {}
 
@@ -115,7 +203,17 @@ def get_elo_for_match(home_team, away_team):
     if away_elo:
         result['away_elo'] = away_elo['elo']
 
-    # Elo puanları var ama olasılık yoksa hesapla
+    # Form trendi ekle
+    if home_trend:
+        result['home_trend_30d'] = home_trend['trend_30d']
+        result['home_trend_90d'] = home_trend['trend_90d']
+        result['home_trend_label'] = home_trend['trend_label']
+    if away_trend:
+        result['away_trend_30d'] = away_trend['trend_30d']
+        result['away_trend_90d'] = away_trend['trend_90d']
+        result['away_trend_label'] = away_trend['trend_label']
+
+    # Elo var ama olasılık yoksa hesapla
     if home_elo and away_elo and 'prob_home' not in result:
         dr = home_elo['elo'] - away_elo['elo']
         prob_home = round(1 / (10 ** (-dr / 400) + 1) * 100, 1)
@@ -126,7 +224,7 @@ def get_elo_for_match(home_team, away_team):
         result['prob_away'] = prob_away
 
     if result:
-        logger.info('ClubElo final: ' + home_team + ' elo=' + str(result.get('home_elo', '?')) + ' vs ' + away_team + ' elo=' + str(result.get('away_elo', '?')))
+        logger.info('ClubElo final: ' + home_team + ' elo=' + str(result.get('home_elo', '?')) + ' trend=' + str(result.get('home_trend_label', '?')) + ' vs ' + away_team + ' elo=' + str(result.get('away_elo', '?')) + ' trend=' + str(result.get('away_trend_label', '?')))
         return result
 
     return None
