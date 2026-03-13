@@ -110,7 +110,7 @@ def get_todays_fixtures_from_clubelo():
             fixtures.append({
                 'fixture': {
                     'id': i + 900000,
-                    'date': today_str + 'T00:00:00'
+                    'date': None  # ClubElo saat bilgisi vermiyor
                 },
                 'league': {
                     'id': 0,
@@ -132,7 +132,6 @@ def get_todays_fixtures():
     today = datetime.now().strftime('%Y%m%d')
     today_str = datetime.now().strftime('%Y-%m-%d')
 
-    # Önce RapidAPI dene
     result = _get_rapidapi('football-get-matches-by-date', {'date': today})
     if result:
         try:
@@ -162,7 +161,6 @@ def get_todays_fixtures():
         except Exception as e:
             logger.error('Error parsing RapidAPI fixtures: ' + str(e))
 
-    # RapidAPI boş veya hata verdiyse ClubElo'dan çek
     logger.info('RapidAPI empty or failed, falling back to ClubElo fixtures')
     return get_todays_fixtures_from_clubelo()
 
