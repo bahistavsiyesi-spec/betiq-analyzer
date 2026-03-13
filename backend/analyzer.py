@@ -21,7 +21,7 @@ def get_odds_for_match(home_team, away_team):
             'https://api.the-odds-api.com/v4/sports/soccer/odds',
             params={
                 'apiKey': ODDS_API_KEY,
-                'regions': 'eu',
+                'regions': 'eu,uk',
                 'markets': 'h2h',
                 'oddsFormat': 'decimal',
             },
