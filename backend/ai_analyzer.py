@@ -23,10 +23,34 @@ def detect_match_importance(league):
         return 'Hazirlik maci — motivasyon dusuk olabilir, sonuc guvenirligi az'
     return 'Lig maci — puan kaybi istemeyen iki takim'
 
+def elo_trend_to_form(trend_label, trend_30d):
+    """Elo trend verisini W/D/L form stringine dönüştür."""
+    if trend_label == 'Yükselen' or (trend_30d is not None and trend_30d >= 15):
+        return 'WWDWW'
+    elif trend_label == 'Düşen' or (trend_30d is not None and trend_30d <= -15):
+        return 'LLDLL'
+    else:
+        return 'WDWDL'
+
 def build_prompt(home_team, away_team, league, match_time,
                  home_form, away_form, home_goals_avg, away_goals_avg,
                  home_conceded_avg, away_conceded_avg, h2h_summary,
                  home_home_avg=None, away_away_avg=None, elo_data=None, odds_data=None):
+
+    # Eğer gerçek form verisi yoksa Elo trendinden türet
+    if not home_form and elo_data and elo_data.get('home_trend_label'):
+        home_form = elo_trend_to_form(
+            elo_data.get('home_trend_label'),
+            elo_data.get('home_trend_30d')
+        )
+        home_form = home_form + ' (Guc trendi baz alinarak hesaplandi)'
+
+    if not away_form and elo_data and elo_data.get('away_trend_label'):
+        away_form = elo_trend_to_form(
+            elo_data.get('away_trend_label'),
+            elo_data.get('away_trend_30d')
+        )
+        away_form = away_form + ' (Guc trendi baz alinarak hesaplandi)'
 
     h2h_text = ''
     if h2h_summary:
@@ -38,6 +62,7 @@ def build_prompt(home_team, away_team, league, match_time,
             '- Mac basi ortalama gol: ' + str(h2h_summary['avg_goals'])
         )
 
+    # Form bilgisi her zaman göster (gerçek ya da Elo'dan türetilmiş)
     stats_text = ''
     if home_goals_avg > 0 or away_goals_avg > 0:
         home_venue = '(evde ort. ' + str(home_home_avg) + ' gol atar)' if home_home_avg is not None else ''
@@ -46,6 +71,13 @@ def build_prompt(home_team, away_team, league, match_time,
             '\nGercek Istatistikler (son 5 mac):\n' +
             '- ' + home_team + ': ' + str(home_goals_avg) + ' gol atar ' + home_venue + ' / ' + str(home_conceded_avg) + ' gol yer (ortalama)\n' +
             '- ' + away_team + ': ' + str(away_goals_avg) + ' gol atar ' + away_venue + ' / ' + str(away_conceded_avg) + ' gol yer (ortalama)\n' +
+            '- ' + home_team + ' form: ' + (home_form if home_form else 'Bilinmiyor') + '\n' +
+            '- ' + away_team + ' form: ' + (away_form if away_form else 'Bilinmiyor')
+        )
+    else:
+        # Gerçek istatistik yoksa sadece formu göster
+        stats_text = (
+            '\nForm Bilgisi:\n' +
             '- ' + home_team + ' form: ' + (home_form if home_form else 'Bilinmiyor') + '\n' +
             '- ' + away_team + ' form: ' + (away_form if away_form else 'Bilinmiyor')
         )
@@ -102,7 +134,6 @@ def build_prompt(home_team, away_team, league, match_time,
         away_odds = odds_data.get('away_odds')
         bm_count = odds_data.get('bookmaker_count', 0)
         if home_odds and away_odds:
-            # Oranlardan implicit olasılık hesapla
             try:
                 imp_home = round(1 / home_odds * 100, 1)
                 imp_away = round(1 / away_odds * 100, 1)
@@ -135,7 +166,7 @@ def build_prompt(home_team, away_team, league, match_time,
         '3. Matematiksel guc analizi varsa bunu temel referans olarak kullan\n' +
         '4. Form trendi cok onemli: Yukselende olan takim momentum avantajina sahiptir\n' +
         '5. Bahis piyasasi varsa bunu da dikkate al: piyasa genellikle dogrudur ama her zaman degil\n' +
-        '6. Yukaridaki GERCEK istatistikleri kullan, yoksa kendi bilginle tahmin et\n' +
+        '6. Yukaridaki istatistikleri kullan, yoksa kendi bilginle tahmin et\n' +
         '7. Tum yanitlar TURKCE olacak\n' +
         '8. Analizinde kesinlikle "Elo" kelimesini kullanma, bunun yerine "Guc Puani" kullan\n\n' +
         'Alan aciklamalari:\n' +
