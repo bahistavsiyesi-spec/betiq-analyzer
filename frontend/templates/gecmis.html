@@ -6,6 +6,7 @@
     <title>BetIQ — Geçmiş Analizler</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         .gecmis-container { max-width: 900px; margin: 0 auto; padding: 20px; }
         .date-selector { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
@@ -37,7 +38,6 @@
         .score-input { width: 52px; padding: 6px 8px; border-radius: 8px; border: 1px solid #333; background: #1a1a2e; color: #fff; font-size: 16px; font-weight: 700; text-align: center; font-family: inherit; }
         .score-input:focus { outline: none; border-color: #7c3aed; }
         .score-sep { color: #666; font-size: 18px; font-weight: 700; }
-        .score-label-text { font-size: 11px; color: #666; margin-right: 4px; }
         .btn-save-score { padding: 6px 14px; border-radius: 8px; border: none; background: #7c3aed; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.2s; }
         .btn-save-score:hover { background: #a855f7; }
         .btn-enter-score { padding: 5px 12px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #888; font-size: 11px; cursor: pointer; font-family: inherit; margin-top: 10px; transition: all 0.2s; }
@@ -48,6 +48,104 @@
         .btn-report { padding: 10px 20px; border-radius: 10px; border: none; background: #7c3aed; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.2s; margin-bottom: 20px; }
         .btn-report:hover { background: #a855f7; }
         .ht-divider { width: 100%; font-size: 11px; color: #555; margin: 6px 0 2px 0; }
+        .btn-share { padding: 5px 12px; border-radius: 8px; border: 1px solid #7c3aed; background: transparent; color: #7c3aed; font-size: 11px; cursor: pointer; font-family: inherit; margin-top: 10px; margin-left: 8px; transition: all 0.2s; }
+        .btn-share:hover { background: #7c3aed; color: #fff; }
+
+        /* ─── Paylaşım Kartı (Instagram 1:1) ─────────────────────────── */
+        .share-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; }
+        .share-overlay.active { display: flex; }
+        .share-modal { background: #0d0d1a; border-radius: 16px; padding: 24px; max-width: 500px; width: 90%; }
+        .share-modal h3 { color: #fff; margin-bottom: 16px; font-size: 15px; }
+        .share-card-wrap { display: flex; justify-content: center; margin-bottom: 16px; }
+
+        /* Kare kart - 1:1 */
+        .share-card {
+            width: 400px;
+            height: 400px;
+            background: linear-gradient(135deg, #0d0d1a 0%, #1a0a2e 100%);
+            border-radius: 16px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-family: 'Syne', sans-serif;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #2a1a4e;
+        }
+        .share-card::before {
+            content: '';
+            position: absolute;
+            top: -60px; right: -60px;
+            width: 180px; height: 180px;
+            background: radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%);
+        }
+        .share-card-header { display: flex; justify-content: space-between; align-items: center; }
+        .share-card-logo { font-size: 13px; font-weight: 800; color: #7c3aed; letter-spacing: 1px; }
+        .share-card-league { font-size: 11px; color: #666; background: #1a1a2e; padding: 4px 10px; border-radius: 20px; }
+        .share-card-teams {
+            text-align: center;
+            padding: 8px 0;
+        }
+        .share-card-teams .teams-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .share-team-name { font-size: 18px; font-weight: 800; color: #fff; flex: 1; }
+        .share-team-name.home { text-align: right; }
+        .share-team-name.away { text-align: left; }
+        .share-vs { font-size: 13px; color: #555; font-weight: 600; flex-shrink: 0; }
+        .share-result-score {
+            font-size: 36px; font-weight: 800;
+            color: #7c3aed;
+            text-align: center;
+            margin: 4px 0;
+            letter-spacing: 2px;
+        }
+        .share-ht-score { font-size: 12px; color: #555; text-align: center; }
+        .share-card-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .share-stat {
+            background: rgba(124,58,237,0.1);
+            border: 1px solid rgba(124,58,237,0.2);
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .share-stat-tick { font-size: 16px; line-height: 1; }
+        .share-stat-info { flex: 1; }
+        .share-stat-label { font-size: 10px; color: #666; }
+        .share-stat-value { font-size: 13px; font-weight: 700; color: #fff; }
+        .share-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #2a2a3e;
+            padding-top: 10px;
+        }
+        .share-footer-pred { font-size: 11px; color: #888; }
+        .share-footer-pred span { color: #7c3aed; font-weight: 700; }
+        .share-footer-watermark { font-size: 11px; color: #444; font-weight: 600; }
+        .share-pending-badge {
+            background: rgba(245,158,11,0.15);
+            border: 1px solid rgba(245,158,11,0.3);
+            color: #f59e0b;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+        }
+        .share-modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-download { padding: 10px 20px; border-radius: 10px; border: none; background: #7c3aed; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .btn-close-share { padding: 10px 20px; border-radius: 10px; border: 1px solid #333; background: transparent; color: #aaa; font-size: 13px; cursor: pointer; font-family: inherit; }
     </style>
 </head>
 <body>
@@ -71,30 +169,12 @@
                 </div>
 
                 <div id="summaryBar" style="display:none;" class="summary-bar">
-                    <div class="summary-item">
-                        <div class="s-value" id="totalMatches">0</div>
-                        <div class="s-label">Toplam Maç</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correct1x2">0%</div>
-                        <div class="s-label">1X2 Doğru</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correctOver25">0%</div>
-                        <div class="s-label">2.5 Üstü</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correctBtts">0%</div>
-                        <div class="s-label">KG Var</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correctHt">-</div>
-                        <div class="s-label">İY 0.5 Üst</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="s-value" id="correctScore">0</div>
-                        <div class="s-label">Skor Doğru</div>
-                    </div>
+                    <div class="summary-item"><div class="s-value" id="totalMatches">0</div><div class="s-label">Toplam Maç</div></div>
+                    <div class="summary-item"><div class="s-value" id="correct1x2">0%</div><div class="s-label">1X2 Doğru</div></div>
+                    <div class="summary-item"><div class="s-value" id="correctOver25">0%</div><div class="s-label">2.5 Üstü</div></div>
+                    <div class="summary-item"><div class="s-value" id="correctBtts">0%</div><div class="s-label">KG Var</div></div>
+                    <div class="summary-item"><div class="s-value" id="correctHt">-</div><div class="s-label">İY 0.5 Üst</div></div>
+                    <div class="summary-item"><div class="s-value" id="correctScore">0</div><div class="s-label">Skor Doğru</div></div>
                 </div>
 
                 <div id="reportBtnWrapper" style="display:none;">
@@ -109,46 +189,44 @@
         </main>
     </div>
 
+    <!-- Paylaşım Overlay -->
+    <div class="share-overlay" id="shareOverlay" onclick="closeShare(event)">
+        <div class="share-modal" onclick="event.stopPropagation()">
+            <h3>📸 Instagram / X Paylaşım Kartı</h3>
+            <div class="share-card-wrap">
+                <div class="share-card" id="shareCard"></div>
+            </div>
+            <div class="share-modal-btns">
+                <button class="btn-close-share" onclick="closeShareModal()">İptal</button>
+                <button class="btn-download" onclick="downloadShareCard()">⬇️ PNG İndir</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentDate = null;
         let currentMatches = [];
+        let shareMatchData = null;
 
         async function loadDates() {
             const resp = await fetch('/api/dates');
             const dates = await resp.json();
             const selector = document.getElementById('dateSelector');
-
-            if (!dates.length) {
-                selector.innerHTML = '<span style="color:#666;">Henüz analiz yapılmadı.</span>';
-                return;
-            }
-
-            selector.innerHTML = dates.map(d => `
-                <button class="date-btn" onclick="loadDate('${d}')">${formatDate(d)}</button>
-            `).join('');
-
+            if (!dates.length) { selector.innerHTML = '<span style="color:#666;">Henüz analiz yapılmadı.</span>'; return; }
+            selector.innerHTML = dates.map(d => `<button class="date-btn" onclick="loadDate('${d}')">${formatDate(d)}</button>`).join('');
             loadDate(dates[0]);
         }
 
         async function loadDate(date) {
             currentDate = date;
-            document.querySelectorAll('.date-btn').forEach(b => {
-                b.classList.toggle('active', b.textContent === formatDate(date));
-            });
-
+            document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === formatDate(date)));
             document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Yükleniyor...</div>';
             document.getElementById('summaryBar').style.display = 'none';
             document.getElementById('reportBtnWrapper').style.display = 'none';
-
             const resp = await fetch(`/api/matches/date/${date}`);
             const matches = await resp.json();
             currentMatches = matches;
-
-            if (!matches.length) {
-                document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Bu tarihte analiz bulunamadı.</div>';
-                return;
-            }
-
+            if (!matches.length) { document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Bu tarihte analiz bulunamadı.</div>'; return; }
             renderSummary(matches);
             renderMatches(matches);
             document.getElementById('reportBtnWrapper').style.display = 'block';
@@ -157,68 +235,46 @@
         function renderSummary(matches) {
             const withResults = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
             const withHt = withResults.filter(m => m.ht_home_score !== null && m.ht_home_score !== undefined);
-            const total = matches.length;
-
-            document.getElementById('totalMatches').textContent = total;
-
+            document.getElementById('totalMatches').textContent = matches.length;
             if (withResults.length > 0) {
-                const c1x2 = withResults.filter(m => m.pred_1x2_correct).length;
-                const cOver = withResults.filter(m => m.over25_correct).length;
-                const cBtts = withResults.filter(m => m.btts_correct).length;
-                const cScore = withResults.filter(m => m.score_correct).length;
-                const cHt = withHt.filter(m => m.ht_correct).length;
-
-                document.getElementById('correct1x2').textContent = `${Math.round(c1x2/withResults.length*100)}%`;
-                document.getElementById('correctOver25').textContent = `${Math.round(cOver/withResults.length*100)}%`;
-                document.getElementById('correctBtts').textContent = `${Math.round(cBtts/withResults.length*100)}%`;
-                document.getElementById('correctScore').textContent = cScore;
-                document.getElementById('correctHt').textContent = withHt.length > 0
-                    ? `${Math.round(cHt/withHt.length*100)}%`
-                    : '-';
+                document.getElementById('correct1x2').textContent = `${Math.round(withResults.filter(m=>m.pred_1x2_correct).length/withResults.length*100)}%`;
+                document.getElementById('correctOver25').textContent = `${Math.round(withResults.filter(m=>m.over25_correct).length/withResults.length*100)}%`;
+                document.getElementById('correctBtts').textContent = `${Math.round(withResults.filter(m=>m.btts_correct).length/withResults.length*100)}%`;
+                document.getElementById('correctScore').textContent = withResults.filter(m=>m.score_correct).length;
+                document.getElementById('correctHt').textContent = withHt.length > 0 ? `${Math.round(withHt.filter(m=>m.ht_correct).length/withHt.length*100)}%` : '-';
             } else {
-                document.getElementById('correct1x2').textContent = '-';
-                document.getElementById('correctOver25').textContent = '-';
-                document.getElementById('correctBtts').textContent = '-';
-                document.getElementById('correctScore').textContent = '-';
-                document.getElementById('correctHt').textContent = '-';
+                ['correct1x2','correctOver25','correctBtts','correctScore','correctHt'].forEach(id => document.getElementById(id).textContent = '-');
             }
-
             document.getElementById('summaryBar').style.display = 'flex';
         }
 
         function renderMatches(matches) {
-            const container = document.getElementById('matchesContainer');
-            container.innerHTML = matches.map(m => createCard(m)).join('');
+            document.getElementById('matchesContainer').innerHTML = matches.map(m => createCard(m)).join('');
         }
 
         function createCard(m) {
             const hasResult = m.home_score !== null && m.home_score !== undefined;
             const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
             const cardClass = hasResult ? (m.pred_1x2_correct ? 'correct' : 'wrong') : 'pending';
-
-            const scoreHtml = hasResult
-                ? `<div>
-                    <div class="result-score">${m.home_score} - ${m.away_score}</div>
-                    ${hasHt ? `<div style="font-size:11px; color:#888; text-align:right;">İY: ${m.ht_home_score}-${m.ht_away_score}</div>` : ''}
-                   </div>`
-                : `<div class="result-score pending-score">⏳ Sonuç Bekleniyor</div>`;
-
             const pred = m.prediction_1x2 || '?';
             const predText = { '1': '1 (Ev)', 'X': 'X (Beraberlik)', '2': '2 (Dep)' }[pred] || pred;
 
+            const scoreHtml = hasResult
+                ? `<div><div class="result-score">${m.home_score} - ${m.away_score}</div>${hasHt ? `<div style="font-size:11px;color:#888;text-align:right;">İY: ${m.ht_home_score}-${m.ht_away_score}</div>` : ''}</div>`
+                : `<div class="result-score pending-score">⏳ Sonuç Bekleniyor</div>`;
+
             const scoreFormHtml = `
                 <div style="margin-top:10px;">
-                    <button class="btn-${hasResult ? 'edit' : 'enter'}-score" onclick="toggleScoreForm(${m.id})">
-                        ${hasResult ? '✏️ Skoru Düzenle' : '✏️ Skor Gir'}
-                    </button>
+                    <button class="btn-${hasResult ? 'edit' : 'enter'}-score" onclick="toggleScoreForm(${m.id})">${hasResult ? '✏️ Skoru Düzenle' : '✏️ Skor Gir'}</button>
+                    <button class="btn-share" onclick="openShare(${m.id})">📸 Paylaş</button>
                     <div id="scoreForm-${m.id}" style="display:none; margin-top:10px;">
-                        <div style="font-size:11px; color:#888; margin-bottom:6px;">Maç Sonu Skoru</div>
+                        <div style="font-size:11px;color:#888;margin-bottom:6px;">Maç Sonu Skoru</div>
                         <div class="score-form">
                             <input type="number" min="0" max="20" class="score-input" id="hs-${m.id}" placeholder="0" value="${hasResult ? m.home_score : ''}">
                             <span class="score-sep">-</span>
                             <input type="number" min="0" max="20" class="score-input" id="as-${m.id}" placeholder="0" value="${hasResult ? m.away_score : ''}">
                         </div>
-                        <div style="font-size:11px; color:#888; margin: 8px 0 6px 0;">İlk Yarı Skoru <span style="color:#555;">(opsiyonel)</span></div>
+                        <div style="font-size:11px;color:#888;margin:8px 0 6px 0;">İlk Yarı Skoru <span style="color:#555;">(opsiyonel)</span></div>
                         <div class="score-form">
                             <input type="number" min="0" max="20" class="score-input" id="hths-${m.id}" placeholder="0" value="${hasHt ? m.ht_home_score : ''}">
                             <span class="score-sep">-</span>
@@ -240,59 +296,26 @@
 
             const predsHtml = hasResult ? `
                 <div class="result-preds">
-                    <div class="pred-item">
-                        <span class="tick">${m.pred_1x2_correct ? '✅' : '❌'}</span>
-                        <span class="pred-label">1X2:</span>
-                        <span class="pred-value">${predText} → ${m.actual_1x2}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="tick">${m.over25_correct ? '✅' : '❌'}</span>
-                        <span class="pred-label">2.5 Gol:</span>
-                        <span class="pred-value">%${Math.round(m.over25_pct)} → ${m.actual_over25 ? 'Üstü' : 'Altı'}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="tick">${m.btts_correct ? '✅' : '❌'}</span>
-                        <span class="pred-label">KG Var:</span>
-                        <span class="pred-value">%${Math.round(m.btts_pct)} → ${m.actual_btts ? 'Var' : 'Yok'}</span>
-                    </div>
+                    <div class="pred-item"><span class="tick">${m.pred_1x2_correct?'✅':'❌'}</span><span class="pred-label">1X2:</span><span class="pred-value">${predText} → ${m.actual_1x2}</span></div>
+                    <div class="pred-item"><span class="tick">${m.over25_correct?'✅':'❌'}</span><span class="pred-label">2.5 Gol:</span><span class="pred-value">%${Math.round(m.over25_pct)} → ${m.actual_over25?'Üstü':'Altı'}</span></div>
+                    <div class="pred-item"><span class="tick">${m.btts_correct?'✅':'❌'}</span><span class="pred-label">KG Var:</span><span class="pred-value">%${Math.round(m.btts_pct)} → ${m.actual_btts?'Var':'Yok'}</span></div>
                     ${htPredHtml}
-                    <div class="pred-item">
-                        <span class="tick">${m.score_correct ? '✅' : '❌'}</span>
-                        <span class="pred-label">Skor:</span>
-                        <span class="pred-value">${m.predicted_score || '?-?'}</span>
-                    </div>
-                </div>
-                ${scoreFormHtml}` : `
+                    <div class="pred-item"><span class="tick">${m.score_correct?'✅':'❌'}</span><span class="pred-label">Skor:</span><span class="pred-value">${m.predicted_score||'?-?'}</span></div>
+                </div>${scoreFormHtml}` : `
                 <div class="result-preds">
-                    <div class="pred-item">
-                        <span class="pred-label">1X2 Tahmini:</span>
-                        <span class="pred-value">${predText}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="pred-label">2.5 Gol:</span>
-                        <span class="pred-value">%${Math.round(m.over25_pct || 0)}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="pred-label">KG Var:</span>
-                        <span class="pred-value">%${Math.round(m.btts_pct || 0)}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="pred-label">İY 0.5 Üst:</span>
-                        <span class="pred-value">%${Math.round(m.ht2g_pct || 0)}</span>
-                    </div>
-                    <div class="pred-item">
-                        <span class="pred-label">Tahmini Skor:</span>
-                        <span class="pred-value">${m.predicted_score || '?-?'}</span>
-                    </div>
-                </div>
-                ${scoreFormHtml}`;
+                    <div class="pred-item"><span class="pred-label">1X2:</span><span class="pred-value">${predText}</span></div>
+                    <div class="pred-item"><span class="pred-label">2.5 Gol:</span><span class="pred-value">%${Math.round(m.over25_pct||0)}</span></div>
+                    <div class="pred-item"><span class="pred-label">KG Var:</span><span class="pred-value">%${Math.round(m.btts_pct||0)}</span></div>
+                    <div class="pred-item"><span class="pred-label">İY 0.5 Üst:</span><span class="pred-value">%${Math.round(m.ht2g_pct||0)}</span></div>
+                    <div class="pred-item"><span class="pred-label">Tahmini Skor:</span><span class="pred-value">${m.predicted_score||'?-?'}</span></div>
+                </div>${scoreFormHtml}`;
 
             return `
                 <div class="result-card ${cardClass}" id="card-${m.id}">
                     <div class="result-header">
                         <div>
                             <div class="result-teams">${m.home_team} vs ${m.away_team}</div>
-                            <div class="league-small">🏆 ${m.league || ''} &nbsp; 🕐 ${formatTime(m.match_time)}</div>
+                            <div class="league-small">🏆 ${m.league||''} &nbsp; 🕐 ${formatTime(m.match_time)}</div>
                         </div>
                         ${scoreHtml}
                     </div>
@@ -300,6 +323,138 @@
                 </div>`;
         }
 
+        // ─── Paylaşım Kartı ────────────────────────────────────────────
+        function openShare(matchId) {
+            const m = currentMatches.find(x => x.id === matchId);
+            if (!m) return;
+            shareMatchData = m;
+            buildShareCard(m);
+            document.getElementById('shareOverlay').classList.add('active');
+        }
+
+        function buildShareCard(m) {
+            const hasResult = m.home_score !== null && m.home_score !== undefined;
+            const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
+            const pred = m.prediction_1x2 || '?';
+            const predText = { '1': '1 (Ev)', 'X': 'Beraberlik', '2': '2 (Dep)' }[pred] || pred;
+
+            const stats = hasResult ? `
+                <div class="share-card-stats">
+                    <div class="share-stat">
+                        <span class="share-stat-tick">${m.pred_1x2_correct ? '✅' : '❌'}</span>
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">1X2 TAHMİN</div>
+                            <div class="share-stat-value">${predText} → ${m.actual_1x2 || '?'}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <span class="share-stat-tick">${m.over25_correct ? '✅' : '❌'}</span>
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">2.5 GOL ÜSTÜ</div>
+                            <div class="share-stat-value">%${Math.round(m.over25_pct||0)} → ${m.actual_over25 ? 'Üstü' : 'Altı'}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <span class="share-stat-tick">${m.btts_correct ? '✅' : '❌'}</span>
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">KG VAR (BTTS)</div>
+                            <div class="share-stat-value">%${Math.round(m.btts_pct||0)} → ${m.actual_btts ? 'Var' : 'Yok'}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <span class="share-stat-tick">${m.score_correct ? '✅' : '❌'}</span>
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">TAHMİNİ SKOR</div>
+                            <div class="share-stat-value">${m.predicted_score || '?-?'}</div>
+                        </div>
+                    </div>
+                </div>` : `
+                <div class="share-pending-badge">⏳ Sonuç Henüz Girilmedi</div>
+                <div class="share-card-stats" style="margin-top:8px;">
+                    <div class="share-stat">
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">1X2 TAHMİN</div>
+                            <div class="share-stat-value">${predText}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">2.5 GOL</div>
+                            <div class="share-stat-value">%${Math.round(m.over25_pct||0)}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">KG VAR</div>
+                            <div class="share-stat-value">%${Math.round(m.btts_pct||0)}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">TAHMİNİ SKOR</div>
+                            <div class="share-stat-value">${m.predicted_score || '?-?'}</div>
+                        </div>
+                    </div>
+                </div>`;
+
+            document.getElementById('shareCard').innerHTML = `
+                <div class="share-card-header">
+                    <div class="share-card-logo">⚡ BetIQ</div>
+                    <div class="share-card-league">${m.league || 'Lig'}</div>
+                </div>
+                <div class="share-card-teams">
+                    <div class="teams-row">
+                        <div class="share-team-name home">${m.home_team}</div>
+                        <div class="share-vs">VS</div>
+                        <div class="share-team-name away">${m.away_team}</div>
+                    </div>
+                    ${hasResult ? `
+                        <div class="share-result-score">${m.home_score} — ${m.away_score}</div>
+                        ${hasHt ? `<div class="share-ht-score">İY: ${m.ht_home_score}-${m.ht_away_score}</div>` : ''}
+                    ` : ''}
+                </div>
+                ${stats}
+                <div class="share-card-footer">
+                    <div class="share-footer-pred">Tahmin: <span>${predText}</span> &nbsp;|&nbsp; Güven: <span>${m.confidence || 'Orta'}</span></div>
+                    <div class="share-footer-watermark">betiq-analyzer.onrender.com</div>
+                </div>`;
+        }
+
+        function closeShare(e) {
+            if (e.target === document.getElementById('shareOverlay')) closeShareModal();
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareOverlay').classList.remove('active');
+        }
+
+        async function downloadShareCard() {
+            const card = document.getElementById('shareCard');
+            const btn = document.querySelector('.btn-download');
+            btn.textContent = '⏳ Hazırlanıyor...';
+            btn.disabled = true;
+
+            try {
+                const canvas = await html2canvas(card, {
+                    scale: 2,
+                    backgroundColor: null,
+                    useCORS: true,
+                    logging: false,
+                });
+                const link = document.createElement('a');
+                const name = shareMatchData ? `${shareMatchData.home_team}_vs_${shareMatchData.away_team}.png`.replace(/\s+/g, '_') : 'betiq_kart.png';
+                link.download = name;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch(e) {
+                alert('PNG oluşturulamadı: ' + e.message);
+            }
+
+            btn.textContent = '⬇️ PNG İndir';
+            btn.disabled = false;
+        }
+
+        // ─── Diğer fonksiyonlar ────────────────────────────────────────
         function toggleScoreForm(id) {
             const form = document.getElementById(`scoreForm-${id}`);
             form.style.display = form.style.display === 'none' ? 'block' : 'none';
@@ -311,83 +466,33 @@
             const hths = document.getElementById(`hths-${analysisId}`).value;
             const htas = document.getElementById(`htas-${analysisId}`).value;
             const msg = document.getElementById(`saveMsg-${analysisId}`);
-
-            if (isNaN(hs) || isNaN(as_)) {
-                msg.textContent = '❌ Maç sonu skorunu gir!';
-                msg.style.color = '#ef4444';
-                return;
-            }
-
-            const body = {
-                analysis_id: analysisId,
-                home_score: hs,
-                away_score: as_,
-                ht_home_score: hths !== '' ? parseInt(hths) : null,
-                ht_away_score: htas !== '' ? parseInt(htas) : null
-            };
-
+            if (isNaN(hs) || isNaN(as_)) { msg.textContent = '❌ Maç sonu skorunu gir!'; msg.style.color = '#ef4444'; return; }
             try {
                 const resp = await fetch('/api/results/manual', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ analysis_id: analysisId, home_score: hs, away_score: as_, ht_home_score: hths !== '' ? parseInt(hths) : null, ht_away_score: htas !== '' ? parseInt(htas) : null })
                 });
                 const data = await resp.json();
-                if (data.status === 'success') {
-                    msg.textContent = '✅ Kaydedildi!';
-                    msg.style.color = '#22c55e';
-                    setTimeout(() => loadDate(currentDate), 1000);
-                } else {
-                    msg.textContent = '❌ Hata!';
-                    msg.style.color = '#ef4444';
-                }
-            } catch (e) {
-                msg.textContent = '❌ Hata!';
-                msg.style.color = '#ef4444';
-            }
+                if (data.status === 'success') { msg.textContent = '✅ Kaydedildi!'; msg.style.color = '#22c55e'; setTimeout(() => loadDate(currentDate), 1000); }
+                else { msg.textContent = '❌ Hata!'; msg.style.color = '#ef4444'; }
+            } catch (e) { msg.textContent = '❌ Hata!'; msg.style.color = '#ef4444'; }
         }
 
         async function sendReport() {
             const btn = document.querySelector('.btn-report');
             const msgEl = document.getElementById('reportMsg');
-            btn.disabled = true;
-            btn.textContent = '⏳ Gönderiliyor...';
-            msgEl.textContent = '';
-
+            btn.disabled = true; btn.textContent = '⏳ Gönderiliyor...'; msgEl.textContent = '';
             try {
-                const resp = await fetch('/api/report/daily', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date: currentDate })
-                });
+                const resp = await fetch('/api/report/daily', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: currentDate }) });
                 const data = await resp.json();
-                if (data.status === 'success') {
-                    msgEl.textContent = '✅ Rapor gönderildi!';
-                    msgEl.style.color = '#22c55e';
-                } else {
-                    msgEl.textContent = '❌ Hata!';
-                    msgEl.style.color = '#ef4444';
-                }
-            } catch (e) {
-                msgEl.textContent = '❌ Hata!';
-                msgEl.style.color = '#ef4444';
-            }
-
-            btn.disabled = false;
-            btn.textContent = '📊 Telegram\'a Rapor Gönder';
+                if (data.status === 'success') { msgEl.textContent = '✅ Rapor gönderildi!'; msgEl.style.color = '#22c55e'; }
+                else { msgEl.textContent = '❌ Hata!'; msgEl.style.color = '#ef4444'; }
+            } catch (e) { msgEl.textContent = '❌ Hata!'; msgEl.style.color = '#ef4444'; }
+            btn.disabled = false; btn.textContent = '📊 Telegram\'a Rapor Gönder';
         }
 
-        function formatDate(d) {
-            const [y, m, day] = d.split('-');
-            return `${day}/${m}/${y}`;
-        }
-
-        function formatTime(dateStr) {
-            try {
-                const d = new Date(dateStr);
-                return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
-            } catch { return '--:--'; }
-        }
+        function formatDate(d) { const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
+        function formatTime(dateStr) { try { const d = new Date(dateStr); return d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Istanbul'}); } catch { return '--:--'; } }
 
         loadDates();
     </script>
