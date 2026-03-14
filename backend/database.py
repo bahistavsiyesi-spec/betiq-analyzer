@@ -298,6 +298,22 @@ def clear_today_analyses():
     cur.close()
     conn.close()
 
+def delete_analyses_by_fixture_ids(fixture_ids: list):
+    """Sadece belirtilen fixture_id'lere ait analizleri sil, diğerlerine dokunma."""
+    if not fixture_ids:
+        return
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('''
+        DELETE FROM match_results WHERE analysis_id IN (
+            SELECT id FROM analyses WHERE fixture_id = ANY(%s)
+        )
+    ''', (fixture_ids,))
+    cur.execute('DELETE FROM analyses WHERE fixture_id = ANY(%s)', (fixture_ids,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
 def delete_analysis(analysis_id):
     conn = get_conn()
     cur = conn.cursor()
