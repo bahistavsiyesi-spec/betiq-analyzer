@@ -19,8 +19,16 @@ def scheduled_result_check():
     except Exception as e:
         logger.error(f"Scheduled result check failed: {e}")
 
+def midnight_reset():
+    """Gece 00:01'de çalışır — sadece log atar, DB zaten tarihe göre filtreler."""
+    try:
+        logger.info("Gece sıfırlama tamamlandı. Yeni gün başladı.")
+    except Exception as e:
+        logger.error(f"Midnight reset failed: {e}")
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(scheduled_result_check, 'interval', minutes=30, id='result_check')
+scheduler.add_job(midnight_reset, 'cron', hour=0, minute=1, id='midnight_reset')
 scheduler.start()
 
 @app.route('/')
@@ -135,7 +143,6 @@ def api_manual_result():
         if not analysis:
             return jsonify({"status": "error", "message": "Analiz bulunamadı"}), 404
 
-        # İY skoru girilmişse None yerine int yap
         ht_hs = int(ht_home_score) if ht_home_score is not None and ht_home_score != '' else None
         ht_as = int(ht_away_score) if ht_away_score is not None and ht_away_score != '' else None
 
