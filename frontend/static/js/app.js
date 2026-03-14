@@ -33,7 +33,7 @@ async function loadFixtures() {
                     <div class="fixture-check" id="check-${f.id}">☐</div>
                     <div class="fixture-info">
                         <span class="fixture-teams">${f.home_team} vs ${f.away_team}</span>
-                        <span class="fixture-time">${time}</span>
+                        ${time ? `<span class="fixture-time">${time}</span>` : ''}
                     </div>
                 </div>`;
             });
@@ -191,7 +191,7 @@ function renderManualList() {
         const timeStr = formatTime(m.date);
         return `
         <div class="manual-item">
-            <span>⚽ ${m.home_team} vs ${m.away_team} <small>(${m.league})</small> 🕐 ${timeStr}</span>
+            <span>⚽ ${m.home_team} vs ${m.away_team} <small>(${m.league})</small>${timeStr ? ' 🕐 ' + timeStr : ''}</span>
             <button onclick="removeManual(${i})" class="btn-remove">✕</button>
         </div>`;
     }).join('');
@@ -366,6 +366,8 @@ function createMatchCard(match) {
     let reasoning = [];
     try { reasoning = JSON.parse(match.reasoning || '[]'); } catch (e) {}
 
+    const timeStr = formatTime(match.match_time);
+
     return `
         <div class="match-card" id="matchcard-${match.id}">
             <div style="display:flex; justify-content:flex-end; margin-bottom:4px;">
@@ -373,7 +375,7 @@ function createMatchCard(match) {
             </div>
             <div class="match-header">
                 <span class="league-badge">⚽ ${match.league || 'Bilinmeyen Lig'}</span>
-                <span class="match-time">${formatTime(match.match_time)}</span>
+                ${timeStr ? `<span class="match-time">${timeStr}</span>` : ''}
             </div>
             <div class="teams">
                 <div class="team home-team">
@@ -452,15 +454,15 @@ async function clearAllMatches() {
 }
 
 function formatTime(dateStr) {
-    if (!dateStr) return 'Saat bilinmiyor';
+    if (!dateStr) return '';
     try {
         const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return 'Saat bilinmiyor';
+        if (isNaN(d.getTime())) return '';
         const timeStr = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
-        if (timeStr === '00:00' || timeStr === '03:00') return 'Saat bilinmiyor';
+        if (timeStr === '00:00' || timeStr === '03:00') return '';
         return timeStr;
     } catch {
-        return 'Saat bilinmiyor';
+        return '';
     }
 }
 
