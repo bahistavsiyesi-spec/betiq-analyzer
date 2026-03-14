@@ -23,8 +23,8 @@ OPENLIGA_LEAGUES = {
 
 # Alman lig takımları → OpenLigaDB ID eşleştirmesi
 OPENLIGA_TEAM_IDS = {
-    # Bundesliga
-    'fc bayern': 40, 'bayern munich': 40, 'bayern münchen': 40, 'bayernmunich': 40,
+    # Bundesliga (Level 1)
+    'fc bayern': 40, 'bayern munich': 40, 'bayern': 40,
     'borussia dortmund': 7, 'dortmund': 7,
     'bayer leverkusen': 9, 'leverkusen': 9,
     'rb leipzig': 54, 'leipzig': 54,
@@ -34,59 +34,98 @@ OPENLIGA_TEAM_IDS = {
     'tsg hoffenheim': 3, 'hoffenheim': 3,
     'werder bremen': 86, 'bremen': 86,
     'vfl wolfsburg': 24, 'wolfsburg': 24,
-    'borussia mönchengladbach': 87, 'gladbach': 87, 'monchengladbach': 87,
+    'borussia monchengladbach': 87, 'gladbach': 87,
     'fc augsburg': 167, 'augsburg': 167,
-    'union berlin': 80, '1. fc union berlin': 80,
+    'union berlin': 80,
     'vfl bochum': 44, 'bochum': 44,
     'fsv mainz': 6, 'mainz': 6,
-    'fc st. pauli': 65, 'st pauli': 65, 'st. pauli': 65,
+    'fc st pauli': 65, 'st pauli': 65,
     'holstein kiel': 14, 'kiel': 14,
-    # 2. Bundesliga
+    'heidenheim': 150,
+    # 2. Bundesliga (Level 2)
     'hamburger sv': 100, 'hamburg': 100, 'hsv': 100,
     'hannover 96': 55, 'hannover': 55,
     'karlsruher sc': 8, 'karlsruhe': 8,
     'fc schalke': 5, 'schalke': 5,
     'sv darmstadt': 127, 'darmstadt': 127,
-    '1. fc köln': 27, 'köln': 27, 'koln': 27, 'cologne': 27,
+    'fc koln': 27, 'koln': 27, 'cologne': 27,
     'hertha bsc': 28, 'hertha': 28,
-    'fortuna düsseldorf': 74, 'düsseldorf': 74, 'dusseldorf': 74,
-    'fc nürnberg': 4, 'nürnberg': 4, 'nurnberg': 4,
-    'greuther fürth': 79, 'fürth': 79, 'furth': 79,
-    'vfl osnabrück': 120, 'osnabrück': 120,
+    'fortuna dusseldorf': 74, 'dusseldorf': 74,
+    'fc nurnberg': 4, 'nurnberg': 4,
+    'greuther furth': 79, 'furth': 79,
+    'vfl osnabruck': 120, 'osnabruck': 120,
     'eintracht braunschweig': 97, 'braunschweig': 97,
     'ssv ulm': 158, 'ulm': 158,
-    'preußen münster': 21, 'münster': 21,
+    'preussen munster': 21, 'munster': 21,
+    'paderborn': 131,
+    'elversberg': 166,
+    'magdeburg': 43,
+    'bielefeld': 71,
+    'dresden': 68,
+    'lautern': 62, 'kaiserslautern': 62,
 }
 
-# ClubElo → OpenLigaDB isim eşleştirmesi (ClubElo bazen farklı isim kullanır)
-CLUBELO_TO_OPENLIGA = {
-    'Bayern Munich': 'fc bayern',
-    'Dortmund': 'borussia dortmund',
-    'Leverkusen': 'bayer leverkusen',
-    'Leipzig': 'rb leipzig',
-    'Frankfurt': 'eintracht frankfurt',
-    'Stuttgart': 'vfb stuttgart',
-    'Freiburg': 'sc freiburg',
-    'Hoffenheim': 'tsg hoffenheim',
-    'Bremen': 'werder bremen',
-    'Wolfsburg': 'vfl wolfsburg',
-    'Gladbach': 'borussia mönchengladbach',
-    'Augsburg': 'fc augsburg',
-    'Union Berlin': 'union berlin',
-    'Bochum': 'vfl bochum',
-    'Mainz': 'fsv mainz',
-    'St. Pauli': 'fc st. pauli',
-    'Kiel': 'holstein kiel',
-    'Hamburg': 'hamburger sv',
-    'Hannover': 'hannover 96',
-    'Karlsruhe': 'karlsruher sc',
-    'Schalke': 'fc schalke',
-    'Darmstadt': 'sv darmstadt',
-    'Koln': 'fc köln', 'Köln': 'fc köln',
-    'Hertha': 'hertha bsc',
-    'Düsseldorf': 'fortuna düsseldorf', 'Dusseldorf': 'fortuna düsseldorf',
-    'Nürnberg': 'fc nürnberg', 'Nurnberg': 'fc nürnberg',
-    'Fürth': 'greuther fürth', 'Furth': 'greuther fürth',
+# ClubElo takım isimlerini normalize et
+# ClubElo özel karakterleri ASCII'ye çevirir: ö→oe, ü→ue, ä→ae, ß→ss
+def normalize_name(name):
+    """Tüm özel karakterleri kaldır, küçük harfe çevir."""
+    name = name.lower().strip()
+    # ClubElo ASCII dönüşümleri
+    replacements = {
+        'ö': 'o', 'oe': 'o',
+        'ü': 'u', 'ue': 'u',
+        'ä': 'a', 'ae': 'a',
+        'ß': 'ss',
+        'é': 'e', 'è': 'e',
+        'ñ': 'n',
+        '.': '', '-': '', "'": '', ' ': '',
+    }
+    for old, new in replacements.items():
+        name = name.replace(old, new)
+    return name
+
+# ClubElo → OpenLigaDB ID direkt eşleştirme (normalize edilmiş isimler)
+CLUBELO_DIRECT_MAP = {
+    # Bundesliga - ClubElo bu isimleri kullanır
+    'bayern': 40,
+    'dortmund': 7,
+    'leverkusen': 9,
+    'leipzig': 54,
+    'frankfurt': 91,
+    'stuttgart': 16,
+    'freiburg': 112,
+    'hoffenheim': 3,
+    'bremen': 86,
+    'wolfsburg': 24,
+    'gladbach': 87,
+    'augsburg': 167,
+    'unionberlin': 80,
+    'bochum': 44,
+    'mainz': 6,
+    'stpauli': 65,
+    'kiel': 14,
+    'heidenheim': 150,
+    # 2. Bundesliga
+    'hamburg': 100,
+    'hannover': 55,
+    'karlsruhe': 8,
+    'schalke': 5,
+    'darmstadt': 127,
+    'koln': 27,       # ClubElo: Koeln → normalize → koln
+    'koeln': 27,      # alternatif
+    'hertha': 28,
+    'dusseldorf': 74,
+    'nurnberg': 4,
+    'furth': 79,
+    'braunschweig': 97,
+    'ulm': 158,
+    'munster': 21,
+    'paderborn': 131,
+    'elversberg': 166,
+    'magdeburg': 43,
+    'bielefeld': 71,
+    'dresden': 68,
+    'lautern': 62,
 }
 
 KNOWN_TEAM_IDS = {
@@ -137,16 +176,25 @@ KNOWN_TEAM_IDS = {
 # ─── OpenLigaDB Fonksiyonları ─────────────────────────────────────────────────
 
 def _find_openliga_team_id(team_name):
-    """Takım adından OpenLigaDB ID'sini bul."""
-    # Önce ClubElo→OpenLigaDB eşleştirme tablosuna bak
-    mapped = CLUBELO_TO_OPENLIGA.get(team_name)
-    if mapped:
-        team_name_lookup = mapped
-    else:
-        team_name_lookup = team_name.lower().strip()
+    """Takım adından OpenLigaDB ID'sini bul. Normalize ederek eşleştirir."""
+    normalized = normalize_name(team_name)
 
+    # 1. Direkt normalize eşleştirme (en güvenilir)
+    if normalized in CLUBELO_DIRECT_MAP:
+        team_id = CLUBELO_DIRECT_MAP[normalized]
+        logger.info('OpenLigaDB ID found for ' + team_name + ': ' + str(team_id))
+        return team_id
+
+    # 2. Kısmi eşleştirme
+    for key, team_id in CLUBELO_DIRECT_MAP.items():
+        if key in normalized or normalized in key:
+            logger.info('OpenLigaDB ID found for ' + team_name + ': ' + str(team_id))
+            return team_id
+
+    # 3. OPENLIGA_TEAM_IDS tablosunda da ara (normalize ederek)
     for key, team_id in OPENLIGA_TEAM_IDS.items():
-        if key in team_name_lookup or team_name_lookup in key:
+        key_norm = normalize_name(key)
+        if key_norm in normalized or normalized in key_norm:
             logger.info('OpenLigaDB ID found for ' + team_name + ': ' + str(team_id))
             return team_id
 
@@ -246,10 +294,14 @@ def get_openliga_h2h(team1_name, team2_name, last=5):
 
 def is_german_team(team_name):
     """Takımın Alman ligi takımı olup olmadığını kontrol et."""
-    mapped = CLUBELO_TO_OPENLIGA.get(team_name)
-    lookup = (mapped or team_name).lower().strip()
+    normalized = normalize_name(team_name)
+    if normalized in CLUBELO_DIRECT_MAP:
+        return True
+    for key in CLUBELO_DIRECT_MAP:
+        if key in normalized or normalized in key:
+            return True
     for key in OPENLIGA_TEAM_IDS:
-        if key in lookup or lookup in key:
+        if normalize_name(key) in normalized or normalized in normalize_name(key):
             return True
     return False
 
