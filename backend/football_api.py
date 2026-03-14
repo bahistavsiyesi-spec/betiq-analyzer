@@ -21,6 +21,43 @@ OPENLIGA_LEAGUES = {
     'bl3': {'name': '3. Liga', 'season': '2024'},
 }
 
+# ClubElo → Düzgün isim tablosu
+# ClubElo özel karakterleri ASCII'ye çevirir, biz geri düzeltiyoruz
+NAME_FIXES = {
+    # Türkiye
+    'Bueyueksehir': 'Başakşehir',
+    'Basaksehir': 'Başakşehir',
+    'Besiktas': 'Beşiktaş',
+    'Fenerbahce': 'Fenerbahçe',
+    'Kasimpasa': 'Kasımpaşa',
+    'Eyupspor': 'Eyüpspor',
+    'Goztepe': 'Göztepe',
+    'Ankaragucu': 'Ankaragücü',
+    'Keciorengucu': 'Keçiörengücü',
+    'Istanbulspor': 'İstanbulspor',
+    # Almanya
+    'Koeln': 'Köln',
+    'Nuernberg': 'Nürnberg',
+    'Fuerth': 'Fürth',
+    'Duesseldorf': 'Düsseldorf',
+    'Muenchen': 'München',
+    'Moenchengladbach': 'Mönchengladbach',
+    'Muenster': 'Münster',
+    'Saarbruecken': 'Saarbrücken',
+    'Osnabrueck': 'Osnabrück',
+    # İspanya
+    'Cadiz': 'Cádiz',
+    'Almeria': 'Almería',
+    'Malaga': 'Málaga',
+    'Leganes': 'Leganés',
+    'Cordoba': 'Córdoba',
+    # Fransa
+    'Paris SG': 'Paris Saint-Germain',
+    'Saint-Etienne': 'Saint-Étienne',
+    # Portekiz
+    'Sporting': 'Sporting CP',
+}
+
 # Alman lig takımları → OpenLigaDB ID eşleştirmesi
 OPENLIGA_TEAM_IDS = {
     # Bundesliga (Level 1)
@@ -65,12 +102,10 @@ OPENLIGA_TEAM_IDS = {
     'lautern': 62, 'kaiserslautern': 62,
 }
 
-# ClubElo takım isimlerini normalize et
-# ClubElo özel karakterleri ASCII'ye çevirir: ö→oe, ü→ue, ä→ae, ß→ss
+
 def normalize_name(name):
     """Tüm özel karakterleri kaldır, küçük harfe çevir."""
     name = name.lower().strip()
-    # ClubElo ASCII dönüşümleri
     replacements = {
         'ö': 'o', 'oe': 'o',
         'ü': 'u', 'ue': 'u',
@@ -84,9 +119,10 @@ def normalize_name(name):
         name = name.replace(old, new)
     return name
 
+
 # ClubElo → OpenLigaDB ID direkt eşleştirme (normalize edilmiş isimler)
 CLUBELO_DIRECT_MAP = {
-    # Bundesliga - ClubElo bu isimleri kullanır
+    # Bundesliga
     'bayern': 40,
     'dortmund': 7,
     'leverkusen': 9,
@@ -111,8 +147,8 @@ CLUBELO_DIRECT_MAP = {
     'karlsruhe': 8,
     'schalke': 5,
     'darmstadt': 127,
-    'koln': 65,       # ClubElo: Koeln → normalize → koln
-    'koeln': 65,      # alternatif
+    'koln': 65,
+    'koeln': 65,
     'hertha': 28,
     'dusseldorf': 74,
     'nurnberg': 4,
@@ -203,7 +239,7 @@ def _find_openliga_team_id(team_name):
 
 
 def _get_openliga_season_matches(league_short, season):
-    """OpenLigaDB'den tüm sezon maçlarını çek (cache'lenmiş gibi tek seferde)."""
+    """OpenLigaDB'den tüm sezon maçlarını çek."""
     try:
         url = OPENLIGA_BASE + '/getmatchdata/' + league_short + '/' + season
         resp = requests.get(url, timeout=15)
@@ -232,7 +268,6 @@ def get_openliga_team_last_matches(team_name, last=5):
                 t2_id = m.get('team2', {}).get('teamId')
                 if team_id not in (t1_id, t2_id):
                     continue
-                # Sadece biten maçlar
                 results_list = m.get('matchResults', [])
                 final = next((r for r in results_list if r.get('resultTypeID') == 2), None)
                 if not final:
@@ -339,6 +374,11 @@ def get_todays_fixtures():
             country = row.get('Country', '').strip()
             if not home or not away:
                 continue
+
+            # ClubElo ASCII isimlerini düzelt
+            home = NAME_FIXES.get(home, home)
+            away = NAME_FIXES.get(away, away)
+
             fixtures.append({
                 'fixture': {
                     'id': i + 900000,
@@ -376,13 +416,11 @@ def get_team_last_matches(team_name, last=5):
     Önce Alman ligi mi diye kontrol et → OpenLigaDB'den çek.
     Değilse Football-Data'dan çekmeyi dene.
     """
-    # Alman ligi kontrolü
     if is_german_team(team_name):
         matches = get_openliga_team_last_matches(team_name, last)
         if matches:
             return matches
 
-    # Football-Data fallback
     team_id = search_team(team_name)
     if not team_id:
         return []
@@ -420,13 +458,11 @@ def get_h2h(team1_name, team2_name, last=5):
     Önce Alman ligi mi diye kontrol et → OpenLigaDB'den çek.
     Değilse Football-Data'dan çekmeyi dene.
     """
-    # Alman ligi kontrolü
     if is_german_team(team1_name) or is_german_team(team2_name):
         h2h = get_openliga_h2h(team1_name, team2_name, last)
         if h2h:
             return h2h
 
-    # Football-Data fallback
     team1_id = search_team(team1_name)
     if not team1_id:
         return []
