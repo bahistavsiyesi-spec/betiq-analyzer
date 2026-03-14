@@ -140,6 +140,42 @@ SPANISH_TEAM_NORMALIZED = {
     'elche': 284, 'sportinggijon': 287, 'zaragoza': 303, 'huesca': 302,
 }
 
+# ─── İtalyan Takımları → football-data.org ID ────────────────────────────────
+ITALIAN_TEAM_NORMALIZED = {
+    # Serie A 2024-25
+    'juventus': 109, 'juve': 109,
+    'intermilan': 108, 'inter': 108, 'internazionale': 108,
+    'acmilan': 98, 'milan': 98,
+    'napoli': 113,
+    'atalanta': 102,
+    'roma': 100, 'asroma': 100,
+    'lazio': 110,
+    'fiorentina': 99,
+    'bologna': 103,
+    'torino': 586,
+    'udinese': 115,
+    'genoa': 107,
+    'cagliari': 104,
+    'lecce': 3956,
+    'verona': 450, 'helasverona': 450,
+    'parma': 112,
+    'como': 5890,
+    'venezia': 454,
+    'empoli': 445,
+    'monza': 5911,
+    # Serie B
+    'sampdoria': 574,
+    'palermo': 576,
+    'brescia': 580,
+    'cremonese': 582,
+    'catanzaro': 5921,
+    'sassuolo': 471,
+    'spezia': 3964,
+    'pisa': 3998,
+    'bari': 3956,
+    'cesena': 5924,
+}
+
 
 def _find_team_id(team_name, table):
     normalized = normalize_name(team_name)
@@ -158,6 +194,9 @@ def is_english_team(team_name):
 
 def is_spanish_team(team_name):
     return _find_team_id(team_name, SPANISH_TEAM_NORMALIZED) is not None
+
+def is_italian_team(team_name):
+    return _find_team_id(team_name, ITALIAN_TEAM_NORMALIZED) is not None
 
 
 # ─── football-data.org API ────────────────────────────────────────────────────
@@ -423,6 +462,12 @@ def get_team_last_matches(team_name, last=10):
             return _footballdata_last_matches(team_id, team_name, last)
         return []
 
+    if is_italian_team(team_name):
+        team_id = _find_team_id(team_name, ITALIAN_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_last_matches(team_id, team_name, last)
+        return []
+
     logger.info('No stats source for ' + team_name + ', using ClubElo only')
     return []
 
@@ -445,6 +490,13 @@ def get_h2h(team1_name, team2_name, last=5):
     if is_spanish_team(team1_name) or is_spanish_team(team2_name):
         team_id = _find_team_id(team1_name, SPANISH_TEAM_NORMALIZED) or \
                   _find_team_id(team2_name, SPANISH_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_h2h(team_id, team1_name, team2_name, last)
+        return []
+
+    if is_italian_team(team1_name) or is_italian_team(team2_name):
+        team_id = _find_team_id(team1_name, ITALIAN_TEAM_NORMALIZED) or \
+                  _find_team_id(team2_name, ITALIAN_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
