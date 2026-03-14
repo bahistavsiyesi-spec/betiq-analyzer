@@ -7,7 +7,7 @@ from datetime import datetime
 from backend.football_api import (
     get_todays_fixtures, get_h2h, get_team_last_matches, search_team
 )
-from backend.database import save_analysis, clear_today_analyses, log_run
+from backend.database import save_analysis, delete_analyses_by_fixture_ids, log_run
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +218,10 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
     logger.info('Starting selected analysis: ' + str(len(fixture_ids)) + ' fixtures, ' + str(len(manual_matches)) + ' manual')
 
     try:
-        clear_today_analyses()
+        # Sadece yeniden analiz edilecek fixture ID'lerini sil, diğer maçlara dokunma
+        if fixture_ids:
+            delete_analyses_by_fixture_ids(fixture_ids)
+
         analyzed = 0
 
         if fixture_ids:
@@ -244,8 +247,9 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                     logger.error('Skipping manual match with missing teams: ' + str(m))
                     continue
 
+                # Manuel maçlar için fixture_id yok, doğrudan ekle (silme yapma)
                 manual_fixture = {
-                    'fixture': {'id': int(time.time()), 'date': m.get('date', datetime.now().isoformat())},
+                    'fixture': {'id': 0, 'date': m.get('date', datetime.now().isoformat())},
                     'league': {'id': 0, 'name': m.get('league', 'Manuel Mac')},
                     'teams': {
                         'home': {'id': 0, 'name': home_team},
