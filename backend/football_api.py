@@ -48,7 +48,7 @@ OPENLIGA_TEAM_IDS = {
     'karlsruher sc': 8, 'karlsruhe': 8,
     'fc schalke': 5, 'schalke': 5,
     'sv darmstadt': 127, 'darmstadt': 127,
-    'fc koln': 27, 'koln': 27, 'cologne': 27,
+    'fc koln': 65, 'koln': 65, 'cologne': 65,
     'hertha bsc': 28, 'hertha': 28,
     'fortuna dusseldorf': 74, 'dusseldorf': 74,
     'fc nurnberg': 4, 'nurnberg': 4,
@@ -111,8 +111,8 @@ CLUBELO_DIRECT_MAP = {
     'karlsruhe': 8,
     'schalke': 5,
     'darmstadt': 127,
-    'koln': 27,       # ClubElo: Koeln → normalize → koln
-    'koeln': 27,      # alternatif
+    'koln': 65,       # ClubElo: Koeln → normalize → koln
+    'koeln': 65,      # alternatif
     'hertha': 28,
     'dusseldorf': 74,
     'nurnberg': 4,
