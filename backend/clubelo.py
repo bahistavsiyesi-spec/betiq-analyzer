@@ -8,9 +8,53 @@ logger = logging.getLogger(__name__)
 
 CLUBELO_BASE = 'http://api.clubelo.com'
 
+# Güzel isim → ClubElo API'nin beklediği ASCII isim
+# NAME_FIXES ile düzelttiğimiz isimleri geri çeviriyoruz
+CLUBELO_API_NAMES = {
+    # Türkiye
+    'Başakşehir': 'Bueyueksehir',
+    'Beşiktaş': 'Besiktas',
+    'Fenerbahçe': 'Fenerbahce',
+    'Kasımpaşa': 'Kasimpasa',
+    'Eyüpspor': 'Eyupspor',
+    'Göztepe': 'Goztepe',
+    'Ankaragücü': 'Ankaragucu',
+    'Keçiörengücü': 'Keciorengucu',
+    'İstanbulspor': 'Istanbulspor',
+    # Almanya
+    'Köln': 'Koeln',
+    'Nürnberg': 'Nuernberg',
+    'Fürth': 'Fuerth',
+    'Düsseldorf': 'Duesseldorf',
+    'Mönchengladbach': 'Moenchengladbach',
+    'Münster': 'Muenster',
+    'Saarbrücken': 'Saarbruecken',
+    'Osnabrück': 'Osnabrueck',
+    # İspanya
+    'Atlético Madrid': 'Atletico',
+    'Cádiz': 'Cadiz',
+    'Almería': 'Almeria',
+    'Málaga': 'Malaga',
+    'Leganés': 'Leganes',
+    'Córdoba': 'Cordoba',
+    # Fransa
+    'Paris Saint-Germain': 'ParisSG',
+    'Saint-Étienne': 'SaintEtienne',
+    # Portekiz
+    'Sporting CP': 'Sporting',
+}
+
+
+def _to_clubelo_name(team_name):
+    """Takım ismini ClubElo API formatına çevir."""
+    # Önce özel isim tablosuna bak
+    api_name = CLUBELO_API_NAMES.get(team_name, team_name)
+    # Boşluk ve tire kaldır
+    return api_name.replace(' ', '').replace('-', '')
+
 
 def get_team_elo(team_name):
-    formatted = team_name.replace(' ', '').replace('-', '')
+    formatted = _to_clubelo_name(team_name)
     try:
         resp = requests.get(CLUBELO_BASE + '/' + formatted, timeout=10)
         resp.raise_for_status()
@@ -40,7 +84,7 @@ def get_team_elo_trend(team_name, days=90):
     - trend_90d: son 90 günlük değişim (+/-)
     - trend_label: 'Yükselen', 'Düşen', 'Stabil'
     """
-    formatted = team_name.replace(' ', '').replace('-', '')
+    formatted = _to_clubelo_name(team_name)
     try:
         resp = requests.get(CLUBELO_BASE + '/' + formatted, timeout=10)
         resp.raise_for_status()
@@ -74,7 +118,6 @@ def get_team_elo_trend(team_name, days=90):
                 continue
 
         if not elo_current:
-            # En son satırı al
             try:
                 elo_current = round(float(rows[-1].get('Elo', 0)))
             except:
@@ -170,10 +213,18 @@ def find_match_in_fixtures(home_team, away_team, fixtures=None):
     home_lower = home_team.lower().replace(' ', '').replace('-', '')
     away_lower = away_team.lower().replace(' ', '').replace('-', '')
 
+    # Ayrıca ClubElo API adıyla da dene
+    home_api = _to_clubelo_name(home_team).lower()
+    away_api = _to_clubelo_name(away_team).lower()
+
     for f in fixtures:
         fh = f.get('Home', '').lower().replace(' ', '').replace('-', '')
         fa = f.get('Away', '').lower().replace(' ', '').replace('-', '')
-        if (home_lower in fh or fh in home_lower) and (away_lower in fa or fa in away_lower):
+        home_match = (home_lower in fh or fh in home_lower or
+                      home_api in fh or fh in home_api)
+        away_match = (away_lower in fa or fa in away_lower or
+                      away_api in fa or fa in away_api)
+        if home_match and away_match:
             prob_home, prob_draw, prob_away = calc_probs_from_row(f)
             if prob_home is not None:
                 logger.info('ClubElo probs: ' + home_team + ' %' + str(prob_home) + ' | Draw %' + str(prob_draw) + ' | ' + away_team + ' %' + str(prob_away))
@@ -203,7 +254,6 @@ def get_elo_for_match(home_team, away_team):
     if away_elo:
         result['away_elo'] = away_elo['elo']
 
-    # Form trendi ekle
     if home_trend:
         result['home_trend_30d'] = home_trend['trend_30d']
         result['home_trend_90d'] = home_trend['trend_90d']
