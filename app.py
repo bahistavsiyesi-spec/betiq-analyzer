@@ -352,13 +352,11 @@ def api_clear_matches():
         logger.error(f"Clear error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ─── Debug Endpoint — OpenLigaDB Takım ID'lerini Görmek İçin ─────────────────
+# ─── Debug Endpointler ────────────────────────────────────────────────────────
+
 @app.route('/api/debug/openliga/<league>')
 def debug_openliga(league):
-    """
-    OpenLigaDB'den gerçek takım ID'lerini çek.
-    Kullanım: /api/debug/openliga/bl1 veya /api/debug/openliga/bl2
-    """
+    """OpenLigaDB takım ID'leri. Örnek: /api/debug/openliga/bl1"""
     try:
         import requests as req
         resp = req.get(f'https://api.openligadb.de/getavailableteams/{league}/2024', timeout=10)
@@ -366,6 +364,30 @@ def debug_openliga(league):
         teams = resp.json()
         result = [{'id': t.get('teamId'), 'name': t.get('teamName'), 'short': t.get('shortName', '')} for t in teams]
         return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/debug/footballdata/<league_code>')
+def debug_footballdata(league_code):
+    """
+    football-data.org takım ID'leri.
+    Örnek: /api/debug/footballdata/ELC  → Championship
+           /api/debug/footballdata/PL   → Premier League
+           /api/debug/footballdata/PD   → La Liga
+           /api/debug/footballdata/SA   → Serie A
+           /api/debug/footballdata/BL1  → Bundesliga
+    """
+    try:
+        import requests as req
+        resp = req.get(
+            f'https://api.football-data.org/v4/competitions/{league_code}/teams',
+            headers={'X-Auth-Token': os.environ.get('FOOTBALL_DATA_KEY', '')},
+            timeout=10
+        )
+        resp.raise_for_status()
+        teams = resp.json().get('teams', [])
+        result = [{'id': t.get('id'), 'name': t.get('name'), 'short': t.get('shortName', '')} for t in teams]
+        return jsonify(sorted(result, key=lambda x: x['name']))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
