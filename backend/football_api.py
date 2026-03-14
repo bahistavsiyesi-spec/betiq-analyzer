@@ -13,14 +13,6 @@ FOOTBALL_DATA_HEADERS = {
     'X-Auth-Token': FOOTBALL_DATA_KEY
 }
 
-# OpenLigaDB - Alman ligleri (ücretsiz, limitsiz)
-OPENLIGA_BASE = 'https://api.openligadb.de'
-OPENLIGA_LEAGUES = {
-    'bl1': {'name': 'Bundesliga', 'season': '2024'},
-    'bl2': {'name': '2. Bundesliga', 'season': '2024'},
-    'bl3': {'name': '3. Liga', 'season': '2024'},
-}
-
 # ClubElo → Düzgün isim tablosu
 NAME_FIXES = {
     # Türkiye
@@ -60,53 +52,68 @@ NAME_FIXES = {
     'Sporting': 'Sporting CP',
 }
 
-# ─── İngiliz Takımları → football-data.org ID ────────────────────────────────
-ENGLISH_TEAM_IDS = {
-    # Premier League
-    'arsenal': 57,
-    'aston villa': 58,
-    'bournemouth': 1044,
-    'brentford': 402,
-    'brighton': 397,
-    'chelsea': 61,
-    'crystal palace': 354,
-    'everton': 62,
-    'fulham': 63,
-    'ipswich': 57,
-    'leicester': 338,
-    'liverpool': 64,
-    'manchester city': 65,
-    'manchester united': 66,
-    'newcastle': 67,
-    'nottingham forest': 351,
-    'southampton': 340,
-    'tottenham': 73,
-    'west ham': 563,
-    'wolverhampton': 76, 'wolves': 76,
-    # Championship
-    'sunderland': 356,
-    'sheffield united': 356,
-    'leeds': 341,
-    'burnley': 328,
-    'middlesbrough': 343,
-    'coventry': 330,
-    'watford': 346,
-    'blackburn': 59,
-    'norwich': 68,
-    'cardiff': 715,
-    'bristol city': 387,
-    'hull': 322,
-    'swansea': 72,
-    'stoke': 70,
-    'sheffield wednesday': 345,
-    'portsmouth': 1081,
-    'derby': 333,
-    'oxford': 1077,
-    'luton': 1076,
-    'plymouth': 1085,
-    'qpr': 69,
+
+def normalize_name(name):
+    """Tüm özel karakterleri kaldır, küçük harfe çevir."""
+    name = name.lower().strip()
+    replacements = {
+        'ö': 'o', 'oe': 'o',
+        'ü': 'u', 'ue': 'u',
+        'ä': 'a', 'ae': 'a',
+        'ß': 'ss',
+        'é': 'e', 'è': 'e',
+        'ñ': 'n', 'á': 'a', 'í': 'i', 'ó': 'o', 'ú': 'u',
+        '.': '', '-': '', "'": '', ' ': '',
+    }
+    for old, new in replacements.items():
+        name = name.replace(old, new)
+    return name
+
+
+# ─── Alman Takımları → football-data.org ID ──────────────────────────────────
+# Lig + Kupa + Avrupa maçları dahil (Sofascore gibi tam form)
+GERMAN_TEAM_NORMALIZED = {
+    # Bundesliga
+    'bayern': 5, 'fcbayern': 5, 'bayernmunich': 5, 'bayernmunchen': 5,
+    'dortmund': 4, 'borussiadortmund': 4,
+    'leverkusen': 3, 'bayerleverkusen': 3,
+    'leipzig': 721, 'rbleipzig': 721,
+    'frankfurt': 19, 'eintrachtfrankfurt': 19,
+    'stuttgart': 10, 'vfbstuttgart': 10,
+    'freiburg': 17, 'scfreiburg': 17,
+    'hoffenheim': 715, 'tsghoffenheim': 715,
+    'bremen': 86, 'werderbremen': 86,
+    'wolfsburg': 11, 'vflwolfsburg': 11,
+    'gladbach': 18, 'borussiamonchengladbach': 18, 'monchengladbach': 18,
+    'augsburg': 16, 'fcaugsburg': 16,
+    'unionberlin': 28483, 'union': 28483,
+    'bochum': 26, 'vflbochum': 26,
+    'mainz': 15, 'fsvmainz': 15,
+    'stpauli': 29, 'fcstpauli': 29,
+    'kiel': 2087, 'holsteinkiel': 2087,
+    'heidenheim': 3669, 'fcheidenheim': 3669,
+    # 2. Bundesliga
+    'hamburg': 62, 'hamburgersvhsv': 62, 'hsv': 62,
+    'hannover': 30, 'hannover96': 30,
+    'karlsruhe': 24, 'karlsruhersc': 24,
+    'schalke': 6, 'fcschalke': 6,
+    'darmstadt': 36, 'svdarmstadt': 36,
+    'koln': 25, 'koeln': 25, 'fckoln': 25, 'cologne': 25,
+    'hertha': 27, 'herthabsc': 27,
+    'dusseldorf': 45, 'fortunadusseldorf': 45,
+    'nurnberg': 7, 'fcnurnberg': 7,
+    'furth': 70, 'greutherfrth': 70, 'greuther': 70,
+    'braunschweig': 96, 'eintrachtbraunschweig': 96,
+    'ulm': 3663, 'ssvulm': 3663,
+    'munster': 6890, 'preussenmunster': 6890,
+    'paderborn': 38, 'scpaderborn': 38,
+    'elversberg': 15970, 'svilversberg': 15970,
+    'magdeburg': 71, 'fcmagdeburg': 71,
+    'regensburg': 46, 'jahnregensburg': 46,
+    'lautern': 23, 'kaiserslautern': 23,
 }
 
+# ─── İngiliz Takımları → football-data.org ID ────────────────────────────────
 ENGLISH_TEAM_NORMALIZED = {
     'arsenal': 57,
     'astonvilla': 58,
@@ -128,6 +135,7 @@ ENGLISH_TEAM_NORMALIZED = {
     'tottenham': 73, 'spurs': 73,
     'westham': 563,
     'wolverhampton': 76, 'wolves': 76,
+    # Championship
     'sunderland': 356,
     'sheffieldunited': 356,
     'leeds': 341,
@@ -152,41 +160,6 @@ ENGLISH_TEAM_NORMALIZED = {
 }
 
 # ─── İspanyol Takımları → football-data.org ID ───────────────────────────────
-SPANISH_TEAM_IDS = {
-    # La Liga 2024-25
-    'barcelona': 81,
-    'real madrid': 86,
-    'atletico madrid': 78, 'atletico': 78,
-    'athletic bilbao': 77, 'athletic club': 77, 'athletic': 77,
-    'real sociedad': 92,
-    'villarreal': 533,
-    'real betis': 90, 'betis': 90,
-    'valencia': 94,
-    'girona': 298,
-    'celta vigo': 558, 'celta': 558,
-    'sevilla': 559,
-    'osasuna': 727,
-    'getafe': 264,
-    'rayo vallecano': 876, 'rayo': 876,
-    'mallorca': 89,
-    'alaves': 263,
-    'espanyol': 80,
-    'las palmas': 275,
-    'leganes': 745,
-    'valladolid': 250,
-    # Segunda División
-    'racing santander': 264,
-    'real oviedo': 285,
-    'elche': 284,
-    'sporting gijon': 287,
-    'zaragoza': 303,
-    'huesca': 302,
-    'albacete': 253,
-    'mirandes': 286,
-    'burgos': 297,
-    'alcorcon': 297,
-}
-
 SPANISH_TEAM_NORMALIZED = {
     'barcelona': 81,
     'realmadrid': 86,
@@ -215,99 +188,31 @@ SPANISH_TEAM_NORMALIZED = {
     'huesca': 302,
 }
 
-# Alman lig takımları → OpenLigaDB ID eşleştirmesi (DOĞRULANMIŞ)
-OPENLIGA_TEAM_IDS = {
-    # Bundesliga (bl1)
-    'fc bayern': 40, 'bayern munich': 40, 'bayern': 40,
-    'borussia dortmund': 7, 'dortmund': 7,
-    'bayer leverkusen': 6, 'leverkusen': 6,
-    'rb leipzig': 1635, 'leipzig': 1635,
-    'eintracht frankfurt': 91, 'frankfurt': 91,
-    'vfb stuttgart': 16, 'stuttgart': 16,
-    'sc freiburg': 112, 'freiburg': 112,
-    'tsg hoffenheim': 175, 'hoffenheim': 175,
-    'werder bremen': 134, 'bremen': 134,
-    'vfl wolfsburg': 131, 'wolfsburg': 131,
-    'borussia monchengladbach': 87, 'gladbach': 87,
-    'fc augsburg': 95, 'augsburg': 95,
-    'union berlin': 80,
-    'vfl bochum': 129, 'bochum': 129,
-    'fsv mainz': 81, 'mainz': 81,
-    'fc st pauli': 98, 'st pauli': 98,
-    'holstein kiel': 104, 'kiel': 104,
-    'fc heidenheim': 199, 'heidenheim': 199,
-    # 2. Bundesliga (bl2)
-    'hamburger sv': 100, 'hamburg': 100, 'hsv': 100,
-    'hannover 96': 55, 'hannover': 55,
-    'karlsruher sc': 105, 'karlsruhe': 105,
-    'fc schalke': 9, 'schalke': 9,
-    'sv darmstadt': 118, 'darmstadt': 118,
-    'fc koln': 65, 'koln': 65, 'cologne': 65,
-    'hertha bsc': 54, 'hertha': 54,
-    'fortuna dusseldorf': 185, 'dusseldorf': 185,
-    'fc nurnberg': 79, 'nurnberg': 79,
-    'greuther furth': 115, 'furth': 115,
-    'eintracht braunschweig': 74, 'braunschweig': 74,
-    'ssv ulm': 564, 'ulm': 564,
-    'preussen munster': 188, 'munster': 188,
-    'sc paderborn': 31, 'paderborn': 31,
-    'sv elversberg': 198, 'elversberg': 198,
-    'fc magdeburg': 78, 'magdeburg': 78,
-    'jahn regensburg': 181, 'regensburg': 181,
-    'kaiserslautern': 76, 'lautern': 76,
-}
+
+# ─── Yardımcı: football-data.org ID bul ──────────────────────────────────────
+
+def _find_team_id(team_name, table):
+    """Normalize edilmiş isimle ID ara."""
+    normalized = normalize_name(team_name)
+    if normalized in table:
+        return table[normalized]
+    for key, tid in table.items():
+        if key in normalized or normalized in key:
+            return tid
+    return None
 
 
-def normalize_name(name):
-    """Tüm özel karakterleri kaldır, küçük harfe çevir."""
-    name = name.lower().strip()
-    replacements = {
-        'ö': 'o', 'oe': 'o',
-        'ü': 'u', 'ue': 'u',
-        'ä': 'a', 'ae': 'a',
-        'ß': 'ss',
-        'é': 'e', 'è': 'e',
-        'ñ': 'n', 'á': 'a', 'í': 'i', 'ó': 'o', 'ú': 'u',
-        '.': '', '-': '', "'": '', ' ': '',
-    }
-    for old, new in replacements.items():
-        name = name.replace(old, new)
-    return name
+def is_german_team(team_name):
+    return _find_team_id(team_name, GERMAN_TEAM_NORMALIZED) is not None
+
+def is_english_team(team_name):
+    return _find_team_id(team_name, ENGLISH_TEAM_NORMALIZED) is not None
+
+def is_spanish_team(team_name):
+    return _find_team_id(team_name, SPANISH_TEAM_NORMALIZED) is not None
 
 
-CLUBELO_DIRECT_MAP = {
-    # Bundesliga - doğrulanmış ID'ler
-    'bayern': 40, 'dortmund': 7, 'leverkusen': 6, 'leipzig': 1635,
-    'frankfurt': 91, 'stuttgart': 16, 'freiburg': 112, 'hoffenheim': 175,
-    'bremen': 134, 'wolfsburg': 131, 'gladbach': 87, 'augsburg': 95,
-    'unionberlin': 80, 'bochum': 129, 'mainz': 81, 'stpauli': 98,
-    'kiel': 104, 'heidenheim': 199,
-    # 2. Bundesliga - doğrulanmış ID'ler
-    'hamburg': 100, 'hannover': 55,
-    'karlsruhe': 105, 'schalke': 9, 'darmstadt': 118, 'koln': 65,
-    'koeln': 65, 'hertha': 54, 'dusseldorf': 185, 'nurnberg': 79,
-    'furth': 115, 'braunschweig': 74, 'ulm': 564, 'munster': 188,
-    'paderborn': 31, 'elversberg': 198, 'magdeburg': 78,
-    'regensburg': 181, 'lautern': 76,
-}
-
-KNOWN_TEAM_IDS = {
-    'galatasaray': 2290, 'fenerbahce': 2290, 'besiktas': 1009,
-    'trabzonspor': 1012, 'liverpool': 64, 'manchester city': 65,
-    'manchester united': 66, 'chelsea': 61, 'arsenal': 57,
-    'tottenham': 73, 'newcastle': 67, 'aston villa': 58,
-    'barcelona': 81, 'real madrid': 86, 'atletico madrid': 78,
-    'sevilla': 559, 'valencia': 94, 'villarreal': 533,
-    'athletic club': 77, 'real sociedad': 92,
-    'juventus': 109, 'inter milan': 108, 'ac milan': 98,
-    'napoli': 113, 'roma': 100, 'lazio': 110, 'atalanta': 102,
-    'paris saint-germain': 524, 'psg': 524, 'marseille': 516,
-    'lyon': 523, 'monaco': 548, 'ajax': 678, 'porto': 503,
-    'benfica': 1903, 'sporting cp': 498, 'celtic': 732,
-}
-
-
-# ─── Yardımcı: football-data.org'dan maç çek ─────────────────────────────────
+# ─── football-data.org API ────────────────────────────────────────────────────
 
 def _get_football_data(endpoint, params={}):
     if not FOOTBALL_DATA_KEY:
@@ -326,7 +231,7 @@ def _get_football_data(endpoint, params={}):
 
 
 def _footballdata_last_matches(team_id, team_name, last=5):
-    """football-data.org'dan son maçları çek ve dönüştür."""
+    """football-data.org'dan son maçları çek (lig + kupa + Avrupa)."""
     try:
         result = _get_football_data('teams/' + str(team_id) + '/matches', {
             'status': 'FINISHED', 'limit': last
@@ -355,10 +260,10 @@ def _footballdata_last_matches(team_id, team_name, last=5):
         return []
 
 
-def _footballdata_h2h(team1_id, team1_name, team2_name, last=5):
+def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
     """football-data.org'dan H2H maçları çek."""
     try:
-        result = _get_football_data('teams/' + str(team1_id) + '/matches', {
+        result = _get_football_data('teams/' + str(team_id) + '/matches', {
             'status': 'FINISHED', 'limit': 20
         })
         if not result or not result.get('matches'):
@@ -389,171 +294,7 @@ def _footballdata_h2h(team1_id, team1_name, team2_name, last=5):
         return []
 
 
-# ─── İngiliz Takım Fonksiyonları ─────────────────────────────────────────────
-
-def _find_english_team_id(team_name):
-    normalized = normalize_name(team_name)
-    if normalized in ENGLISH_TEAM_NORMALIZED:
-        tid = ENGLISH_TEAM_NORMALIZED[normalized]
-        logger.info('Football-Data ID found for ' + team_name + ': ' + str(tid))
-        return tid
-    for key, tid in ENGLISH_TEAM_NORMALIZED.items():
-        if key in normalized or normalized in key:
-            logger.info('Football-Data ID found for ' + team_name + ': ' + str(tid))
-            return tid
-    team_lower = team_name.lower().strip()
-    for key, tid in ENGLISH_TEAM_IDS.items():
-        if key in team_lower or team_lower in key:
-            logger.info('Football-Data ID found for ' + team_name + ': ' + str(tid))
-            return tid
-    return None
-
-
-def is_english_team(team_name):
-    return _find_english_team_id(team_name) is not None
-
-
-# ─── İspanyol Takım Fonksiyonları ────────────────────────────────────────────
-
-def _find_spanish_team_id(team_name):
-    normalized = normalize_name(team_name)
-    if normalized in SPANISH_TEAM_NORMALIZED:
-        tid = SPANISH_TEAM_NORMALIZED[normalized]
-        logger.info('Football-Data (ESP) ID found for ' + team_name + ': ' + str(tid))
-        return tid
-    for key, tid in SPANISH_TEAM_NORMALIZED.items():
-        if key in normalized or normalized in key:
-            logger.info('Football-Data (ESP) ID found for ' + team_name + ': ' + str(tid))
-            return tid
-    team_lower = team_name.lower().strip()
-    for key, tid in SPANISH_TEAM_IDS.items():
-        if key in team_lower or team_lower in key:
-            logger.info('Football-Data (ESP) ID found for ' + team_name + ': ' + str(tid))
-            return tid
-    return None
-
-
-def is_spanish_team(team_name):
-    return _find_spanish_team_id(team_name) is not None
-
-
-# ─── OpenLigaDB Fonksiyonları ─────────────────────────────────────────────────
-
-def _find_openliga_team_id(team_name):
-    normalized = normalize_name(team_name)
-    if normalized in CLUBELO_DIRECT_MAP:
-        tid = CLUBELO_DIRECT_MAP[normalized]
-        logger.info('OpenLigaDB ID found for ' + team_name + ': ' + str(tid))
-        return tid
-    for key, tid in CLUBELO_DIRECT_MAP.items():
-        if key in normalized or normalized in key:
-            logger.info('OpenLigaDB ID found for ' + team_name + ': ' + str(tid))
-            return tid
-    for key, tid in OPENLIGA_TEAM_IDS.items():
-        key_norm = normalize_name(key)
-        if key_norm in normalized or normalized in key_norm:
-            logger.info('OpenLigaDB ID found for ' + team_name + ': ' + str(tid))
-            return tid
-    logger.info('No OpenLigaDB ID for ' + team_name)
-    return None
-
-
-def _get_openliga_season_matches(league_short, season):
-    try:
-        url = OPENLIGA_BASE + '/getmatchdata/' + league_short + '/' + season
-        resp = requests.get(url, timeout=15)
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        logger.warning('OpenLigaDB fetch failed for ' + league_short + ': ' + str(e))
-        return []
-
-
-def get_openliga_team_last_matches(team_name, last=5):
-    team_id = _find_openliga_team_id(team_name)
-    if not team_id:
-        return []
-    results = []
-    for league_short, info in OPENLIGA_LEAGUES.items():
-        if results:
-            break
-        matches = _get_openliga_season_matches(league_short, info['season'])
-        team_matches = []
-        for m in matches:
-            try:
-                t1_id = m.get('team1', {}).get('teamId')
-                t2_id = m.get('team2', {}).get('teamId')
-                if team_id not in (t1_id, t2_id):
-                    continue
-                results_list = m.get('matchResults', [])
-                final = next((r for r in results_list if r.get('resultTypeID') == 2), None)
-                if not final:
-                    continue
-                team_matches.append({
-                    'teams': {
-                        'home': {'name': m['team1']['teamName'], 'id': t1_id},
-                        'away': {'name': m['team2']['teamName'], 'id': t2_id}
-                    },
-                    'goals': {
-                        'home': final['pointsTeam1'],
-                        'away': final['pointsTeam2']
-                    }
-                })
-            except Exception:
-                continue
-        if team_matches:
-            results = team_matches[-last:]
-            logger.info('OpenLigaDB: ' + str(len(results)) + ' matches for ' + team_name)
-    return results
-
-
-def get_openliga_h2h(team1_name, team2_name, last=5):
-    team1_id = _find_openliga_team_id(team1_name)
-    team2_id = _find_openliga_team_id(team2_name)
-    if not team1_id or not team2_id:
-        return []
-    h2h = []
-    for league_short, info in OPENLIGA_LEAGUES.items():
-        matches = _get_openliga_season_matches(league_short, info['season'])
-        for m in matches:
-            try:
-                t1_id = m.get('team1', {}).get('teamId')
-                t2_id = m.get('team2', {}).get('teamId')
-                if set([t1_id, t2_id]) != set([team1_id, team2_id]):
-                    continue
-                results_list = m.get('matchResults', [])
-                final = next((r for r in results_list if r.get('resultTypeID') == 2), None)
-                if not final:
-                    continue
-                h2h.append({
-                    'teams': {
-                        'home': {'name': m['team1']['teamName'], 'id': t1_id},
-                        'away': {'name': m['team2']['teamName'], 'id': t2_id}
-                    },
-                    'goals': {
-                        'home': final['pointsTeam1'],
-                        'away': final['pointsTeam2']
-                    }
-                })
-            except Exception:
-                continue
-    return h2h[-last:]
-
-
-def is_german_team(team_name):
-    normalized = normalize_name(team_name)
-    if normalized in CLUBELO_DIRECT_MAP:
-        return True
-    for key in CLUBELO_DIRECT_MAP:
-        if key in normalized or normalized in key:
-            return True
-    for key in OPENLIGA_TEAM_IDS:
-        if normalize_name(key) in normalized or normalized in normalize_name(key):
-            return True
-    return False
-
-
-# ─── Ana Fonksiyonlar ─────────────────────────────────────────────────────────
+# ─── ClubElo Fixtures ─────────────────────────────────────────────────────────
 
 def get_todays_fixtures():
     today_str = datetime.now().strftime('%Y-%m-%d')
@@ -589,131 +330,88 @@ def get_todays_fixtures():
         return []
 
 
-def search_team(team_name):
-    team_lower = team_name.lower().strip()
-    for key, team_id in KNOWN_TEAM_IDS.items():
-        if key in team_lower or team_lower in key:
-            logger.info('Found cached ID for ' + team_name + ': ' + str(team_id))
-            return team_id
-    logger.info('No cached ID for ' + team_name + ', skipping stats')
-    return None
-
+# ─── Ana Fonksiyonlar ─────────────────────────────────────────────────────────
 
 def get_team_last_matches(team_name, last=5):
     """
     Öncelik sırası:
-    1. Alman ligi → OpenLigaDB (ücretsiz, limitsiz)
-    2. İngiliz ligi → football-data.org
-    3. İspanyol ligi → football-data.org
-    4. Diğer → football-data.org KNOWN_TEAM_IDS ile
+    1. Alman takımı → football-data.org (lig + kupa + Avrupa)
+    2. İngiliz takımı → football-data.org
+    3. İspanyol takımı → football-data.org
+    4. Diğer → boş (ClubElo Elo ile analiz yapılır)
     """
     # 1. Alman ligi
     if is_german_team(team_name):
-        matches = get_openliga_team_last_matches(team_name, last)
-        if matches:
-            return matches
+        team_id = _find_team_id(team_name, GERMAN_TEAM_NORMALIZED)
+        if team_id:
+            matches = _footballdata_last_matches(team_id, team_name, last)
+            if matches:
+                logger.info('Football-Data (GER): ' + str(len(matches)) + ' matches for ' + team_name)
+                return matches
+        return []
 
     # 2. İngiliz ligi
     if is_english_team(team_name):
-        team_id = _find_english_team_id(team_name)
-        matches = _footballdata_last_matches(team_id, team_name, last)
-        if matches:
-            return matches
+        team_id = _find_team_id(team_name, ENGLISH_TEAM_NORMALIZED)
+        if team_id:
+            matches = _footballdata_last_matches(team_id, team_name, last)
+            if matches:
+                return matches
         return []
 
     # 3. İspanyol ligi
     if is_spanish_team(team_name):
-        team_id = _find_spanish_team_id(team_name)
-        matches = _footballdata_last_matches(team_id, team_name, last)
-        if matches:
-            return matches
+        team_id = _find_team_id(team_name, SPANISH_TEAM_NORMALIZED)
+        if team_id:
+            matches = _footballdata_last_matches(team_id, team_name, last)
+            if matches:
+                return matches
         return []
 
-    # 4. Diğer ligler
-    team_id = search_team(team_name)
-    if not team_id:
-        return []
-    result = _get_football_data('teams/' + str(team_id) + '/matches', {
-        'status': 'FINISHED', 'limit': last
-    })
-    if not result or not result.get('matches'):
-        return []
-    converted = []
-    for m in result['matches'][-last:]:
-        try:
-            converted.append({
-                'teams': {
-                    'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
-                    'away': {'name': m['awayTeam']['name'], 'id': m['awayTeam']['id']}
-                },
-                'goals': {
-                    'home': m['score']['fullTime']['home'],
-                    'away': m['score']['fullTime']['away']
-                }
-            })
-        except:
-            continue
-    logger.info('Got ' + str(len(converted)) + ' matches for ' + team_name)
-    return converted
+    # 4. Diğer ligler — veri yok, ClubElo Elo ile devam
+    logger.info('No stats source for ' + team_name + ', using ClubElo only')
+    return []
 
 
 def get_h2h(team1_name, team2_name, last=5):
     """
     Öncelik sırası:
-    1. Alman ligi → OpenLigaDB
-    2. İngiliz ligi → football-data.org
-    3. İspanyol ligi → football-data.org
-    4. Diğer → football-data.org KNOWN_TEAM_IDS ile
+    1. Alman takımı → football-data.org
+    2. İngiliz takımı → football-data.org
+    3. İspanyol takımı → football-data.org
+    4. Diğer → boş
     """
     # 1. Alman ligi
     if is_german_team(team1_name) or is_german_team(team2_name):
-        h2h = get_openliga_h2h(team1_name, team2_name, last)
-        if h2h:
-            return h2h
+        team_id = _find_team_id(team1_name, GERMAN_TEAM_NORMALIZED) or \
+                  _find_team_id(team2_name, GERMAN_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_h2h(team_id, team1_name, team2_name, last)
+        return []
 
     # 2. İngiliz ligi
     if is_english_team(team1_name) or is_english_team(team2_name):
-        team1_id = _find_english_team_id(team1_name) or _find_english_team_id(team2_name)
-        if team1_id:
-            return _footballdata_h2h(team1_id, team1_name, team2_name, last)
+        team_id = _find_team_id(team1_name, ENGLISH_TEAM_NORMALIZED) or \
+                  _find_team_id(team2_name, ENGLISH_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
 
     # 3. İspanyol ligi
     if is_spanish_team(team1_name) or is_spanish_team(team2_name):
-        team1_id = _find_spanish_team_id(team1_name) or _find_spanish_team_id(team2_name)
-        if team1_id:
-            return _footballdata_h2h(team1_id, team1_name, team2_name, last)
+        team_id = _find_team_id(team1_name, SPANISH_TEAM_NORMALIZED) or \
+                  _find_team_id(team2_name, SPANISH_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
 
-    # 4. Diğer ligler
-    team1_id = search_team(team1_name)
-    if not team1_id:
-        return []
-    result = _get_football_data('teams/' + str(team1_id) + '/matches', {
-        'status': 'FINISHED', 'limit': 20
-    })
-    if not result or not result.get('matches'):
-        return []
-    h2h_matches = []
-    team2_lower = team2_name.lower().split()[0]
-    for m in result['matches']:
-        try:
-            home_name = m['homeTeam']['name'].lower()
-            away_name = m['awayTeam']['name'].lower()
-            if team2_lower in home_name or team2_lower in away_name:
-                h2h_matches.append({
-                    'teams': {
-                        'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
-                        'away': {'name': m['awayTeam']['name'], 'id': m['awayTeam']['id']}
-                    },
-                    'goals': {
-                        'home': m['score']['fullTime']['home'],
-                        'away': m['score']['fullTime']['away']
-                    }
-                })
-        except:
-            continue
-    return h2h_matches[:last]
+    # 4. Diğer
+    return []
+
+
+def search_team(team_name):
+    """Geriye dönük uyumluluk için — artık kullanılmıyor."""
+    return None
 
 
 def get_standings(league_code, season=2024):
