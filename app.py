@@ -20,7 +20,6 @@ def scheduled_result_check():
         logger.error(f"Scheduled result check failed: {e}")
 
 def midnight_reset():
-    """Gece 00:01'de çalışır — sadece log atar, DB zaten tarihe göre filtreler."""
     try:
         logger.info("Gece sıfırlama tamamlandı. Yeni gün başladı.")
     except Exception as e:
@@ -289,15 +288,17 @@ def api_parse_image():
                             "text": f"""Bu görseldeki maç programını analiz et. Bugünün tarihi: {today}.
 
 Görseldeki TÜM maçları JSON formatında döndür. Her maç için:
-- home_team: ev sahibi takım adı
-- away_team: deplasman takımı adı
+- home_team: ev sahibi takım adı (tam ve resmi isim, kısaltma kullanma)
+- away_team: deplasman takımı adı (tam ve resmi isim, kısaltma kullanma)
 - league: lig adı (görünüyorsa, yoksa "Bilinmeyen Lig")
 - time: maç saati HH:MM formatında (görünüyorsa, yoksa null)
+
+Önemli: Takım isimlerini tam yaz. Örnek: "Man City" değil "Manchester City", "Atl. Madrid" değil "Atletico Madrid".
 
 Sadece JSON array döndür, başka hiçbir şey yazma. Örnek:
 [{{"home_team": "Fenerbahçe", "away_team": "Galatasaray", "league": "Süper Lig", "time": "20:00"}}]
 
-Eğer görsel bir maç programı değilse boş array [] döndür."""
+E�er görsel bir maç programı değilse boş array [] döndür."""
                         }
                     ],
                 }
@@ -350,6 +351,23 @@ def api_clear_matches():
     except Exception as e:
         logger.error(f"Clear error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+# ─── Debug Endpoint — OpenLigaDB Takım ID'lerini Görmek İçin ─────────────────
+@app.route('/api/debug/openliga/<league>')
+def debug_openliga(league):
+    """
+    OpenLigaDB'den gerçek takım ID'lerini çek.
+    Kullanım: /api/debug/openliga/bl1 veya /api/debug/openliga/bl2
+    """
+    try:
+        import requests as req
+        resp = req.get(f'https://api.openligadb.de/getavailableteams/{league}/2024', timeout=10)
+        resp.raise_for_status()
+        teams = resp.json()
+        result = [{'id': t.get('teamId'), 'name': t.get('teamName'), 'short': t.get('shortName', '')} for t in teams]
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
