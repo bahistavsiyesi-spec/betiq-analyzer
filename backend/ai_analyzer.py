@@ -38,7 +38,8 @@ def build_prompt(home_team, away_team, league, match_time,
                  home_conceded_home_avg=None, away_conceded_away_avg=None,
                  home_home_form=None, away_away_form=None,
                  home_standing=None, away_standing=None,
-                 elo_data=None, odds_data=None):
+                 elo_data=None, odds_data=None,
+                 home_shot_stats=None, away_shot_stats=None):
 
     # Form yoksa Elo trendinden türet
     if not home_form and elo_data and elo_data.get('home_trend_label'):
@@ -193,6 +194,28 @@ def build_prompt(home_team, away_team, league, match_time,
             except:
                 pass
 
+    # Şut / Korner istatistikleri
+    shot_text = ''
+    if home_shot_stats or away_shot_stats:
+        shot_text = '\nŞut ve Baskı İstatistikleri (Son 5 Maç):\n'
+        if home_shot_stats:
+            shot_text += (
+                f'- {home_team}: ort. {home_shot_stats["shots_avg"]} şut | '
+                f'{home_shot_stats["shots_on_target_avg"]} isabetli şut | '
+                f'isabet oranı %{home_shot_stats["shot_accuracy"]} | '
+                f'{home_shot_stats["corners_avg"]} korner | '
+                f'yenilen şut: {home_shot_stats["shots_conceded_avg"]}\n'
+            )
+        if away_shot_stats:
+            shot_text += (
+                f'- {away_team}: ort. {away_shot_stats["shots_avg"]} şut | '
+                f'{away_shot_stats["shots_on_target_avg"]} isabetli şut | '
+                f'isabet oranı %{away_shot_stats["shot_accuracy"]} | '
+                f'{away_shot_stats["corners_avg"]} korner | '
+                f'yenilen şut: {away_shot_stats["shots_conceded_avg"]}\n'
+            )
+        shot_text += '- NOT: Yüksek şut ve korner sayısı baskı üstünlüğünü, yüksek isabetli şut oranı gol kalitesini gösterir\n'
+
     match_importance = detect_match_importance(league)
 
     prompt = (
@@ -206,15 +229,17 @@ def build_prompt(home_team, away_team, league, match_time,
         standing_text + '\n' +
         h2h_text + '\n' +
         elo_text + '\n' +
-        odds_text + '\n\n' +
+        odds_text + '\n' +
+        shot_text + '\n\n' +
         'Analiz yaparken su faktorleri goz onunde bulundur:\n' +
         '1. Ev sahibi avantaji + ev/deplasman istatistikleri birlikte degerlendir\n' +
         '2. Puan durumu motivasyonu: kume dusme baskisi veya sampiyonluk yarisi performansi etkiler\n' +
         '3. Matematiksel guc analizi varsa temel referans olarak kullan\n' +
         '4. Form trendi: Yukselende olan takim momentum avantajina sahiptir\n' +
         '5. Bahis piyasasi varsa dikkate al\n' +
-        '6. Tum yanitlar TURKCE olacak\n' +
-        '7. Analizinde kesinlikle "Elo" kelimesini kullanma, "Guc Puani" kullan\n\n' +
+        '6. Şut ve korner istatistikleri varsa: yüksek şut = baskı üstünlüğü, yüksek isabet oranı = gol kalitesi, fazla yenilen şut = savunma zaafiyeti\n' +
+        '7. Tum yanitlar TURKCE olacak\n' +
+        '8. Analizinde kesinlikle "Elo" kelimesini kullanma, "Guc Puani" kullan\n\n' +
         'Alan aciklamalari:\n' +
         '- over25_pct: Mac genelinde 2.5 gol ustu olma ihtimali (0-100)\n' +
         '- ht2g_pct: Ilk yaride EN AZ 1 gol olma ihtimali (0-100)\n' +
@@ -318,7 +343,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_conceded_avg=0, away_conceded_avg=0,
                         h2h_summary=None, elo_data=None, odds_data=None,
                         home_standing=None, away_standing=None,
-                        home_venue_stats=None, away_venue_stats=None):
+                        home_venue_stats=None, away_venue_stats=None,
+                        home_shot_stats=None, away_shot_stats=None):
 
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
@@ -378,7 +404,9 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         home_conceded_home_avg, away_conceded_away_avg,
         home_home_form, away_away_form,
         home_standing, away_standing,
-        elo_data, odds_data
+        elo_data, odds_data,
+        home_shot_stats=home_shot_stats,
+        away_shot_stats=away_shot_stats,
     )
 
     result = None
