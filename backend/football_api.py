@@ -66,6 +66,27 @@ def normalize_name(name):
     return name
 
 
+def teams_match(name_a, name_b):
+    """
+    İki takım isminin aynı takıma ait olup olmadığını kontrol et.
+    Kısa isim (Man United) ↔ uzun isim (Manchester United) gibi durumları yakalar.
+    """
+    a = normalize_name(name_a)
+    b = normalize_name(name_b)
+
+    # Tam veya kısmi eşleşme
+    if a in b or b in a:
+        return True
+
+    # İlk kelime eşleşmesi (min 3 karakter) — "man" gibi çok kısa kelimeleri atla
+    a_first = a[:4] if len(a) >= 4 else a
+    b_first = b[:4] if len(b) >= 4 else b
+    if len(a_first) >= 4 and len(b_first) >= 4 and a_first == b_first:
+        return True
+
+    return False
+
+
 # ─── Alman Takımları ──────────────────────────────────────────────────────────
 GERMAN_TEAM_NORMALIZED = {
     'bayern': 5, 'fcbayern': 5, 'bayernmunich': 5, 'bayernmunchen': 5,
@@ -315,7 +336,6 @@ def _footballdata_last_matches(team_id, team_name, last=10):
         converted = []
         for m in result['matches'][-last:]:
             try:
-                # halfTime skorlarını güvenli şekilde al
                 ht = m.get('score', {}).get('halfTime', {})
                 ht_home = ht.get('home')
                 ht_away = ht.get('away')
@@ -437,18 +457,19 @@ def get_team_home_away_stats(team_name, matches):
     if not matches:
         return None
 
-    team_norm = normalize_name(team_name)
     home_results = []
     away_results = []
 
     for m in matches:
         try:
-            home_name_norm = normalize_name(m['teams']['home']['name'])
+            match_home_name = m['teams']['home']['name']
             hg = m['goals']['home']
             ag = m['goals']['away']
             if hg is None or ag is None:
                 continue
-            is_home = team_norm in home_name_norm or home_name_norm in team_norm
+
+            is_home = teams_match(team_name, match_home_name)
+
             if is_home:
                 home_results.append({'scored': hg, 'conceded': ag,
                                      'result': 'W' if hg > ag else ('D' if hg == ag else 'L')})
