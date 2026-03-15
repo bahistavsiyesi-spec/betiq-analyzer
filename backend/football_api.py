@@ -13,41 +13,44 @@ FOOTBALL_DATA_HEADERS = {
     'X-Auth-Token': FOOTBALL_DATA_KEY
 }
 
-# ─── Puan durumu cache (günde 1 kez çekilir) ─────────────────────────────────
+# ─── Puan durumu cache ────────────────────────────────────────────────────────
 _standings_cache = {}
+
+# ─── football-data.co.uk şut/korner cache (günde 1 kez) ─────────────────────
+_shots_cache = {}
 
 # ─── ClubElo → Düzgün isim tablosu ───────────────────────────────────────────
 NAME_FIXES = {
-    # Türkiye
     'Bueyueksehir': 'Başakşehir', 'Basaksehir': 'Başakşehir',
     'Besiktas': 'Beşiktaş', 'Fenerbahce': 'Fenerbahçe',
     'Kasimpasa': 'Kasımpaşa', 'Eyupspor': 'Eyüpspor',
     'Goztepe': 'Göztepe', 'Ankaragucu': 'Ankaragücü',
     'Keciorengucu': 'Keçiörengücü', 'Istanbulspor': 'İstanbulspor',
-    # Almanya
     'Koeln': 'Köln', 'Nuernberg': 'Nürnberg', 'Fuerth': 'Fürth',
     'Duesseldorf': 'Düsseldorf', 'Muenchen': 'München',
     'Moenchengladbach': 'Mönchengladbach', 'Muenster': 'Münster',
     'Saarbruecken': 'Saarbrücken', 'Osnabrueck': 'Osnabrück',
-    # İspanya
     'Cadiz': 'Cádiz', 'Almeria': 'Almería', 'Malaga': 'Málaga',
     'Leganes': 'Leganés', 'Cordoba': 'Córdoba',
     'Atletico': 'Atlético Madrid', 'Alaves': 'Alavés', 'Espanol': 'Espanyol',
-    # Fransa
     'Paris SG': 'Paris Saint-Germain', 'Saint-Etienne': 'Saint-Étienne',
-    # Portekiz
     'Sporting': 'Sporting CP',
 }
 
 # ─── Lig kodu eşleştirmesi ────────────────────────────────────────────────────
 LEAGUE_CODES = {
-    'GER': 'BL1',
-    'ENG': 'PL',
-    'ESP': 'PD',
-    'ITA': 'SA',
-    'FRA': 'FL1',
-    'POR': 'PPL',
-    'NED': 'DED',
+    'GER': 'BL1', 'ENG': 'PL', 'ESP': 'PD',
+    'ITA': 'SA', 'FRA': 'FL1', 'POR': 'PPL', 'NED': 'DED',
+}
+
+# ─── football-data.co.uk lig CSV kodları ─────────────────────────────────────
+# Format: season/league_code.csv → 2425 = 2024-25 sezonu
+FDCO_LEAGUES = {
+    'ENG': ('2425', 'E0'),   # Premier League
+    'GER': ('2425', 'D1'),   # Bundesliga
+    'ESP': ('2425', 'SP1'),  # La Liga
+    'ITA': ('2425', 'I1'),   # Serie A
+    'FRA': ('2425', 'F1'),   # Ligue 1
 }
 
 def normalize_name(name):
@@ -64,9 +67,8 @@ def normalize_name(name):
     return name
 
 
-# ─── Alman Takımları (DOĞRULANMIŞ) ───────────────────────────────────────────
+# ─── Alman Takımları ──────────────────────────────────────────────────────────
 GERMAN_TEAM_NORMALIZED = {
-    # Bundesliga - football-data.org gerçek ID'ler
     'bayern': 5, 'fcbayern': 5, 'bayernmunich': 5, 'bayernmunchen': 5,
     'dortmund': 4, 'borussiadortmund': 4,
     'leverkusen': 3, 'bayerleverkusen': 3,
@@ -85,7 +87,6 @@ GERMAN_TEAM_NORMALIZED = {
     'stpauli': 20, 'fcstpauli': 20,
     'kiel': 44, 'holsteinkiel': 44,
     'heidenheim': 44, 'fcheidenheim': 44,
-    # 2. Bundesliga
     'hamburg': 7, 'hsv': 7,
     'hannover': 30, 'hannover96': 30,
     'karlsruhe': 24, 'karlsruhersc': 24,
@@ -106,9 +107,8 @@ GERMAN_TEAM_NORMALIZED = {
     'lautern': 23, 'kaiserslautern': 23,
 }
 
-# ─── İngiliz Takımları (DOĞRULANMIŞ) ─────────────────────────────────────────
+# ─── İngiliz Takımları ────────────────────────────────────────────────────────
 ENGLISH_TEAM_NORMALIZED = {
-    # Premier League
     'arsenal': 57, 'astonvilla': 58, 'bournemouth': 1044,
     'brentford': 402, 'brighton': 397, 'chelsea': 61,
     'crystalpalace': 354, 'everton': 62, 'fulham': 63,
@@ -121,94 +121,51 @@ ENGLISH_TEAM_NORMALIZED = {
     'westham': 563, 'wolverhampton': 76, 'wolves': 76,
     'burnley': 328, 'leedsunited': 341, 'leeds': 341,
     'sunderland': 71,
-    # Championship
-    'birmingham': 332, 'birminghamcity': 332,
-    'blackburn': 59, 'blackburnrovers': 59,
-    'bristolcity': 387,
-    'charlton': 348, 'charltonathletic': 348,
-    'coventry': 1076, 'coventrycity': 1076,
-    'derby': 342, 'derbycounty': 342,
-    'hull': 322, 'hullcity': 322,
-    'leicestercity': 338,
-    'middlesbrough': 343,
-    'millwall': 384,
-    'norwich': 68, 'norwichcity': 68,
-    'oxford': 1082, 'oxfordunited': 1082,
-    'portsmouth': 325,
-    'prestonnorthend': 1081, 'preston': 1081,
-    'qpr': 69, 'queensparkrangers': 69,
-    'sheffieldunited': 356,
-    'sheffieldwednesday': 345,
-    'stoke': 70, 'stokecity': 70,
-    'swansea': 72, 'swanseacity': 72,
-    'watford': 346,
-    'westbrom': 74, 'westbromwich': 74,
-    'wrexham': 404,
-    'luton': 1076, 'lutoncity': 1076,
-    'plymouth': 1085,
+    'birmingham': 332, 'blackburn': 59, 'bristolcity': 387,
+    'charlton': 348, 'coventry': 1076, 'derby': 342,
+    'hull': 322, 'middlesbrough': 343, 'millwall': 384,
+    'norwich': 68, 'oxford': 1082, 'portsmouth': 325,
+    'preston': 1081, 'qpr': 69, 'sheffieldunited': 356,
+    'sheffieldwednesday': 345, 'stoke': 70, 'swansea': 72,
+    'watford': 346, 'westbrom': 74, 'wrexham': 404,
+    'luton': 1076, 'plymouth': 1085,
 }
 
-# ─── İspanyol Takımları (DOĞRULANMIŞ) ────────────────────────────────────────
+# ─── İspanyol Takımları ───────────────────────────────────────────────────────
 SPANISH_TEAM_NORMALIZED = {
-    # La Liga
     'athleticclub': 77, 'athleticbilbao': 77, 'athletic': 77,
-    'osasuna': 79, 'caosasuna': 79,
-    'atleticomadrid': 78, 'atletico': 78,
-    'alaves': 263, 'deportivoalaves': 263,
-    'elche': 285, 'elchecf': 285,
-    'barcelona': 81,
-    'getafe': 82,
-    'girona': 298,
-    'levante': 88,
-    'celtavigo': 558, 'celta': 558, 'rcceltavigo': 558,
-    'espanyol': 80, 'rcdespaynol': 80,
-    'mallorca': 89, 'rcdmallorca': 89,
+    'osasuna': 79, 'atleticomadrid': 78, 'atletico': 78,
+    'alaves': 263, 'elche': 285, 'barcelona': 81,
+    'getafe': 82, 'girona': 298, 'levante': 88,
+    'celtavigo': 558, 'celta': 558,
+    'espanyol': 80, 'mallorca': 89,
     'rayovallecano': 88, 'rayo': 88,
     'realbetis': 90, 'betis': 90,
-    'realmadrid': 86,
-    'realoviedo': 1048,
-    'realsociedad': 92,
-    'sevilla': 559,
-    'valencia': 94,
-    'villarreal': 95,
-    'laspalmas': 275,
-    'leganes': 745,
-    'valladolid': 250,
-    'sportinggijon': 287,
-    'zaragoza': 303,
-    'huesca': 302,
+    'realmadrid': 86, 'realoviedo': 1048,
+    'realsociedad': 92, 'sevilla': 559,
+    'valencia': 94, 'villarreal': 95,
+    'laspalmas': 275, 'leganes': 745, 'valladolid': 250,
+    'sportinggijon': 287, 'zaragoza': 303, 'huesca': 302,
 }
 
-# ─── İtalyan Takımları (DOĞRULANMIŞ) ─────────────────────────────────────────
+# ─── İtalyan Takımları ────────────────────────────────────────────────────────
 ITALIAN_TEAM_NORMALIZED = {
-    # Serie A
     'acmilan': 98, 'milan': 98,
     'acpisa': 487, 'pisa': 487,
     'acffiorentina': 99, 'fiorentina': 99,
     'asroma': 100, 'roma': 100,
-    'atalanta': 102, 'atalantabc': 102,
-    'bologna': 103, 'bolognafc': 103,
-    'cagliari': 104, 'cagliarifc': 104,
-    'como': 7397, 'como1907': 7397,
+    'atalanta': 102, 'bologna': 103,
+    'cagliari': 104, 'como': 7397,
     'inter': 108, 'intermilan': 108, 'fcinternazionale': 108,
     'juventus': 109, 'juve': 109,
-    'lazio': 110, 'sslazio': 110,
-    'napoli': 113, 'sscnapoli': 113,
-    'parma': 112, 'parmacalcio': 112,
-    'torino': 586, 'torinofc': 586,
-    'cremonese': 457, 'uscremonese': 457,
-    'lecce': 5890, 'uslecce': 5890,
-    'sassuolo': 471, 'ussassuolo': 471,
-    'udinese': 115, 'udinese calcio': 115,
-    'verona': 450, 'helasverona': 450,
-    'genoa': 107, 'genoafc': 107,
-    'monza': 5911, 'acmonza': 5911,
-    'venezia': 454,
-    'empoli': 445,
-    'sampdoria': 574,
-    'palermo': 576,
-    'brescia': 580,
-    'spezia': 3964,
+    'lazio': 110, 'napoli': 113,
+    'parma': 112, 'torino': 586,
+    'cremonese': 457, 'lecce': 5890,
+    'sassuolo': 471, 'udinese': 115,
+    'verona': 450, 'genoa': 107,
+    'monza': 5911, 'venezia': 454,
+    'empoli': 445, 'sampdoria': 574,
+    'palermo': 576, 'brescia': 580, 'spezia': 3964,
 }
 
 
@@ -232,6 +189,111 @@ def is_spanish_team(team_name):
 
 def is_italian_team(team_name):
     return _find_team_id(team_name, ITALIAN_TEAM_NORMALIZED) is not None
+
+
+# ─── football-data.co.uk Şut/Korner İstatistikleri ───────────────────────────
+
+def _fetch_fdco_csv(country_code):
+    """football-data.co.uk'dan CSV çek, günlük cache'le."""
+    today = date.today()
+    if country_code in _shots_cache:
+        cached = _shots_cache[country_code]
+        if cached['date'] == today:
+            return cached['data']
+
+    league_info = FDCO_LEAGUES.get(country_code)
+    if not league_info:
+        return []
+
+    season, league_code = league_info
+    url = f'https://www.football-data.co.uk/mmz4281/{season}/{league_code}.csv'
+
+    try:
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+        reader = csv.DictReader(io.StringIO(resp.text))
+        rows = [r for r in reader if r.get('HomeTeam') and r.get('AwayTeam')]
+        _shots_cache[country_code] = {'date': today, 'data': rows}
+        logger.info(f'FDCO: {len(rows)} matches loaded for {country_code}')
+        return rows
+    except Exception as e:
+        logger.warning(f'FDCO fetch failed for {country_code}: {e}')
+        return []
+
+
+def get_team_shot_stats(team_name, country_code, last=5):
+    """
+    Takımın son N maçındaki şut/şuta isabet/korner ortalamasını döndür.
+    Döndürür: {
+        'shots_avg': 13.2,        → ortalama şut
+        'shots_on_target_avg': 5.1, → şuta isabet
+        'corners_avg': 5.8,       → korner
+        'shots_conceded_avg': 10.4, → yenilen şut
+        'shot_accuracy': 38.6     → isabet yüzdesi
+    }
+    """
+    rows = _fetch_fdco_csv(country_code)
+    if not rows:
+        return None
+
+    team_norm = normalize_name(team_name)
+    team_matches = []
+
+    for row in rows:
+        home_norm = normalize_name(row.get('HomeTeam', ''))
+        away_norm = normalize_name(row.get('AwayTeam', ''))
+
+        is_home = team_norm in home_norm or home_norm in team_norm
+        is_away = team_norm in away_norm or away_norm in team_norm
+
+        if not is_home and not is_away:
+            continue
+
+        try:
+            if is_home:
+                shots = int(row.get('HS', 0) or 0)
+                shots_on = int(row.get('HST', 0) or 0)
+                corners = int(row.get('HC', 0) or 0)
+                shots_conceded = int(row.get('AS', 0) or 0)
+            else:
+                shots = int(row.get('AS', 0) or 0)
+                shots_on = int(row.get('AST', 0) or 0)
+                corners = int(row.get('AC', 0) or 0)
+                shots_conceded = int(row.get('HS', 0) or 0)
+
+            if shots > 0:
+                team_matches.append({
+                    'shots': shots,
+                    'shots_on': shots_on,
+                    'corners': corners,
+                    'shots_conceded': shots_conceded,
+                })
+        except:
+            continue
+
+    if not team_matches:
+        return None
+
+    # Son N maç
+    recent = team_matches[-last:]
+    n = len(recent)
+
+    shots_avg = round(sum(m['shots'] for m in recent) / n, 1)
+    shots_on_avg = round(sum(m['shots_on'] for m in recent) / n, 1)
+    corners_avg = round(sum(m['corners'] for m in recent) / n, 1)
+    shots_conceded_avg = round(sum(m['shots_conceded'] for m in recent) / n, 1)
+    accuracy = round(shots_on_avg / shots_avg * 100, 1) if shots_avg > 0 else 0
+
+    logger.info(f'FDCO shots {team_name}: {shots_avg} şut, {shots_on_avg} isabet, {corners_avg} korner (son {n} maç)')
+
+    return {
+        'shots_avg': shots_avg,
+        'shots_on_target_avg': shots_on_avg,
+        'corners_avg': corners_avg,
+        'shots_conceded_avg': shots_conceded_avg,
+        'shot_accuracy': accuracy,
+        'matches_used': n,
+    }
 
 
 # ─── football-data.org API ────────────────────────────────────────────────────
@@ -461,25 +523,21 @@ def get_team_last_matches(team_name, last=10):
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
-
     if is_english_team(team_name):
         team_id = _find_team_id(team_name, ENGLISH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
-
     if is_spanish_team(team_name):
         team_id = _find_team_id(team_name, SPANISH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
-
     if is_italian_team(team_name):
         team_id = _find_team_id(team_name, ITALIAN_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
-
     logger.info('No stats source for ' + team_name + ', using ClubElo only')
     return []
 
@@ -491,28 +549,24 @@ def get_h2h(team1_name, team2_name, last=5):
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
-
     if is_english_team(team1_name) or is_english_team(team2_name):
         team_id = _find_team_id(team1_name, ENGLISH_TEAM_NORMALIZED) or \
                   _find_team_id(team2_name, ENGLISH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
-
     if is_spanish_team(team1_name) or is_spanish_team(team2_name):
         team_id = _find_team_id(team1_name, SPANISH_TEAM_NORMALIZED) or \
                   _find_team_id(team2_name, SPANISH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
-
     if is_italian_team(team1_name) or is_italian_team(team2_name):
         team_id = _find_team_id(team1_name, ITALIAN_TEAM_NORMALIZED) or \
                   _find_team_id(team2_name, ITALIAN_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
-
     return []
 
 
