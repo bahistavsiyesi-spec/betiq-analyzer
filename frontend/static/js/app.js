@@ -443,7 +443,7 @@ function createMatchCard(match) {
                     <span class="score-label">🎯 TAHMİNİ SKOR</span>
                     <span class="score-value">${match.predicted_score || '?-?'}</span>
                 </div>
-                <span class="confidence-badge ${confidenceClass}">${match.confidence || 'Orta'}</span>
+                <span class="confidence-badge ${confidenceClass}">Analiz Güveni: ${match.confidence || 'Orta'}</span>
             </div>
             ${reasoning.length > 0 ? `
             <div class="reasoning">
