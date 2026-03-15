@@ -39,7 +39,8 @@ def build_prompt(home_team, away_team, league, match_time,
                  home_home_form=None, away_away_form=None,
                  home_standing=None, away_standing=None,
                  elo_data=None, odds_data=None,
-                 home_shot_stats=None, away_shot_stats=None):
+                 home_shot_stats=None, away_shot_stats=None,
+                 home_ht_stats=None, away_ht_stats=None):
 
     # Form yoksa Elo trendinden türet
     if not home_form and elo_data and elo_data.get('home_trend_label'):
@@ -114,7 +115,6 @@ def build_prompt(home_team, away_team, league, match_time,
                 str(away_standing['won']) + 'G ' + str(away_standing['draw']) + 'B ' + str(away_standing['lost']) + 'M | ' +
                 'Averaj: ' + str(away_standing['goal_diff']) + '\n'
             )
-        # Motivasyon analizi
         if home_standing and away_standing:
             home_pos = home_standing['position']
             away_pos = away_standing['position']
@@ -216,6 +216,32 @@ def build_prompt(home_team, away_team, league, match_time,
             )
         shot_text += '- NOT: Yüksek şut ve korner sayısı baskı üstünlüğünü, yüksek isabetli şut oranı gol kalitesini gösterir\n'
 
+    # İlk yarı istatistikleri
+    ht_text = ''
+    if home_ht_stats or away_ht_stats:
+        ht_text = '\nİlk Yarı İstatistikleri (Gerçek Veri):\n'
+        if home_ht_stats:
+            n = home_ht_stats['matches_used']
+            ht_text += (
+                f'- {home_team}: ilk yarı ort. {home_ht_stats["ht_goals_avg"]} gol atar | '
+                f'{home_ht_stats["ht_conceded_avg"]} gol yer | '
+                f'son {n} maçın %{home_ht_stats["ht_over05_pct"]}\'inde ilk yarıda gol var | '
+                f'%{home_ht_stats["ht_scored_pct"]}\'inde kendisi gol atar\n'
+            )
+        if away_ht_stats:
+            n = away_ht_stats['matches_used']
+            ht_text += (
+                f'- {away_team}: ilk yarı ort. {away_ht_stats["ht_goals_avg"]} gol atar | '
+                f'{away_ht_stats["ht_conceded_avg"]} gol yer | '
+                f'son {n} maçın %{away_ht_stats["ht_over05_pct"]}\'inde ilk yarıda gol var | '
+                f'%{away_ht_stats["ht_scored_pct"]}\'inde kendisi gol atar\n'
+            )
+        ht_text += (
+            '- NOT: ht2g_pct tahminini bu gerçek ilk yarı verilerine dayandır. '
+            'İki takımın ilk yarı gol ortalaması toplamı yüksekse ve '
+            'maçlarının büyük çoğunluğunda ilk yarıda gol varsa ht2g_pct yüksek olmalı.\n'
+        )
+
     match_importance = detect_match_importance(league)
 
     prompt = (
@@ -230,7 +256,8 @@ def build_prompt(home_team, away_team, league, match_time,
         h2h_text + '\n' +
         elo_text + '\n' +
         odds_text + '\n' +
-        shot_text + '\n\n' +
+        shot_text + '\n' +
+        ht_text + '\n\n' +
         'Analiz yaparken su faktorleri goz onunde bulundur:\n' +
         '1. Ev sahibi avantaji + ev/deplasman istatistikleri birlikte degerlendir\n' +
         '2. Puan durumu motivasyonu: kume dusme baskisi veya sampiyonluk yarisi performansi etkiler\n' +
@@ -238,11 +265,12 @@ def build_prompt(home_team, away_team, league, match_time,
         '4. Form trendi: Yukselende olan takim momentum avantajina sahiptir\n' +
         '5. Bahis piyasasi varsa dikkate al\n' +
         '6. Şut ve korner istatistikleri varsa: yüksek şut = baskı üstünlüğü, yüksek isabet oranı = gol kalitesi, fazla yenilen şut = savunma zaafiyeti\n' +
-        '7. Tum yanitlar TURKCE olacak\n' +
-        '8. Analizinde kesinlikle "Elo" kelimesini kullanma, "Guc Puani" kullan\n\n' +
+        '7. ht2g_pct için MUTLAKA ilk yarı istatistiklerini kullan: iki takımın ilk yarı gol ortalamalarını topla, maçlarındaki ilk yarı gol yüzdelerini dikkate al\n' +
+        '8. Tum yanitlar TURKCE olacak\n' +
+        '9. Analizinde kesinlikle "Elo" kelimesini kullanma, "Guc Puani" kullan\n\n' +
         'Alan aciklamalari:\n' +
         '- over25_pct: Mac genelinde 2.5 gol ustu olma ihtimali (0-100)\n' +
-        '- ht2g_pct: Ilk yaride EN AZ 1 gol olma ihtimali (0-100)\n' +
+        '- ht2g_pct: Ilk yaride EN AZ 1 gol olma ihtimali (0-100) — ilk yarı istatistiklerine dayandır\n' +
         '- btts_pct: Her iki takimin da gol atma ihtimali (0-100)\n\n' +
         'SADECE su JSON formatinda yanit ver:\n' +
         '{\n' +
@@ -344,7 +372,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         h2h_summary=None, elo_data=None, odds_data=None,
                         home_standing=None, away_standing=None,
                         home_venue_stats=None, away_venue_stats=None,
-                        home_shot_stats=None, away_shot_stats=None):
+                        home_shot_stats=None, away_shot_stats=None,
+                        home_ht_stats=None, away_ht_stats=None):
 
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
@@ -407,6 +436,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         elo_data, odds_data,
         home_shot_stats=home_shot_stats,
         away_shot_stats=away_shot_stats,
+        home_ht_stats=home_ht_stats,
+        away_ht_stats=away_ht_stats,
     )
 
     result = None
