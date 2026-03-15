@@ -66,6 +66,13 @@ function teamLogoHtml(teamName) {
         onerror="this.style.display='none'">`;
 }
 
+function getWinnerLabel(prediction, homeTeam, awayTeam) {
+    if (prediction === '1') return { label: homeTeam + ' Kazanır', icon: '🏆' };
+    if (prediction === '2') return { label: awayTeam + ' Kazanır', icon: '🏆' };
+    if (prediction === 'X') return { label: 'Beraberlik', icon: '🤝' };
+    return { label: 'Belirsiz', icon: '❓' };
+}
+
 // ===== FIXTURES =====
 async function loadFixtures() {
     const container = document.getElementById('fixturesList');
@@ -395,6 +402,7 @@ function createMatchCard(match) {
     const timeStr = formatTime(match.match_time);
     const homeLogo = teamLogoHtml(match.home_team);
     const awayLogo = teamLogoHtml(match.away_team);
+    const winner = getWinnerLabel(prediction, match.home_team, match.away_team);
 
     return `
         <div class="match-card" id="matchcard-${match.id}">
@@ -443,8 +451,8 @@ function createMatchCard(match) {
             </div>
             <div class="prediction-row">
                 <div class="predicted-score">
-                    <span class="score-label">🎯 TAHMİNİ SKOR</span>
-                    <span class="score-value">${match.predicted_score || '?-?'}</span>
+                    <span class="score-label">${winner.icon} KAZANAN TAHMİNİ</span>
+                    <span class="score-value">${winner.label}</span>
                 </div>
                 <span class="confidence-badge ${confidenceClass}">Analiz Güveni: ${match.confidence || 'Orta'}</span>
             </div>
