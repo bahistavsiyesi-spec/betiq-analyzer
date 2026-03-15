@@ -333,15 +333,52 @@ body {
 }
 .no-matches p { font-size: 1rem; margin-bottom: 8px; }
 
-/* MATCH CARD */
+/* ─── MATCH CARD ─────────────────────────────────────────────────────────── */
 .match-card {
     background: #0d0d15;
     border: 1px solid #1e1e2e;
     border-radius: 14px;
     padding: 18px;
-    transition: border-color 0.2s, transform 0.2s;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
 }
-.match-card:hover { border-color: #00d4aa44; transform: translateY(-2px); }
+.match-card:hover { transform: translateY(-2px); }
+
+/* 4. Kart border + glow → güven seviyesine göre */
+.match-card.card-confidence-very-high {
+    border-color: #00d4aa55;
+    box-shadow: 0 0 16px #00d4aa22;
+}
+.match-card.card-confidence-very-high:hover {
+    border-color: #00d4aa99;
+    box-shadow: 0 0 24px #00d4aa33;
+}
+
+.match-card.card-confidence-high {
+    border-color: #7c6fff55;
+    box-shadow: 0 0 16px #7c6fff22;
+}
+.match-card.card-confidence-high:hover {
+    border-color: #7c6fff99;
+    box-shadow: 0 0 24px #7c6fff33;
+}
+
+.match-card.card-confidence-medium {
+    border-color: #ffa50044;
+    box-shadow: 0 0 10px #ffa50011;
+}
+.match-card.card-confidence-medium:hover {
+    border-color: #ffa50088;
+    box-shadow: 0 0 18px #ffa50022;
+}
+
+.match-card.card-confidence-low {
+    border-color: #ff444433;
+    box-shadow: 0 0 10px #ff444411;
+}
+.match-card.card-confidence-low:hover {
+    border-color: #ff444466;
+    box-shadow: 0 0 18px #ff444422;
+}
 
 .match-header {
     display: flex;
@@ -379,6 +416,7 @@ body {
 .team-name { font-size: 0.92rem; font-weight: 700; color: #fff; }
 .team-form { font-size: 0.7rem; color: #666; font-family: 'JetBrains Mono', monospace; }
 
+/* 1. Logo çevresi rengi → tahmine göre */
 .vs-badge {
     width: 44px;
     height: 44px;
@@ -393,6 +431,7 @@ body {
     background: #1a1a2e;
     border: 2px solid #333;
     padding: 4px;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .vs-badge img {
@@ -402,10 +441,25 @@ body {
     border-radius: 50%;
 }
 
-.prediction-1 { border-color: #00d4aa; }
-.prediction-x { border-color: #ffa500; }
-.prediction-2 { border-color: #7c6fff; }
+/* 1 = Ev sahibi favorisi → yeşil */
+.prediction-1 {
+    border-color: #00d4aa;
+    box-shadow: 0 0 10px #00d4aa44;
+}
 
+/* x = Beraberlik → sarı */
+.prediction-x {
+    border-color: #ffa500;
+    box-shadow: 0 0 10px #ffa50044;
+}
+
+/* 2 = Deplasman favorisi → mor */
+.prediction-2 {
+    border-color: #7c6fff;
+    box-shadow: 0 0 10px #7c6fff44;
+}
+
+/* STATS GRID */
 .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -425,14 +479,29 @@ body {
 
 .stat-label { font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
 .stat-value { font-family: 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 600; color: #fff; }
-.highlight-blue { color: #00d4aa; }
+
+/* 3. Stat değer renkleri → yüzdeye göre dinamik */
+.stat-value.pct-high   { color: #00d4aa; }   /* %70+ → yeşil */
+.stat-value.pct-medium { color: #ffa500; }   /* %40–69 → sarı */
+.stat-value.pct-low    { color: #ff6666; }   /* %39 altı → kırmızı */
+
+/* Eski sabit renkler (geriye dönük uyumluluk) */
+.highlight-blue  { color: #00d4aa; }
 .highlight-yellow { color: #ffa500; }
 
 .stat-bar { height: 3px; background: #1e1e2e; border-radius: 99px; overflow: hidden; }
 .stat-fill { height: 100%; background: #555; border-radius: 99px; }
-.stat-fill.blue { background: linear-gradient(90deg, #00d4aa, #00a88a); }
+
+/* 3. Bar renkleri → yüzdeye göre dinamik */
+.stat-fill.bar-high   { background: linear-gradient(90deg, #00d4aa, #00a88a); }
+.stat-fill.bar-medium { background: linear-gradient(90deg, #ffa500, #ff7700); }
+.stat-fill.bar-low    { background: linear-gradient(90deg, #ff6666, #cc3333); }
+
+/* Eski sabit bar renkleri (geriye dönük uyumluluk) */
+.stat-fill.blue   { background: linear-gradient(90deg, #00d4aa, #00a88a); }
 .stat-fill.yellow { background: linear-gradient(90deg, #ffa500, #ff7700); }
 
+/* PREDICTION ROW */
 .prediction-row {
     display: flex;
     align-items: center;
@@ -448,6 +517,7 @@ body {
 .score-label { font-size: 0.65rem; color: #555; text-transform: uppercase; }
 .score-value { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 600; color: #fff; }
 
+/* 2. Güven badge renkleri */
 .confidence-badge {
     padding: 5px 12px;
     border-radius: 20px;
@@ -455,10 +525,11 @@ body {
     font-weight: 600;
 }
 .confidence-very-high { background: #00d4aa22; color: #00d4aa; border: 1px solid #00d4aa; }
-.confidence-high { background: #7c6fff22; color: #7c6fff; border: 1px solid #7c6fff; }
-.confidence-medium { background: #ffa50022; color: #ffa500; border: 1px solid #ffa500; }
-.confidence-low { background: #ff444422; color: #ff4444; border: 1px solid #ff4444; }
+.confidence-high      { background: #00c27722; color: #00c277; border: 1px solid #00c277; }
+.confidence-medium    { background: #ffa50022; color: #ffa500; border: 1px solid #ffa500; }
+.confidence-low       { background: #ff444422; color: #ff4444; border: 1px solid #ff4444; }
 
+/* REASONING */
 .reasoning { border-top: 1px solid #1e1e2e; padding-top: 12px; }
 .reasoning-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 6px; }
 .reasoning-item { font-size: 0.78rem; color: #999; line-height: 1.5; margin-bottom: 3px; }
