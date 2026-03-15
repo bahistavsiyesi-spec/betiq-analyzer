@@ -1,507 +1,540 @@
-const API_BASE = '';
-let selectedFixtures = {};
-let manualMatches = [];
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
-// ─── Takım ID tablosu (football-data.org crest URL'leri için) ────────────────
-const TEAM_IDS = {
-    // Almanya
-    'Bayern': 5, 'Dortmund': 4, 'Leverkusen': 3, 'Leipzig': 721,
-    'Frankfurt': 19, 'Stuttgart': 10, 'Freiburg': 17, 'Hoffenheim': 2,
-    'Bremen': 12, 'Wolfsburg': 11, 'Gladbach': 18, 'Augsburg': 16,
-    'Union Berlin': 28, 'Bochum': 20, 'Mainz': 15, 'St. Pauli': 20,
-    'Kiel': 44, 'Heidenheim': 44, 'Hamburg': 7, 'Hannover': 30,
-    'Karlsruhe': 24, 'Schalke': 6, 'Darmstadt': 36, 'Köln': 1,
-    'Hertha': 27, 'Düsseldorf': 45, 'Nürnberg': 7,
-    // İngiltere
-    'Arsenal': 57, 'Aston Villa': 58, 'Bournemouth': 1044,
-    'Brentford': 402, 'Brighton': 397, 'Chelsea': 61,
-    'Crystal Palace': 354, 'Everton': 62, 'Fulham': 63,
-    'Ipswich': 349, 'Leicester': 338, 'Liverpool': 64,
-    'Manchester City': 65, 'Man City': 65,
-    'Manchester United': 66, 'Man United': 66, 'Man Utd': 66,
-    'Newcastle': 67, 'Newcastle United': 67,
-    'Nottingham Forest': 351, 'Nott\'m Forest': 351,
-    'Southampton': 340, 'Tottenham': 73, 'Spurs': 73,
-    'West Ham': 563, 'Wolverhampton': 76, 'Wolves': 76,
-    'Burnley': 328, 'Leeds': 341, 'Sunderland': 71,
-    'Coventry': 1076, 'Middlesbrough': 343,
-    // İspanya
-    'Barcelona': 81, 'Real Madrid': 86, 'Atlético Madrid': 78, 'Atletico': 78,
-    'Athletic Club': 77, 'Athletic Bilbao': 77,
-    'Real Sociedad': 92, 'Villarreal': 95,
-    'Real Betis': 90, 'Betis': 90, 'Valencia': 94, 'Girona': 298,
-    'Celta Vigo': 558, 'Celta': 558, 'Sevilla': 559, 'Osasuna': 79,
-    'Getafe': 82, 'Rayo Vallecano': 88, 'Rayo': 88, 'Mallorca': 89,
-    'Alavés': 263, 'Alaves': 263, 'Espanyol': 80,
-    'Las Palmas': 275, 'Leganés': 745, 'Leganes': 745, 'Valladolid': 250,
-    // İtalya
-    'AC Milan': 98, 'Milan': 98,
-    'Inter': 108, 'Inter Milan': 108,
-    'Juventus': 109, 'Napoli': 113, 'Atalanta': 102,
-    'Roma': 100, 'AS Roma': 100,
-    'Lazio': 110, 'Fiorentina': 99, 'Bologna': 103,
-    'Torino': 586, 'Udinese': 115, 'Genoa': 107,
-    'Cagliari': 104, 'Lecce': 5890, 'Verona': 450,
-    'Parma': 112, 'Como': 7397, 'Monza': 5911,
-};
-
-function getTeamLogoUrl(teamName) {
-    if (TEAM_IDS[teamName]) {
-        return `https://crests.football-data.org/${TEAM_IDS[teamName]}.png`;
-    }
-    const lower = teamName.toLowerCase();
-    for (const [key, id] of Object.entries(TEAM_IDS)) {
-        if (key.toLowerCase().includes(lower) || lower.includes(key.toLowerCase())) {
-            return `https://crests.football-data.org/${id}.png`;
-        }
-    }
-    return null;
+body {
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
 }
 
-function teamLogoHtml(teamName) {
-    const url = getTeamLogoUrl(teamName);
-    if (!url) return '';
-    return `<img src="${url}" alt="${teamName}" 
-        style="width:24px; height:24px; object-fit:contain; border-radius:4px; margin-bottom:4px;"
-        onerror="this.style.display='none'">`;
+.app-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 20px;
 }
 
-function getWinnerLabel(prediction, homeTeam, awayTeam) {
-    if (prediction === '1') return { label: homeTeam + ' Kazanır', icon: '🏆' };
-    if (prediction === '2') return { label: awayTeam + ' Kazanır', icon: '🏆' };
-    if (prediction === 'X') return { label: 'Beraberlik', icon: '🤝' };
-    return { label: 'Belirsiz', icon: '❓' };
+/* HEADER */
+.app-header {
+    padding: 20px 0;
+    border-bottom: 1px solid #1e1e2e;
+    margin-bottom: 24px;
 }
 
-// ===== FIXTURES =====
-async function loadFixtures() {
-    const container = document.getElementById('fixturesList');
-    container.innerHTML = `<div class="loading-fixtures"><div class="spinner"></div><span>Maçlar yükleniyor...</span></div>`;
-    try {
-        const resp = await fetch('/api/fixtures/today');
-        const fixtures = await resp.json();
-        if (!fixtures || fixtures.length === 0) {
-            container.innerHTML = `<div class="no-matches"><p>📭 API kotası doldu.<br>📸 Görsel yükle veya manuel ekle.</p></div>`;
-            return;
-        }
-        const grouped = {};
-        fixtures.forEach(f => {
-            const league = f.league || 'Diğer';
-            if (!grouped[league]) grouped[league] = [];
-            grouped[league].push(f);
-        });
-        let html = '';
-        for (const [league, matches] of Object.entries(grouped)) {
-            html += `<div class="league-group"><div class="league-title">🏆 ${league}</div>`;
-            matches.forEach(f => {
-                const time = formatTime(f.date);
-                html += `
-                <div class="fixture-item" data-id="${f.id}" onclick="toggleFixture(${f.id}, '${f.home_team}', '${f.away_team}', '${f.league}', '${f.date}')">
-                    <div class="fixture-check" id="check-${f.id}">☐</div>
-                    <div class="fixture-info">
-                        <span class="fixture-teams">${f.home_team} vs ${f.away_team}</span>
-                        ${time ? `<span class="fixture-time">${time}</span>` : ''}
-                    </div>
-                </div>`;
-            });
-            html += `</div>`;
-        }
-        container.innerHTML = html;
-    } catch (e) {
-        container.innerHTML = `<div class="no-matches"><p>📭 API kotası doldu.<br>📸 Görsel yükle veya manuel ekle.</p></div>`;
-    }
+.header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
-function toggleFixture(id, home, away, league, date) {
-    if (selectedFixtures[id]) {
-        delete selectedFixtures[id];
-        document.getElementById(`check-${id}`).textContent = '☐';
-        document.querySelector(`[data-id="${id}"]`).classList.remove('selected');
-    } else {
-        selectedFixtures[id] = { id, home_team: home, away_team: away, league, date };
-        document.getElementById(`check-${id}`).textContent = '✅';
-        document.querySelector(`[data-id="${id}"]`).classList.add('selected');
-    }
-    updateSelectedCount();
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon { font-size: 1.8rem; }
+.logo-text {
+    font-size: 1.8rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #00d4aa, #7c6fff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.logo-sub {
+    font-size: 0.75rem;
+    color: #666;
+    letter-spacing: 3px;
+    align-self: flex-end;
+    margin-bottom: 4px;
 }
 
-function selectAll() {
-    const items = document.querySelectorAll('.fixture-item');
-    const allSelected = items.length === Object.keys(selectedFixtures).length;
-    items.forEach(item => {
-        const id = parseInt(item.dataset.id);
-        if (allSelected) {
-            delete selectedFixtures[id];
-            document.getElementById(`check-${id}`).textContent = '☐';
-            item.classList.remove('selected');
-        } else {
-            selectedFixtures[id] = { id };
-            document.getElementById(`check-${id}`).textContent = '✅';
-            item.classList.add('selected');
-        }
-    });
-    updateSelectedCount();
+/* TWO COLUMN */
+.two-column {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 24px;
+    align-items: start;
 }
 
-function updateSelectedCount() {
-    const total = Object.keys(selectedFixtures).length + manualMatches.length;
-    document.getElementById('selectedCount').textContent = `${total} maç seçildi`;
-    document.getElementById('analyzeBtn').disabled = total === 0;
+/* PANELS */
+.left-panel, .right-panel {
+    background: #111118;
+    border: 1px solid #1e1e2e;
+    border-radius: 16px;
+    padding: 20px;
 }
 
-// ===== IMAGE UPLOAD =====
-function initImageUpload() {
-    const btn = document.getElementById('imageUploadBtn');
-    const input = document.getElementById('imageUpload');
-    btn.addEventListener('click', () => input.click());
-    input.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            document.getElementById('previewImg').src = ev.target.result;
-            document.getElementById('imagePreview').style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-        const status = document.getElementById('imageStatus');
-        status.textContent = '🔍 Görsel analiz ediliyor...';
-        status.style.color = '#888';
-        btn.disabled = true;
-        try {
-            const base64 = await fileToBase64(file);
-            const resp = await fetch('/api/parse/image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: base64, media_type: file.type })
-            });
-            const data = await resp.json();
-            if (data.status === 'success' && data.matches.length > 0) {
-                data.matches.forEach(m => {
-                    const exists = manualMatches.some(x => x.home_team === m.home_team && x.away_team === m.away_team);
-                    if (!exists) manualMatches.push(m);
-                });
-                renderManualList();
-                updateSelectedCount();
-                status.textContent = `✅ ${data.matches.length} maç eklendi!`;
-                status.style.color = '#22c55e';
-            } else {
-                status.textContent = '❌ Maç bulunamadı, tekrar dene.';
-                status.style.color = '#ef4444';
-            }
-        } catch (err) {
-            status.textContent = '❌ Hata: ' + err.message;
-            status.style.color = '#ef4444';
-        }
-        btn.disabled = false;
-        input.value = '';
-    });
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
+.panel-header h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
 }
 
-// ===== MANUAL MATCHES =====
-function addManualMatch() {
-    const home = document.getElementById('homeTeam').value.trim();
-    const away = document.getElementById('awayTeam').value.trim();
-    const league = document.getElementById('leagueName').value.trim() || 'Manuel Maç';
-    const time = document.getElementById('matchTime').value;
-    if (!home || !away) { alert('Ev sahibi ve deplasman takımı gerekli!'); return; }
-    let matchDate;
-    if (time) {
-        const today = new Date();
-        const [hours, minutes] = time.split(':');
-        today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        matchDate = today.toISOString();
-    } else { matchDate = null; }
-    manualMatches.push({ home_team: home, away_team: away, league, date: matchDate });
-    document.getElementById('homeTeam').value = '';
-    document.getElementById('awayTeam').value = '';
-    document.getElementById('leagueName').value = '';
-    document.getElementById('matchTime').value = '';
-    renderManualList();
-    updateSelectedCount();
+.panel-actions {
+    display: flex;
+    gap: 8px;
 }
 
-function removeManual(index) {
-    manualMatches.splice(index, 1);
-    renderManualList();
-    updateSelectedCount();
+.btn-secondary {
+    background: #1e1e2e;
+    color: #aaa;
+    border: 1px solid #333;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    transition: all 0.2s;
+}
+.btn-secondary:hover { background: #2a2a3e; color: #fff; }
+
+/* FIXTURES LIST */
+.loading-fixtures {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #666;
+    padding: 20px;
+    justify-content: center;
 }
 
-function renderManualList() {
-    const container = document.getElementById('manualList');
-    if (manualMatches.length === 0) { container.innerHTML = ''; return; }
-    container.innerHTML = manualMatches.map((m, i) => {
-        const timeStr = formatTime(m.date);
-        return `
-        <div class="manual-item">
-            <span>⚽ ${m.home_team} vs ${m.away_team} <small>(${m.league})</small>${timeStr ? ' 🕐 ' + timeStr : ''}</span>
-            <button onclick="removeManual(${i})" class="btn-remove">✕</button>
-        </div>`;
-    }).join('');
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #333;
+    border-top-color: #00d4aa;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
 }
 
-// ===== ANALYSIS =====
-async function runAnalysis() {
-    const btn = document.getElementById('analyzeBtn');
-    const statusDiv = document.getElementById('analysisStatus');
-    const total = Object.keys(selectedFixtures).length + manualMatches.length;
-    btn.disabled = true;
-    btn.innerHTML = '⏳ Analiz başlatılıyor...';
-    statusDiv.style.display = 'block';
-    statusDiv.innerHTML = `
-        <div class="status-box">
-            <div class="status-spinner"></div>
-            <div class="status-text">
-                <strong>🔍 ${total} maç analiz ediliyor...</strong>
-                <span>Claude AI çalışıyor, yaklaşık ${total * 10} saniye sürer.</span>
-                <div class="progress-bar-wrap">
-                    <div class="progress-bar-fill" id="progressBar"></div>
-                </div>
-                <small id="progressText">Başlatılıyor...</small>
-            </div>
-        </div>`;
-    const duration = total * 10000;
-    const steps = [10, 25, 40, 55, 70, 85, 95];
-    steps.forEach((pct, i) => {
-        setTimeout(() => {
-            const bar = document.getElementById('progressBar');
-            const txt = document.getElementById('progressText');
-            if (bar) bar.style.width = pct + '%';
-            if (txt) txt.textContent = `🤖 Analiz yapılıyor... (${Math.ceil(i * total / steps.length)}/${total})`;
-        }, (duration / steps.length) * i);
-    });
-    try {
-        const resp = await fetch('/api/analyze/selected', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fixture_ids: Object.keys(selectedFixtures).map(Number),
-                manual_matches: manualMatches
-            })
-        });
-        const data = await resp.json();
-        if (data.status === 'success') {
-            setTimeout(async () => await checkAndReload(statusDiv, btn, total), duration + 5000);
-        } else {
-            showError(statusDiv, btn, data.message);
-        }
-    } catch (e) {
-        showError(statusDiv, btn, e.message);
-    }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.league-group { margin-bottom: 12px; }
+
+.league-title {
+    font-size: 0.7rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 6px 0;
+    border-bottom: 1px solid #1e1e2e;
+    margin-bottom: 4px;
 }
 
-async function checkAndReload(statusDiv, btn, total) {
-    try {
-        const res = await fetch('/api/matches/today');
-        const matches = await res.json();
-        if (matches && matches.length > 0) {
-            const bar = document.getElementById('progressBar');
-            const txt = document.getElementById('progressText');
-            if (bar) bar.style.width = '100%';
-            if (txt) txt.textContent = '✅ Analiz tamamlandı!';
-            statusDiv.innerHTML = `<div class="status-box success"><span>✅ ${matches.length} maç analiz edildi! Yükleniyor...</span></div>`;
-            renderMatches(matches);
-            btn.disabled = false;
-            btn.innerHTML = '🔍 Seçilenleri Analiz Et';
-            statusDiv.style.display = 'none';
-        } else {
-            setTimeout(() => checkAndReload(statusDiv, btn, total), 15000);
-        }
-    } catch (e) {
-        setTimeout(() => checkAndReload(statusDiv, btn, total), 15000);
-    }
+.fixture-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-bottom: 2px;
+}
+.fixture-item:hover { background: #1a1a2e; }
+.fixture-item.selected { background: #00d4aa11; border: 1px solid #00d4aa33; }
+
+.fixture-check {
+    font-size: 1rem;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
 }
 
-function showError(statusDiv, btn, message) {
-    statusDiv.innerHTML = `<div class="status-box error"><span>❌ Hata: ${message}</span></div>`;
-    btn.disabled = false;
-    btn.innerHTML = '🔍 Seçilenleri Analiz Et';
+.fixture-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
 }
 
-// ===== TELEGRAM =====
-async function sendToTelegram() {
-    const btn = document.getElementById('telegramBtn');
-    btn.disabled = true;
-    btn.innerHTML = '⏳ Gönderiliyor...';
-    try {
-        const resp = await fetch('/api/telegram/send', { method: 'POST' });
-        const data = await resp.json();
-        if (data.status === 'success') {
-            btn.innerHTML = '✅ Gönderildi!';
-            btn.style.background = '#22c55e';
-            setTimeout(() => { btn.innerHTML = '📨 Telegram\'a Gönder'; btn.style.background = ''; btn.disabled = false; }, 3000);
-        } else {
-            btn.innerHTML = '❌ Hata!';
-            btn.style.background = '#ef4444';
-            alert('Hata: ' + data.message);
-            setTimeout(() => { btn.innerHTML = '📨 Telegram\'a Gönder'; btn.style.background = ''; btn.disabled = false; }, 3000);
-        }
-    } catch (e) {
-        btn.innerHTML = '❌ Hata!';
-        alert('Hata: ' + e.message);
-        btn.disabled = false;
-    }
+.fixture-teams {
+    font-size: 0.82rem;
+    color: #ddd;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-// ===== MATCHES =====
-async function loadMatches() {
-    const container = document.getElementById('matchesContainer');
-    try {
-        const resp = await fetch('/api/matches/today');
-        const matches = await resp.json();
-        if (!matches || matches.length === 0) {
-            container.innerHTML = `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p><p>Sol taraftan maç seçip analiz et.</p></div>`;
-            return;
-        }
-        renderMatches(matches);
-    } catch (e) {
-        container.innerHTML = `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
-    }
+.fixture-time {
+    font-size: 0.72rem;
+    color: #00d4aa;
+    font-family: 'JetBrains Mono', monospace;
 }
 
-function renderMatches(matches) {
-    const container = document.getElementById('matchesContainer');
-    if (!matches || matches.length === 0) {
-        container.innerHTML = `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
-        return;
-    }
-    container.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:0 4px;">
-            <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px; border-radius:8px; border:none; background:#2563eb; color:#fff; font-size:13px; cursor:pointer; font-family:inherit; font-weight:600;">
-                📨 Telegram'a Gönder
-            </button>
-            <button onclick="clearAllMatches()" style="padding:6px 14px; border-radius:8px; border:1px solid #ef4444; background:transparent; color:#ef4444; font-size:12px; cursor:pointer; font-family:inherit;">
-                🗑️ Tümünü Sil
-            </button>
-        </div>
-        <div id="matchCardsList">
-            ${matches.map(m => createMatchCard(m)).join('')}
-        </div>`;
+/* MANUAL SECTION */
+.manual-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #1e1e2e;
 }
 
-function createMatchCard(match) {
-    const prediction = match.prediction_1x2 || '?';
-    const confidenceClass = {
-        'Çok Yüksek': 'confidence-very-high',
-        'Yüksek': 'confidence-high',
-        'Orta': 'confidence-medium',
-        'Düşük': 'confidence-low'
-    }[match.confidence] || 'confidence-medium';
-
-    let reasoning = [];
-    try { reasoning = JSON.parse(match.reasoning || '[]'); } catch (e) {}
-
-    const timeStr = formatTime(match.match_time);
-    const homeLogo = teamLogoHtml(match.home_team);
-    const awayLogo = teamLogoHtml(match.away_team);
-    const winner = getWinnerLabel(prediction, match.home_team, match.away_team);
-
-    return `
-        <div class="match-card" id="matchcard-${match.id}">
-            <div style="display:flex; justify-content:flex-end; margin-bottom:4px;">
-                <button onclick="deleteMatch(${match.id})" style="background:transparent; border:none; color:#444; font-size:15px; cursor:pointer; padding:0; line-height:1;" title="Sil">🗑️</button>
-            </div>
-            <div class="match-header">
-                <span class="league-badge">⚽ ${match.league || 'Bilinmeyen Lig'}</span>
-                ${timeStr ? `<span class="match-time">${timeStr}</span>` : ''}
-            </div>
-            <div class="teams">
-                <div class="team home-team">
-                    ${homeLogo}
-                    <span class="team-name">${match.home_team}</span>
-                    <span class="team-form">${match.home_form || 'N/A'}</span>
-                </div>
-                <div class="vs-badge prediction-${prediction.toLowerCase()}">
-                    <img src="/static/img/logo.png" alt="GL" onerror="this.parentElement.innerHTML='${prediction}'">
-                </div>
-                <div class="team away-team">
-                    ${awayLogo}
-                    <span class="team-name">${match.away_team}</span>
-                    <span class="team-form">${match.away_form || 'N/A'}</span>
-                </div>
-            </div>
-            <div class="stats-grid">
-                <div class="stat-box">
-                    <span class="stat-label">🎯 2.5 GOL ÜSTÜ</span>
-                    <span class="stat-value highlight-blue">${match.over25_pct}%</span>
-                    <div class="stat-bar"><div class="stat-fill blue" style="width:${match.over25_pct}%"></div></div>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">⚽ İY 0.5 ÜST</span>
-                    <span class="stat-value">${match.ht2g_pct}%</span>
-                    <div class="stat-bar"><div class="stat-fill" style="width:${match.ht2g_pct}%"></div></div>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">🔁 KG VAR (BTTS)</span>
-                    <span class="stat-value highlight-yellow">${match.btts_pct}%</span>
-                    <div class="stat-bar"><div class="stat-fill yellow" style="width:${match.btts_pct}%"></div></div>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">📊 GOL ORT.</span>
-                    <span class="stat-value">${match.home_goals_avg || 0} / ${match.away_goals_avg || 0}</span>
-                </div>
-            </div>
-            <div class="prediction-row">
-                <div class="predicted-score">
-                    <span class="score-label">${winner.icon} KAZANAN TAHMİNİ</span>
-                    <span class="score-value">${winner.label}</span>
-                </div>
-                <span class="confidence-badge ${confidenceClass}">Analiz Güveni: ${match.confidence || 'Orta'}</span>
-            </div>
-            ${reasoning.length > 0 ? `
-            <div class="reasoning">
-                <span class="reasoning-label">🧠 ANALİZ GEREKÇESİ</span>
-                ${reasoning.map(r => `<p class="reasoning-item">→ ${r}</p>`).join('')}
-            </div>` : ''}
-        </div>`;
+.manual-section h3 {
+    font-size: 0.9rem;
+    color: #aaa;
+    margin-bottom: 12px;
 }
 
-async function deleteMatch(id) {
-    if (!confirm('Bu analizi silmek istediğine emin misin?')) return;
-    try {
-        await fetch(`/api/matches/delete/${id}`, { method: 'DELETE' });
-        document.getElementById(`matchcard-${id}`)?.remove();
-        const remaining = document.querySelectorAll('.match-card');
-        if (remaining.length === 0) {
-            document.getElementById('matchesContainer').innerHTML = `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
-        }
-    } catch (e) { alert('Silme hatası: ' + e.message); }
+.manual-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-async function clearAllMatches() {
-    if (!confirm('Bugünün tüm analizleri silinecek. Emin misin?')) return;
-    try {
-        await fetch('/api/matches/clear', { method: 'DELETE' });
-        document.getElementById('matchesContainer').innerHTML = `<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
-    } catch (e) { alert('Silme hatası: ' + e.message); }
+.input-field {
+    background: #0d0d15;
+    border: 1px solid #1e1e2e;
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.input-field:focus { border-color: #00d4aa; }
+.input-field::placeholder { color: #444; }
+
+.btn-add {
+    background: #00d4aa22;
+    color: #00d4aa;
+    border: 1px solid #00d4aa44;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.btn-add:hover { background: #00d4aa33; }
+
+.manual-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: #0d0d15;
+    border-radius: 8px;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: #aaa;
 }
 
-function formatTime(dateStr) {
-    if (!dateStr) return '';
-    try {
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return '';
-        const timeStr = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
-        if (timeStr === '00:00' || timeStr === '03:00') return '';
-        return timeStr;
-    } catch { return ''; }
+.btn-remove {
+    background: none;
+    border: none;
+    color: #ff4444;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0 4px;
 }
 
-// ===== INIT =====
-document.addEventListener('DOMContentLoaded', () => {
-    loadFixtures();
-    loadMatches();
-    document.getElementById('analyzeBtn').addEventListener('click', runAnalysis);
-    document.getElementById('refreshFixtures').addEventListener('click', loadFixtures);
-    document.getElementById('selectAll').addEventListener('click', selectAll);
-    document.getElementById('addManual').addEventListener('click', addManualMatch);
-    initImageUpload();
-});
+/* ANALYZE SECTION */
+.analyze-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #1e1e2e;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.selected-count {
+    font-size: 0.82rem;
+    color: #666;
+    text-align: center;
+}
+
+.analyze-btn {
+    background: linear-gradient(135deg, #00d4aa, #7c6fff);
+    color: #fff;
+    border: none;
+    padding: 14px;
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.2s;
+    width: 100%;
+}
+.analyze-btn:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+.analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* STATUS */
+#analysisStatus { margin-bottom: 16px; }
+
+.status-box {
+    background: #0d0d15;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.status-box.success { border-color: #00d4aa; }
+.status-box.error { border-color: #ff4444; }
+
+.status-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #333;
+    border-top-color: #00d4aa;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    flex-shrink: 0;
+}
+
+.status-text { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.status-text strong { color: #fff; font-size: 0.95rem; }
+.status-text span { color: #aaa; font-size: 0.82rem; }
+.status-text small { color: #00d4aa; font-size: 0.78rem; }
+
+.progress-bar-wrap {
+    background: #1e1e2e;
+    border-radius: 99px;
+    height: 5px;
+    width: 100%;
+    margin-top: 4px;
+}
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00d4aa, #7c6fff);
+    border-radius: 99px;
+    width: 0%;
+    transition: width 1s ease;
+}
+
+/* MATCHES CONTAINER */
+#matchesContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+#matchCardsList {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+}
+
+.no-matches {
+    text-align: center;
+    padding: 60px 20px;
+    color: #444;
+}
+.no-matches p { font-size: 1rem; margin-bottom: 8px; }
+
+/* ─── MATCH CARD ─────────────────────────────────────────────────────────── */
+.match-card {
+    background: #0d0d15;
+    border: 1px solid #1e1e2e;
+    border-radius: 14px;
+    padding: 18px;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.match-card:hover { transform: translateY(-2px); }
+
+/* 4. Kart border + glow → güven seviyesine göre */
+.match-card.card-confidence-very-high {
+    border-color: #00d4aa55;
+    box-shadow: 0 0 16px #00d4aa22;
+}
+.match-card.card-confidence-very-high:hover {
+    border-color: #00d4aa99;
+    box-shadow: 0 0 24px #00d4aa33;
+}
+
+.match-card.card-confidence-high {
+    border-color: #7c6fff55;
+    box-shadow: 0 0 16px #7c6fff22;
+}
+.match-card.card-confidence-high:hover {
+    border-color: #7c6fff99;
+    box-shadow: 0 0 24px #7c6fff33;
+}
+
+.match-card.card-confidence-medium {
+    border-color: #ffa50044;
+    box-shadow: 0 0 10px #ffa50011;
+}
+.match-card.card-confidence-medium:hover {
+    border-color: #ffa50088;
+    box-shadow: 0 0 18px #ffa50022;
+}
+
+.match-card.card-confidence-low {
+    border-color: #ff444433;
+    box-shadow: 0 0 10px #ff444411;
+}
+.match-card.card-confidence-low:hover {
+    border-color: #ff444466;
+    box-shadow: 0 0 18px #ff444422;
+}
+
+.match-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.league-badge {
+    font-size: 0.72rem;
+    color: #888;
+    background: #1a1a2e;
+    padding: 3px 8px;
+    border-radius: 20px;
+}
+
+.match-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    color: #00d4aa;
+}
+
+.teams {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 8px;
+}
+
+.team { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.home-team { align-items: flex-start; }
+.away-team { align-items: flex-end; }
+
+.team-name { font-size: 0.92rem; font-weight: 700; color: #fff; }
+.team-form { font-size: 0.7rem; color: #666; font-family: 'JetBrains Mono', monospace; }
+
+/* 1. Logo çevresi rengi → tahmine göre */
+.vs-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: #1a1a2e;
+    border: 2px solid #333;
+    padding: 4px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.vs-badge img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 50%;
+}
+
+/* 1 = Ev sahibi favorisi → yeşil */
+.prediction-1 {
+    border-color: #00d4aa;
+    box-shadow: 0 0 10px #00d4aa44;
+}
+
+/* x = Beraberlik → sarı */
+.prediction-x {
+    border-color: #ffa500;
+    box-shadow: 0 0 10px #ffa50044;
+}
+
+/* 2 = Deplasman favorisi → mor */
+.prediction-2 {
+    border-color: #7c6fff;
+    box-shadow: 0 0 10px #7c6fff44;
+}
+
+/* STATS GRID */
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.stat-box {
+    background: #111118;
+    border: 1px solid #1e1e2e;
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.stat-label { font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-family: 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 600; color: #fff; }
+
+/* 3. Stat değer renkleri → yüzdeye göre dinamik */
+.stat-value.pct-high   { color: #00d4aa; }   /* %70+ → yeşil */
+.stat-value.pct-medium { color: #ffa500; }   /* %40–69 → sarı */
+.stat-value.pct-low    { color: #ff6666; }   /* %39 altı → kırmızı */
+
+/* Eski sabit renkler (geriye dönük uyumluluk) */
+.highlight-blue  { color: #00d4aa; }
+.highlight-yellow { color: #ffa500; }
+
+.stat-bar { height: 3px; background: #1e1e2e; border-radius: 99px; overflow: hidden; }
+.stat-fill { height: 100%; background: #555; border-radius: 99px; }
+
+/* 3. Bar renkleri → yüzdeye göre dinamik */
+.stat-fill.bar-high   { background: linear-gradient(90deg, #00d4aa, #00a88a); }
+.stat-fill.bar-medium { background: linear-gradient(90deg, #ffa500, #ff7700); }
+.stat-fill.bar-low    { background: linear-gradient(90deg, #ff6666, #cc3333); }
+
+/* Eski sabit bar renkleri (geriye dönük uyumluluk) */
+.stat-fill.blue   { background: linear-gradient(90deg, #00d4aa, #00a88a); }
+.stat-fill.yellow { background: linear-gradient(90deg, #ffa500, #ff7700); }
+
+/* PREDICTION ROW */
+.prediction-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding: 10px;
+    background: #111118;
+    border-radius: 8px;
+    border: 1px solid #1e1e2e;
+}
+
+.predicted-score { display: flex; flex-direction: column; gap: 2px; }
+.score-label { font-size: 0.65rem; color: #555; text-transform: uppercase; }
+.score-value { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 600; color: #fff; }
+
+/* 2. Güven badge renkleri */
+.confidence-badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.confidence-very-high { background: #00d4aa22; color: #00d4aa; border: 1px solid #00d4aa; }
+.confidence-high      { background: #00c27722; color: #00c277; border: 1px solid #00c277; }
+.confidence-medium    { background: #ffa50022; color: #ffa500; border: 1px solid #ffa500; }
+.confidence-low       { background: #ff444422; color: #ff4444; border: 1px solid #ff4444; }
+
+/* REASONING */
+.reasoning { border-top: 1px solid #1e1e2e; padding-top: 12px; }
+.reasoning-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 6px; }
+.reasoning-item { font-size: 0.78rem; color: #999; line-height: 1.5; margin-bottom: 3px; }
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+    .two-column { grid-template-columns: 1fr; }
+}
