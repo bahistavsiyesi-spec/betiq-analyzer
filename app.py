@@ -7,7 +7,7 @@ from backend.football_api import get_todays_fixtures
 from backend.analyzer import run_selected_analysis
 from backend.database import init_db, get_today_matches, get_analyses_by_date, get_available_dates
 
-app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
+app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static', static_url_path='/static')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 init_db()
@@ -298,7 +298,7 @@ Görseldeki TÜM maçları JSON formatında döndür. Her maç için:
 Sadece JSON array döndür, başka hiçbir şey yazma. Örnek:
 [{{"home_team": "Fenerbahçe", "away_team": "Galatasaray", "league": "Süper Lig", "time": "20:00"}}]
 
-E�er görsel bir maç programı değilse boş array [] döndür."""
+Eğer görsel bir maç programı değilse boş array [] döndür."""
                         }
                     ],
                 }
@@ -356,7 +356,6 @@ def api_clear_matches():
 
 @app.route('/api/debug/openliga/<league>')
 def debug_openliga(league):
-    """OpenLigaDB takım ID'leri. Örnek: /api/debug/openliga/bl1"""
     try:
         import requests as req
         resp = req.get(f'https://api.openligadb.de/getavailableteams/{league}/2024', timeout=10)
@@ -369,14 +368,6 @@ def debug_openliga(league):
 
 @app.route('/api/debug/footballdata/<league_code>')
 def debug_footballdata(league_code):
-    """
-    football-data.org takım ID'leri.
-    Örnek: /api/debug/footballdata/ELC  → Championship
-           /api/debug/footballdata/PL   → Premier League
-           /api/debug/footballdata/PD   → La Liga
-           /api/debug/footballdata/SA   → Serie A
-           /api/debug/footballdata/BL1  → Bundesliga
-    """
     try:
         import requests as req
         resp = req.get(
