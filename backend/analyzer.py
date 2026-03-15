@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from backend.football_api import (
     get_todays_fixtures, get_h2h, get_team_last_matches,
-    get_team_home_away_stats, get_team_standing
+    get_team_home_away_stats, get_team_standing, get_team_shot_stats
 )
 from backend.database import save_analysis, delete_analyses_by_fixture_ids, log_run
 
@@ -220,6 +220,24 @@ def analyze_fixture(fixture):
     except Exception as e:
         logger.warning('Odds failed: ' + str(e))
 
+    # Şut / korner istatistikleri (football-data.co.uk)
+    home_shot_stats = None
+    away_shot_stats = None
+    if country_code:
+        try:
+            home_shot_stats = get_team_shot_stats(home_name, country_code, last=5)
+            away_shot_stats = get_team_shot_stats(away_name, country_code, last=5)
+            if home_shot_stats:
+                logger.info(f'Shot stats {home_name}: {home_shot_stats["shots_avg"]} şut, '
+                            f'{home_shot_stats["shots_on_target_avg"]} isabet, '
+                            f'{home_shot_stats["corners_avg"]} korner')
+            if away_shot_stats:
+                logger.info(f'Shot stats {away_name}: {away_shot_stats["shots_avg"]} şut, '
+                            f'{away_shot_stats["shots_on_target_avg"]} isabet, '
+                            f'{away_shot_stats["corners_avg"]} korner')
+        except Exception as e:
+            logger.warning(f'Shot stats failed: {e}')
+
     logger.info('Stats: ' + home_name + ' form=' + home_form + ' avg=' + str(home_goals_avg) +
                 ', ' + away_name + ' form=' + away_form + ' avg=' + str(away_goals_avg))
 
@@ -241,6 +259,8 @@ def analyze_fixture(fixture):
         away_standing=away_standing,
         home_venue_stats=home_venue_stats,
         away_venue_stats=away_venue_stats,
+        home_shot_stats=home_shot_stats,
+        away_shot_stats=away_shot_stats,
     )
 
 
