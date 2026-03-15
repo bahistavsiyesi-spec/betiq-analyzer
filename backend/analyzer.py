@@ -112,16 +112,62 @@ def extract_goals_avg(matches, team_name):
     return avg_scored, avg_conceded
 
 
+def extract_btts_stats(matches, team_name):
+    """
+    Takımın son maçlarından KG VAR (BTTS) istatistiklerini çıkar.
+    Döndürür: {
+        'scored_pct': 80,       → gol attığı maç yüzdesi
+        'conceded_pct': 70,     → gol yediği maç yüzdesi
+        'btts_pct': 56,         → matematiksel KG VAR tahmini (scored_pct * conceded_pct)
+        'matches_used': 10
+    }
+    """
+    scored_count = 0
+    conceded_count = 0
+    total = 0
+
+    for m in matches:
+        try:
+            home_name = m['teams']['home']['name']
+            hg = m['goals']['home']
+            ag = m['goals']['away']
+            if hg is None or ag is None:
+                continue
+
+            is_home = team_name.lower() in home_name.lower()
+            team_goals = hg if is_home else ag
+            opp_goals = ag if is_home else hg
+
+            if team_goals > 0:
+                scored_count += 1
+            if opp_goals > 0:
+                conceded_count += 1
+            total += 1
+        except:
+            continue
+
+    if total == 0:
+        return None
+
+    scored_pct = round(scored_count / total * 100)
+    conceded_pct = round(conceded_count / total * 100)
+    # Matematiksel BTTS tahmini: P(A gol atar) × P(B gol atar)
+    # conceded_pct = rakibin gol atma ihtimali = bizim gol yeme ihtimalimiz
+    btts_estimate = round(scored_pct * conceded_pct / 100)
+
+    logger.info(f'BTTS stats {team_name}: %{scored_pct} gol atar, %{conceded_pct} gol yer (son {total} maç)')
+
+    return {
+        'scored_pct': scored_pct,
+        'conceded_pct': conceded_pct,
+        'btts_estimate': btts_estimate,
+        'matches_used': total,
+    }
+
+
 def extract_ht_stats(matches, team_name):
     """
     Maçların halfTime skorlarından ilk yarı istatistiklerini çıkar.
-    Döndürür: {
-        'ht_goals_avg': 0.8,       → ilk yarı ortalama attığı gol
-        'ht_conceded_avg': 0.4,    → ilk yarı ortalama yediği gol
-        'ht_over05_pct': 72,       → ilk yarıda toplam en az 1 gol olan maç yüzdesi
-        'ht_scored_pct': 60,       → ilk yarıda bu takımın gol attığı maç yüzdesi
-        'matches_used': 8
-    }
     """
     ht_scored = []
     ht_conceded = []
@@ -246,7 +292,7 @@ def analyze_fixture(fixture):
         logger.info('Venue stats ' + away_name + ': dep=' + str(away_venue_stats.get('away_form', '')) +
                     ' avg=' + str(away_venue_stats.get('away_goals_avg', 0)))
 
-    # İlk yarı istatistikleri (halfTime skorlarından)
+    # İlk yarı istatistikleri
     home_ht_stats = extract_ht_stats(home_matches, home_name)
     away_ht_stats = extract_ht_stats(away_matches, away_name)
 
@@ -256,6 +302,17 @@ def analyze_fixture(fixture):
     if away_ht_stats:
         logger.info(f'HT stats {away_name}: {away_ht_stats["ht_goals_avg"]} gol atar, '
                     f'%{away_ht_stats["ht_over05_pct"]} maçta ilk yarı gol var')
+
+    # KG VAR istatistikleri
+    home_btts_stats = extract_btts_stats(home_matches, home_name)
+    away_btts_stats = extract_btts_stats(away_matches, away_name)
+
+    if home_btts_stats and away_btts_stats:
+        # Matematiksel KG VAR tahmini: P(ev gol atar) × P(dep gol atar)
+        btts_mathematical = round(home_btts_stats['scored_pct'] * away_btts_stats['scored_pct'] / 100)
+        logger.info(f'BTTS mathematical: %{home_btts_stats["scored_pct"]} × %{away_btts_stats["scored_pct"]} = %{btts_mathematical}')
+    else:
+        btts_mathematical = None
 
     # Puan durumu
     home_standing = None
@@ -331,6 +388,9 @@ def analyze_fixture(fixture):
         away_shot_stats=away_shot_stats,
         home_ht_stats=home_ht_stats,
         away_ht_stats=away_ht_stats,
+        home_btts_stats=home_btts_stats,
+        away_btts_stats=away_btts_stats,
+        btts_mathematical=btts_mathematical,
     )
 
 
