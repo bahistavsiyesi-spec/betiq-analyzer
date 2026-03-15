@@ -17,23 +17,28 @@ const TEAM_IDS = {
     'Brentford': 402, 'Brighton': 397, 'Chelsea': 61,
     'Crystal Palace': 354, 'Everton': 62, 'Fulham': 63,
     'Ipswich': 349, 'Leicester': 338, 'Liverpool': 64,
-    'Manchester City': 65, 'Manchester United': 66,
-    'Newcastle': 67, 'Nottingham Forest': 351,
-    'Southampton': 340, 'Tottenham': 73,
-    'West Ham': 563, 'Wolverhampton': 76,
+    'Manchester City': 65, 'Man City': 65,
+    'Manchester United': 66, 'Man United': 66, 'Man Utd': 66,
+    'Newcastle': 67, 'Newcastle United': 67,
+    'Nottingham Forest': 351, 'Nott\'m Forest': 351,
+    'Southampton': 340, 'Tottenham': 73, 'Spurs': 73,
+    'West Ham': 563, 'Wolverhampton': 76, 'Wolves': 76,
     'Burnley': 328, 'Leeds': 341, 'Sunderland': 71,
     'Coventry': 1076, 'Middlesbrough': 343,
     // İspanya
-    'Barcelona': 81, 'Real Madrid': 86, 'Atlético Madrid': 78,
-    'Athletic Club': 77, 'Real Sociedad': 92, 'Villarreal': 95,
-    'Real Betis': 90, 'Valencia': 94, 'Girona': 298,
-    'Celta Vigo': 558, 'Sevilla': 559, 'Osasuna': 79,
-    'Getafe': 82, 'Rayo Vallecano': 88, 'Mallorca': 89,
-    'Alavés': 263, 'Espanyol': 80, 'Las Palmas': 275,
-    'Leganés': 745, 'Valladolid': 250,
+    'Barcelona': 81, 'Real Madrid': 86, 'Atlético Madrid': 78, 'Atletico': 78,
+    'Athletic Club': 77, 'Athletic Bilbao': 77,
+    'Real Sociedad': 92, 'Villarreal': 95,
+    'Real Betis': 90, 'Betis': 90, 'Valencia': 94, 'Girona': 298,
+    'Celta Vigo': 558, 'Celta': 558, 'Sevilla': 559, 'Osasuna': 79,
+    'Getafe': 82, 'Rayo Vallecano': 88, 'Rayo': 88, 'Mallorca': 89,
+    'Alavés': 263, 'Alaves': 263, 'Espanyol': 80,
+    'Las Palmas': 275, 'Leganés': 745, 'Leganes': 745, 'Valladolid': 250,
     // İtalya
-    'AC Milan': 98, 'Inter': 108, 'Juventus': 109,
-    'Napoli': 113, 'Atalanta': 102, 'Roma': 100,
+    'AC Milan': 98, 'Milan': 98,
+    'Inter': 108, 'Inter Milan': 108,
+    'Juventus': 109, 'Napoli': 113, 'Atalanta': 102,
+    'Roma': 100, 'AS Roma': 100,
     'Lazio': 110, 'Fiorentina': 99, 'Bologna': 103,
     'Torino': 586, 'Udinese': 115, 'Genoa': 107,
     'Cagliari': 104, 'Lecce': 5890, 'Verona': 450,
@@ -41,11 +46,9 @@ const TEAM_IDS = {
 };
 
 function getTeamLogoUrl(teamName) {
-    // Direkt eşleşme
     if (TEAM_IDS[teamName]) {
         return `https://crests.football-data.org/${TEAM_IDS[teamName]}.png`;
     }
-    // Kısmi eşleşme
     const lower = teamName.toLowerCase();
     for (const [key, id] of Object.entries(TEAM_IDS)) {
         if (key.toLowerCase().includes(lower) || lower.includes(key.toLowerCase())) {
