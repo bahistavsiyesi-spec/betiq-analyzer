@@ -63,13 +63,17 @@ def normalize_name(name):
     }
     for old, new in replacements.items():
         name = name.replace(old, new)
+    # Kulüp son eklerini temizle: "manchesterunitedfc" → "manchesterunited"
+    for suffix in ('fc', 'afc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv'):
+        if name.endswith(suffix) and len(name) > len(suffix) + 2:
+            name = name[:-len(suffix)]
     return name
 
 
 def teams_match(name_a, name_b):
     """
     İki takım isminin aynı takıma ait olup olmadığını kontrol et.
-    Kısa isim (Man United) ↔ uzun isim (Manchester United) gibi durumları yakalar.
+    Kısa isim (Man United) ↔ uzun isim (Manchester United FC) gibi durumları yakalar.
     """
     a = normalize_name(name_a)
     b = normalize_name(name_b)
@@ -78,10 +82,8 @@ def teams_match(name_a, name_b):
     if a in b or b in a:
         return True
 
-    # İlk 4 karakter eşleşmesi
-    a_first = a[:4] if len(a) >= 4 else a
-    b_first = b[:4] if len(b) >= 4 else b
-    if len(a_first) >= 4 and len(b_first) >= 4 and a_first == b_first:
+    # İlk 5 karakter eşleşmesi
+    if len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]:
         return True
 
     return False
@@ -214,7 +216,6 @@ def is_italian_team(team_name):
 # ─── football-data.co.uk Şut/Korner İstatistikleri ───────────────────────────
 
 def _fetch_fdco_csv(country_code):
-    """football-data.co.uk'dan CSV çek, günlük cache'le."""
     today = date.today()
     if country_code in _shots_cache:
         cached = _shots_cache[country_code]
@@ -242,9 +243,6 @@ def _fetch_fdco_csv(country_code):
 
 
 def get_team_shot_stats(team_name, country_code, last=5):
-    """
-    Takımın son N maçındaki şut/şuta isabet/korner ortalamasını döndür.
-    """
     rows = _fetch_fdco_csv(country_code)
     if not rows:
         return None
@@ -369,18 +367,16 @@ def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
         if not result or not result.get('matches'):
             return []
         h2h = []
-        team2_norm = normalize_name(team2_name)
         for m in result['matches']:
             try:
-                home_norm = normalize_name(m['homeTeam']['name'])
-                away_norm = normalize_name(m['awayTeam']['name'])
-                if team2_norm in home_norm or home_norm in team2_norm or \
-                   team2_norm in away_norm or away_norm in team2_norm:
+                home_name = m['homeTeam']['name']
+                away_name = m['awayTeam']['name']
+                if teams_match(team2_name, home_name) or teams_match(team2_name, away_name):
                     ht = m.get('score', {}).get('halfTime', {})
                     h2h.append({
                         'teams': {
-                            'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
-                            'away': {'name': m['awayTeam']['name'], 'id': m['awayTeam']['id']}
+                            'home': {'name': home_name, 'id': m['homeTeam']['id']},
+                            'away': {'name': away_name, 'id': m['awayTeam']['id']}
                         },
                         'goals': {
                             'home': m['score']['fullTime']['home'],
@@ -456,14 +452,6 @@ def get_team_standing(team_name, country_code):
 def get_team_home_away_stats(team_name, matches):
     if not matches:
         return None
-
-    # DEBUG — API'den gelen ilk maçın ev ismine bak
-    try:
-        logger.info(f'HOME_AWAY_DEBUG {team_name}: '
-                    f'first_home="{matches[0]["teams"]["home"]["name"]}" '
-                    f'first_away="{matches[0]["teams"]["away"]["name"]}"')
-    except:
-        pass
 
     home_results = []
     away_results = []
