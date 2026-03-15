@@ -112,6 +112,64 @@ def extract_goals_avg(matches, team_name):
     return avg_scored, avg_conceded
 
 
+def extract_ht_stats(matches, team_name):
+    """
+    Maçların halfTime skorlarından ilk yarı istatistiklerini çıkar.
+    Döndürür: {
+        'ht_goals_avg': 0.8,       → ilk yarı ortalama attığı gol
+        'ht_conceded_avg': 0.4,    → ilk yarı ortalama yediği gol
+        'ht_over05_pct': 72,       → ilk yarıda toplam en az 1 gol olan maç yüzdesi
+        'ht_scored_pct': 60,       → ilk yarıda bu takımın gol attığı maç yüzdesi
+        'matches_used': 8
+    }
+    """
+    ht_scored = []
+    ht_conceded = []
+
+    for m in matches:
+        try:
+            goals = m.get('goals', {})
+            ht_home = goals.get('ht_home')
+            ht_away = goals.get('ht_away')
+
+            if ht_home is None or ht_away is None:
+                continue
+
+            home_name = m['teams']['home']['name']
+            is_home = team_name.lower() in home_name.lower()
+
+            if is_home:
+                ht_scored.append(ht_home)
+                ht_conceded.append(ht_away)
+            else:
+                ht_scored.append(ht_away)
+                ht_conceded.append(ht_home)
+        except:
+            continue
+
+    if not ht_scored:
+        return None
+
+    n = len(ht_scored)
+    ht_goals_avg = round(sum(ht_scored) / n, 2)
+    ht_conceded_avg = round(sum(ht_conceded) / n, 2)
+    ht_over05_count = sum(1 for s, c in zip(ht_scored, ht_conceded) if s + c >= 1)
+    ht_over05_pct = round(ht_over05_count / n * 100)
+    ht_scored_count = sum(1 for s in ht_scored if s >= 1)
+    ht_scored_pct = round(ht_scored_count / n * 100)
+
+    logger.info(f'HT stats {team_name}: {ht_goals_avg} gol atar, {ht_conceded_avg} yer, '
+                f'%{ht_over05_pct} maçta ilk yarı gol var (son {n} maç)')
+
+    return {
+        'ht_goals_avg': ht_goals_avg,
+        'ht_conceded_avg': ht_conceded_avg,
+        'ht_over05_pct': ht_over05_pct,
+        'ht_scored_pct': ht_scored_pct,
+        'matches_used': n,
+    }
+
+
 def extract_h2h_summary(h2h_matches, home_team, away_team):
     if not h2h_matches:
         return None
@@ -142,7 +200,6 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
 
 
 def _get_country_code(fixture):
-    """ClubElo'dan gelen ülke kodunu al."""
     league = fixture['league']['name']
     country_map = {
         'GER': 'GER', 'ENG': 'ENG', 'ESP': 'ESP',
@@ -166,12 +223,12 @@ def analyze_fixture(fixture):
     away_name = str(away_name).strip()
     logger.info('Analyzing: ' + home_name + ' vs ' + away_name)
 
-    # Son 10 maç çek (ev/deplasman ayrımı için daha fazla)
+    # Son 10 maç çek
     home_matches = get_team_last_matches(home_name, last=10)
     away_matches = get_team_last_matches(away_name, last=10)
     h2h = get_h2h(home_name, away_name, last=5)
 
-    # Genel form ve istatistikler (son 5 maç)
+    # Genel form ve istatistikler
     home_form = extract_form_from_fixtures(home_matches[:5] if home_matches else [], home_name)
     away_form = extract_form_from_fixtures(away_matches[:5] if away_matches else [], away_name)
     home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
@@ -188,6 +245,17 @@ def analyze_fixture(fixture):
     if away_venue_stats:
         logger.info('Venue stats ' + away_name + ': dep=' + str(away_venue_stats.get('away_form', '')) +
                     ' avg=' + str(away_venue_stats.get('away_goals_avg', 0)))
+
+    # İlk yarı istatistikleri (halfTime skorlarından)
+    home_ht_stats = extract_ht_stats(home_matches, home_name)
+    away_ht_stats = extract_ht_stats(away_matches, away_name)
+
+    if home_ht_stats:
+        logger.info(f'HT stats {home_name}: {home_ht_stats["ht_goals_avg"]} gol atar, '
+                    f'%{home_ht_stats["ht_over05_pct"]} maçta ilk yarı gol var')
+    if away_ht_stats:
+        logger.info(f'HT stats {away_name}: {away_ht_stats["ht_goals_avg"]} gol atar, '
+                    f'%{away_ht_stats["ht_over05_pct"]} maçta ilk yarı gol var')
 
     # Puan durumu
     home_standing = None
@@ -220,7 +288,7 @@ def analyze_fixture(fixture):
     except Exception as e:
         logger.warning('Odds failed: ' + str(e))
 
-    # Şut / korner istatistikleri (football-data.co.uk)
+    # Şut / korner istatistikleri
     home_shot_stats = None
     away_shot_stats = None
     if country_code:
@@ -261,6 +329,8 @@ def analyze_fixture(fixture):
         away_venue_stats=away_venue_stats,
         home_shot_stats=home_shot_stats,
         away_shot_stats=away_shot_stats,
+        home_ht_stats=home_ht_stats,
+        away_ht_stats=away_ht_stats,
     )
 
 
