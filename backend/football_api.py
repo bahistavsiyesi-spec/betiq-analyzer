@@ -78,7 +78,7 @@ def teams_match(name_a, name_b):
     if a in b or b in a:
         return True
 
-    # İlk kelime eşleşmesi (min 3 karakter) — "man" gibi çok kısa kelimeleri atla
+    # İlk 4 karakter eşleşmesi
     a_first = a[:4] if len(a) >= 4 else a
     b_first = b[:4] if len(b) >= 4 else b
     if len(a_first) >= 4 and len(b_first) >= 4 and a_first == b_first:
@@ -456,6 +456,14 @@ def get_team_standing(team_name, country_code):
 def get_team_home_away_stats(team_name, matches):
     if not matches:
         return None
+
+    # DEBUG — API'den gelen ilk maçın ev ismine bak
+    try:
+        logger.info(f'HOME_AWAY_DEBUG {team_name}: '
+                    f'first_home="{matches[0]["teams"]["home"]["name"]}" '
+                    f'first_away="{matches[0]["teams"]["away"]["name"]}"')
+    except:
+        pass
 
     home_results = []
     away_results = []
