@@ -6,7 +6,8 @@ import os
 from datetime import datetime
 from backend.football_api import (
     get_todays_fixtures, get_h2h, get_team_last_matches,
-    get_team_home_away_stats, get_team_standing, get_team_shot_stats
+    get_team_home_away_stats, get_team_standing, get_team_shot_stats,
+    teams_match
 )
 from backend.database import save_analysis, delete_analyses_by_fixture_ids, log_run
 
@@ -77,7 +78,7 @@ def extract_form_from_fixtures(matches, team_name):
             home_name = m['teams']['home']['name']
             home_goals = m['goals']['home'] or 0
             away_goals = m['goals']['away'] or 0
-            is_home = team_name.lower() in home_name.lower()
+            is_home = teams_match(team_name, home_name)
             if is_home:
                 if home_goals > away_goals: form.append('W')
                 elif home_goals == away_goals: form.append('D')
@@ -98,7 +99,7 @@ def extract_goals_avg(matches, team_name):
             home_name = m['teams']['home']['name']
             home_goals = m['goals']['home'] or 0
             away_goals = m['goals']['away'] or 0
-            is_home = team_name.lower() in home_name.lower()
+            is_home = teams_match(team_name, home_name)
             if is_home:
                 scored.append(home_goals)
                 conceded.append(away_goals)
@@ -113,15 +114,6 @@ def extract_goals_avg(matches, team_name):
 
 
 def extract_btts_stats(matches, team_name):
-    """
-    Takımın son maçlarından KG VAR (BTTS) istatistiklerini çıkar.
-    Döndürür: {
-        'scored_pct': 80,       → gol attığı maç yüzdesi
-        'conceded_pct': 70,     → gol yediği maç yüzdesi
-        'btts_pct': 56,         → matematiksel KG VAR tahmini (scored_pct * conceded_pct)
-        'matches_used': 10
-    }
-    """
     scored_count = 0
     conceded_count = 0
     total = 0
@@ -134,7 +126,7 @@ def extract_btts_stats(matches, team_name):
             if hg is None or ag is None:
                 continue
 
-            is_home = team_name.lower() in home_name.lower()
+            is_home = teams_match(team_name, home_name)
             team_goals = hg if is_home else ag
             opp_goals = ag if is_home else hg
 
@@ -151,8 +143,6 @@ def extract_btts_stats(matches, team_name):
 
     scored_pct = round(scored_count / total * 100)
     conceded_pct = round(conceded_count / total * 100)
-    # Matematiksel BTTS tahmini: P(A gol atar) × P(B gol atar)
-    # conceded_pct = rakibin gol atma ihtimali = bizim gol yeme ihtimalimiz
     btts_estimate = round(scored_pct * conceded_pct / 100)
 
     logger.info(f'BTTS stats {team_name}: %{scored_pct} gol atar, %{conceded_pct} gol yer (son {total} maç)')
@@ -166,9 +156,6 @@ def extract_btts_stats(matches, team_name):
 
 
 def extract_ht_stats(matches, team_name):
-    """
-    Maçların halfTime skorlarından ilk yarı istatistiklerini çıkar.
-    """
     ht_scored = []
     ht_conceded = []
 
@@ -182,7 +169,7 @@ def extract_ht_stats(matches, team_name):
                 continue
 
             home_name = m['teams']['home']['name']
-            is_home = team_name.lower() in home_name.lower()
+            is_home = teams_match(team_name, home_name)
 
             if is_home:
                 ht_scored.append(ht_home)
@@ -226,7 +213,7 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
             hg = m['goals']['home'] or 0
             ag = m['goals']['away'] or 0
             total_goals += hg + ag
-            is_our_home = home_team.lower().split()[0] in match_home.lower()
+            is_our_home = teams_match(home_team, match_home)
             if hg > ag:
                 if is_our_home: home_wins += 1
                 else: away_wins += 1
@@ -269,19 +256,16 @@ def analyze_fixture(fixture):
     away_name = str(away_name).strip()
     logger.info('Analyzing: ' + home_name + ' vs ' + away_name)
 
-    # Son 10 maç çek
     home_matches = get_team_last_matches(home_name, last=10)
     away_matches = get_team_last_matches(away_name, last=10)
     h2h = get_h2h(home_name, away_name, last=5)
 
-    # Genel form ve istatistikler
     home_form = extract_form_from_fixtures(home_matches[:5] if home_matches else [], home_name)
     away_form = extract_form_from_fixtures(away_matches[:5] if away_matches else [], away_name)
     home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
     away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
     h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
 
-    # Ev/Deplasman ayrımlı istatistikler
     home_venue_stats = get_team_home_away_stats(home_name, home_matches)
     away_venue_stats = get_team_home_away_stats(away_name, away_matches)
 
@@ -292,7 +276,6 @@ def analyze_fixture(fixture):
         logger.info('Venue stats ' + away_name + ': dep=' + str(away_venue_stats.get('away_form', '')) +
                     ' avg=' + str(away_venue_stats.get('away_goals_avg', 0)))
 
-    # İlk yarı istatistikleri
     home_ht_stats = extract_ht_stats(home_matches, home_name)
     away_ht_stats = extract_ht_stats(away_matches, away_name)
 
@@ -303,18 +286,15 @@ def analyze_fixture(fixture):
         logger.info(f'HT stats {away_name}: {away_ht_stats["ht_goals_avg"]} gol atar, '
                     f'%{away_ht_stats["ht_over05_pct"]} maçta ilk yarı gol var')
 
-    # KG VAR istatistikleri
     home_btts_stats = extract_btts_stats(home_matches, home_name)
     away_btts_stats = extract_btts_stats(away_matches, away_name)
 
     if home_btts_stats and away_btts_stats:
-        # Matematiksel KG VAR tahmini: P(ev gol atar) × P(dep gol atar)
         btts_mathematical = round(home_btts_stats['scored_pct'] * away_btts_stats['scored_pct'] / 100)
         logger.info(f'BTTS mathematical: %{home_btts_stats["scored_pct"]} × %{away_btts_stats["scored_pct"]} = %{btts_mathematical}')
     else:
         btts_mathematical = None
 
-    # Puan durumu
     home_standing = None
     away_standing = None
     country_code = _get_country_code(fixture)
@@ -329,7 +309,6 @@ def analyze_fixture(fixture):
         except Exception as e:
             logger.warning('Standings failed: ' + str(e))
 
-    # ClubElo verisi
     elo_data = None
     try:
         elo_data = get_elo_for_match(home_name, away_name)
@@ -338,14 +317,12 @@ def analyze_fixture(fixture):
     except Exception as e:
         logger.warning('ClubElo failed: ' + str(e))
 
-    # Bahis oranları
     odds_data = None
     try:
         odds_data = get_odds_for_match(home_name, away_name)
     except Exception as e:
         logger.warning('Odds failed: ' + str(e))
 
-    # Şut / korner istatistikleri
     home_shot_stats = None
     away_shot_stats = None
     if country_code:
