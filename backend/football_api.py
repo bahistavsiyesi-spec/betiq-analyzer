@@ -63,10 +63,11 @@ def normalize_name(name):
     }
     for old, new in replacements.items():
         name = name.replace(old, new)
-    # Kulüp son eklerini temizle: "manchesterunitedfc" → "manchesterunited"
-    for suffix in ('fc', 'afc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv'):
+    # Kulüp son eklerini temizle — uzundan kısaya sırala, ilk eşleşende dur
+    for suffix in ('afc', 'fc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv'):
         if name.endswith(suffix) and len(name) > len(suffix) + 2:
             name = name[:-len(suffix)]
+            break  # ilk eşleşen suffix'i kır, döngüyü durdur
     return name
 
 
