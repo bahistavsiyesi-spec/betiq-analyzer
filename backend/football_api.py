@@ -44,7 +44,6 @@ LEAGUE_CODES = {
 }
 
 # ─── football-data.co.uk lig CSV kodları ─────────────────────────────────────
-# Format: season/league_code.csv → 2425 = 2024-25 sezonu
 FDCO_LEAGUES = {
     'ENG': ('2425', 'E0'),   # Premier League
     'GER': ('2425', 'D1'),   # Bundesliga
@@ -224,13 +223,6 @@ def _fetch_fdco_csv(country_code):
 def get_team_shot_stats(team_name, country_code, last=5):
     """
     Takımın son N maçındaki şut/şuta isabet/korner ortalamasını döndür.
-    Döndürür: {
-        'shots_avg': 13.2,        → ortalama şut
-        'shots_on_target_avg': 5.1, → şuta isabet
-        'corners_avg': 5.8,       → korner
-        'shots_conceded_avg': 10.4, → yenilen şut
-        'shot_accuracy': 38.6     → isabet yüzdesi
-    }
     """
     rows = _fetch_fdco_csv(country_code)
     if not rows:
@@ -274,7 +266,6 @@ def get_team_shot_stats(team_name, country_code, last=5):
     if not team_matches:
         return None
 
-    # Son N maç
     recent = team_matches[-last:]
     n = len(recent)
 
@@ -324,6 +315,11 @@ def _footballdata_last_matches(team_id, team_name, last=10):
         converted = []
         for m in result['matches'][-last:]:
             try:
+                # halfTime skorlarını güvenli şekilde al
+                ht = m.get('score', {}).get('halfTime', {})
+                ht_home = ht.get('home')
+                ht_away = ht.get('away')
+
                 converted.append({
                     'teams': {
                         'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
@@ -331,7 +327,9 @@ def _footballdata_last_matches(team_id, team_name, last=10):
                     },
                     'goals': {
                         'home': m['score']['fullTime']['home'],
-                        'away': m['score']['fullTime']['away']
+                        'away': m['score']['fullTime']['away'],
+                        'ht_home': ht_home,
+                        'ht_away': ht_away,
                     }
                 })
             except:
@@ -358,6 +356,7 @@ def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
                 away_norm = normalize_name(m['awayTeam']['name'])
                 if team2_norm in home_norm or home_norm in team2_norm or \
                    team2_norm in away_norm or away_norm in team2_norm:
+                    ht = m.get('score', {}).get('halfTime', {})
                     h2h.append({
                         'teams': {
                             'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
@@ -365,7 +364,9 @@ def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
                         },
                         'goals': {
                             'home': m['score']['fullTime']['home'],
-                            'away': m['score']['fullTime']['away']
+                            'away': m['score']['fullTime']['away'],
+                            'ht_home': ht.get('home'),
+                            'ht_away': ht.get('away'),
                         }
                     })
             except:
