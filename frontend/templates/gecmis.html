@@ -362,10 +362,10 @@
                         </div>
                     </div>
                     <div class="share-stat">
-                        <span class="share-stat-tick">${m.score_correct ? '✅' : '❌'}</span>
+                        <span class="share-stat-tick">${hasHt ? (m.ht_correct ? '✅' : '❌') : '—'}</span>
                         <div class="share-stat-info">
-                            <div class="share-stat-label">TAHMİNİ SKOR</div>
-                            <div class="share-stat-value">${m.predicted_score || '?-?'}</div>
+                            <div class="share-stat-label">İY 0.5 ÜST</div>
+                            <div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}${hasHt ? ' → İY ' + m.ht_home_score + '-' + m.ht_away_score : ''}</div>
                         </div>
                     </div>
                 </div>` : `
@@ -391,15 +391,15 @@
                     </div>
                     <div class="share-stat">
                         <div class="share-stat-info">
-                            <div class="share-stat-label">TAHMİNİ SKOR</div>
-                            <div class="share-stat-value">${m.predicted_score || '?-?'}</div>
+                            <div class="share-stat-label">İY 0.5 ÜST</div>
+                            <div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}</div>
                         </div>
                     </div>
                 </div>`;
 
             document.getElementById('shareCard').innerHTML = `
                 <div class="share-card-header">
-                    <div class="share-card-logo">⚡ BetIQ</div>
+                    <img src="/static/img/logo.png" alt="Logo" style="height:32px; object-fit:contain;" onerror="this.outerHTML='<span style=\"font-size:13px;font-weight:800;color:#7c3aed;\">⚡ BetIQ</span>'">
                     <div class="share-card-league">${m.league || 'Lig'}</div>
                 </div>
                 <div class="share-card-teams">
@@ -416,7 +416,7 @@
                 ${stats}
                 <div class="share-card-footer">
                     <div class="share-footer-pred">Tahmin: <span>${predText}</span> &nbsp;|&nbsp; Güven: <span>${m.confidence || 'Orta'}</span></div>
-                    <div class="share-footer-watermark">betiq-analyzer.onrender.com</div>
+
                 </div>`;
         }
 
