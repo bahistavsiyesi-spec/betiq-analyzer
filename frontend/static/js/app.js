@@ -2,9 +2,8 @@ const API_BASE = '';
 let selectedFixtures = {};
 let manualMatches = [];
 
-// ─── Takım ID tablosu (football-data.org crest URL'leri için) ────────────────
+// ─── Takım ID tablosu ────────────────────────────────────────────────────────
 const TEAM_IDS = {
-    // Almanya
     'Bayern': 5, 'Dortmund': 4, 'Leverkusen': 3, 'Leipzig': 721,
     'Frankfurt': 19, 'Stuttgart': 10, 'Freiburg': 17, 'Hoffenheim': 2,
     'Bremen': 12, 'Wolfsburg': 11, 'Gladbach': 18, 'Augsburg': 16,
@@ -12,7 +11,6 @@ const TEAM_IDS = {
     'Kiel': 44, 'Heidenheim': 44, 'Hamburg': 7, 'Hannover': 30,
     'Karlsruhe': 24, 'Schalke': 6, 'Darmstadt': 36, 'Köln': 1,
     'Hertha': 27, 'Düsseldorf': 45, 'Nürnberg': 7,
-    // İngiltere
     'Arsenal': 57, 'Aston Villa': 58, 'Bournemouth': 1044,
     'Brentford': 402, 'Brighton': 397, 'Chelsea': 61,
     'Crystal Palace': 354, 'Everton': 62, 'Fulham': 63,
@@ -25,7 +23,6 @@ const TEAM_IDS = {
     'West Ham': 563, 'Wolverhampton': 76, 'Wolves': 76,
     'Burnley': 328, 'Leeds': 341, 'Sunderland': 71,
     'Coventry': 1076, 'Middlesbrough': 343,
-    // İspanya
     'Barcelona': 81, 'Real Madrid': 86, 'Atlético Madrid': 78, 'Atletico': 78,
     'Athletic Club': 77, 'Athletic Bilbao': 77,
     'Real Sociedad': 92, 'Villarreal': 95,
@@ -34,7 +31,6 @@ const TEAM_IDS = {
     'Getafe': 82, 'Rayo Vallecano': 88, 'Rayo': 88, 'Mallorca': 89,
     'Alavés': 263, 'Alaves': 263, 'Espanyol': 80,
     'Las Palmas': 275, 'Leganés': 745, 'Leganes': 745, 'Valladolid': 250,
-    // İtalya
     'AC Milan': 98, 'Milan': 98,
     'Inter': 108, 'Inter Milan': 108,
     'Juventus': 109, 'Napoli': 113, 'Atalanta': 102,
@@ -46,9 +42,7 @@ const TEAM_IDS = {
 };
 
 function getTeamLogoUrl(teamName) {
-    if (TEAM_IDS[teamName]) {
-        return `https://crests.football-data.org/${TEAM_IDS[teamName]}.png`;
-    }
+    if (TEAM_IDS[teamName]) return `https://crests.football-data.org/${TEAM_IDS[teamName]}.png`;
     const lower = teamName.toLowerCase();
     for (const [key, id] of Object.entries(TEAM_IDS)) {
         if (key.toLowerCase().includes(lower) || lower.includes(key.toLowerCase())) {
@@ -61,9 +55,7 @@ function getTeamLogoUrl(teamName) {
 function teamLogoHtml(teamName) {
     const url = getTeamLogoUrl(teamName);
     if (!url) return '';
-    return `<img src="${url}" alt="${teamName}" 
-        style="width:24px; height:24px; object-fit:contain; border-radius:4px; margin-bottom:4px;"
-        onerror="this.style.display='none'">`;
+    return `<img src="${url}" alt="${teamName}" style="width:24px;height:24px;object-fit:contain;border-radius:4px;margin-bottom:4px;" onerror="this.style.display='none'">`;
 }
 
 function getWinnerLabel(prediction, homeTeam, awayTeam) {
@@ -101,68 +93,267 @@ function cardConfidenceClass(confidence) {
 function buildTrendHtml(match) {
     let homeTrend = null;
     let awayTrend = null;
-
     try { homeTrend = match.home_goals_trend ? JSON.parse(match.home_goals_trend) : null; } catch(e) {}
     try { awayTrend = match.away_goals_trend ? JSON.parse(match.away_goals_trend) : null; } catch(e) {}
-
     if (!homeTrend && !awayTrend) return '';
 
     function goalDot(goals, type) {
-        // type: 'scored' veya 'conceded'
         return goals.map(g => {
-            let color, emoji;
-            if (type === 'scored') {
-                color = g === 0 ? '#ef4444' : g >= 3 ? '#22c55e' : '#f59e0b';
-                emoji = g === 0 ? '○' : g;
-            } else {
-                color = g === 0 ? '#22c55e' : g >= 3 ? '#ef4444' : '#f59e0b';
-                emoji = g === 0 ? '○' : g;
-            }
-            return `<span style="
-                display:inline-flex; align-items:center; justify-content:center;
-                width:26px; height:26px; border-radius:50%;
-                background:${color}22; border:1px solid ${color};
-                color:${color}; font-size:11px; font-weight:700;
-            ">${emoji}</span>`;
+            let color;
+            if (type === 'scored') color = g === 0 ? '#ef4444' : g >= 3 ? '#22c55e' : '#f59e0b';
+            else color = g === 0 ? '#22c55e' : g >= 3 ? '#ef4444' : '#f59e0b';
+            const emoji = g === 0 ? '○' : g;
+            return `<span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${color}22;border:1px solid ${color};color:${color};font-size:11px;font-weight:700;">${emoji}</span>`;
         }).join('');
     }
 
     function trendRow(label, goals, type) {
         const avg = goals.length ? (goals.reduce((a,b) => a+b, 0) / goals.length).toFixed(1) : '0';
-        return `
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                <span style="font-size:11px; color:#666; width:90px; flex-shrink:0;">${label}</span>
-                <div style="display:flex; gap:4px;">${goalDot(goals, type)}</div>
-                <span style="font-size:11px; color:#555; margin-left:4px;">ort. ${avg}</span>
-            </div>`;
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="font-size:11px;color:#666;width:90px;flex-shrink:0;">${label}</span>
+            <div style="display:flex;gap:4px;">${goalDot(goals, type)}</div>
+            <span style="font-size:11px;color:#555;margin-left:4px;">ort. ${avg}</span>
+        </div>`;
     }
 
-    let html = `
-        <div style="margin-top:14px; padding:12px 14px; background:#0d0d1a; border-radius:10px; border:1px solid #1e1e3a;">
-            <div style="font-size:11px; color:#7c3aed; font-weight:700; letter-spacing:0.5px; margin-bottom:10px;">
-                📈 GOL TRENDİ (Son 5 Maç)
-            </div>`;
-
+    let html = `<div style="margin-top:14px;padding:12px 14px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
+        <div style="font-size:11px;color:#7c3aed;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📈 GOL TRENDİ (Son 5 Maç)</div>`;
     if (homeTrend) {
         html += `<div style="margin-bottom:8px;">
-            <div style="font-size:11px; color:#aaa; font-weight:600; margin-bottom:4px;">${match.home_team}</div>
+            <div style="font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px;">${match.home_team}</div>
             ${trendRow('⚽ Attığı', homeTrend.scored, 'scored')}
             ${trendRow('🥅 Yediği', homeTrend.conceded, 'conceded')}
         </div>`;
     }
-
     if (awayTrend) {
-        html += `<div style="margin-top:${homeTrend ? '8px' : '0'}; padding-top:${homeTrend ? '8px' : '0'}; ${homeTrend ? 'border-top:1px solid #1e1e3a;' : ''}">
-            <div style="font-size:11px; color:#aaa; font-weight:600; margin-bottom:4px;">${match.away_team}</div>
+        html += `<div style="margin-top:${homeTrend ? '8px' : '0'};padding-top:${homeTrend ? '8px' : '0'};${homeTrend ? 'border-top:1px solid #1e1e3a;' : ''}">
+            <div style="font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px;">${match.away_team}</div>
             ${trendRow('⚽ Attığı', awayTrend.scored, 'scored')}
             ${trendRow('🥅 Yediği', awayTrend.conceded, 'conceded')}
         </div>`;
     }
-
-    html += `<div style="font-size:10px; color:#333; margin-top:6px;">← Eski &nbsp;&nbsp;&nbsp; Yeni →</div>`;
-    html += `</div>`;
-
+    html += `<div style="font-size:10px;color:#333;margin-top:6px;">← Eski &nbsp;&nbsp;&nbsp; Yeni →</div></div>`;
     return html;
+}
+
+// ─── KUPON ───────────────────────────────────────────────────────────────────
+async function generateCoupon() {
+    const btn = document.getElementById('couponBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Oluşturuluyor...';
+
+    try {
+        const resp = await fetch('/api/coupon/today');
+        const data = await resp.json();
+
+        if (data.status !== 'success') {
+            alert(data.message || 'Kupon oluşturulamadı. Önce analiz yaptır.');
+            btn.disabled = false;
+            btn.textContent = '🎫 Kupon Oluştur';
+            return;
+        }
+
+        drawCouponCanvas(data.coupon);
+
+    } catch(e) {
+        alert('Hata: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = '🎫 Kupon Oluştur';
+    }
+}
+
+function drawCouponCanvas(coupon) {
+    const today = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const rowH = 64;
+    const headerH = 100;
+    const footerH = 60;
+    const width = 520;
+    const height = headerH + coupon.length * rowH + footerH;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width * 2;
+    canvas.height = height * 2;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(2, 2);
+
+    // Arka plan
+    const bg = ctx.createLinearGradient(0, 0, 0, height);
+    bg.addColorStop(0, '#0d0d1a');
+    bg.addColorStop(1, '#1a0a2e');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, width, height);
+
+    // Mor glow üst köşe
+    const glow = ctx.createRadialGradient(width, 0, 0, width, 0, 200);
+    glow.addColorStop(0, 'rgba(124,58,237,0.25)');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
+
+    // Border
+    ctx.strokeStyle = '#2a1a4e';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+
+    // Logo
+    const logo = new Image();
+    logo.crossOrigin = 'anonymous';
+    logo.src = '/static/img/logo.png';
+
+    const drawContent = () => {
+        // Header
+        ctx.drawImage(logo, 20, 18, 52, 52);
+
+        // Tarih
+        ctx.fillStyle = '#555';
+        ctx.font = '600 11px Syne, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(today, width - 20, 36);
+
+        // GÜNÜN KUPONU yazısı
+        ctx.fillStyle = '#7c3aed';
+        ctx.font = '800 13px Syne, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('GÜNÜN KUPONU', width - 20, 54);
+
+        // Güven badge
+        ctx.fillStyle = 'rgba(124,58,237,0.15)';
+        roundRect(ctx, width - 145, 62, 125, 22, 11);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(124,58,237,0.4)';
+        ctx.lineWidth = 1;
+        roundRect(ctx, width - 145, 62, 125, 22, 11);
+        ctx.stroke();
+        ctx.fillStyle = '#a78bfa';
+        ctx.font = '600 10px Syne, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('✦ Yüksek Güven Analizi', width - 82, 77);
+
+        // Ayırıcı çizgi
+        ctx.strokeStyle = '#2a1a4e';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(20, headerH - 8);
+        ctx.lineTo(width - 20, headerH - 8);
+        ctx.stroke();
+
+        // Maçlar
+        coupon.forEach((item, i) => {
+            const y = headerH + i * rowH;
+            const isLast = i === coupon.length - 1;
+
+            // Satır arka planı (çift/tek)
+            if (i % 2 === 0) {
+                ctx.fillStyle = 'rgba(124,58,237,0.04)';
+                ctx.fillRect(0, y, width, rowH);
+            }
+
+            // Takım isimleri
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '700 12px Syne, sans-serif';
+            ctx.textAlign = 'left';
+            const matchText = `${item.home_team} vs ${item.away_team}`;
+            ctx.fillText(matchText, 20, y + 22);
+
+            // Lig
+            ctx.fillStyle = '#555';
+            ctx.font = '500 10px Syne, sans-serif';
+            ctx.fillText(item.league, 20, y + 38);
+
+            // Tahmin badge
+            const badgeColor = getBadgeColor(item.prediction_type);
+            ctx.fillStyle = badgeColor.bg;
+            const badgeW = 130;
+            const badgeX = width - badgeW - 20;
+            roundRect(ctx, badgeX, y + 10, badgeW, 42, 8);
+            ctx.fill();
+            ctx.strokeStyle = badgeColor.border;
+            ctx.lineWidth = 1;
+            roundRect(ctx, badgeX, y + 10, badgeW, 42, 8);
+            ctx.stroke();
+
+            ctx.fillStyle = badgeColor.text;
+            ctx.font = '700 11px Syne, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(item.prediction_type, badgeX + badgeW / 2, y + 28);
+
+            ctx.fillStyle = badgeColor.text;
+            ctx.font = '600 10px Syne, sans-serif';
+            ctx.fillText(item.prediction_label, badgeX + badgeW / 2, y + 44);
+
+            // Yüzde
+            ctx.fillStyle = '#7c3aed';
+            ctx.font = '800 13px Syne, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(`%${item.pct}`, badgeX - 10, y + 32);
+
+            // Alt çizgi
+            if (!isLast) {
+                ctx.strokeStyle = '#1e1e3a';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(20, y + rowH - 1);
+                ctx.lineTo(width - 20, y + rowH - 1);
+                ctx.stroke();
+            }
+        });
+
+        // Footer
+        const fy = headerH + coupon.length * rowH;
+        ctx.strokeStyle = '#2a1a4e';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(20, fy + 10);
+        ctx.lineTo(width - 20, fy + 10);
+        ctx.stroke();
+
+        ctx.fillStyle = '#333';
+        ctx.font = '500 10px Syne, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Bu tahminler yapay zeka analizi ile oluşturulmuştur. Sorumluluk kabul edilmez.', width / 2, fy + 30);
+        ctx.fillStyle = '#7c3aed';
+        ctx.font = '700 10px Syne, sans-serif';
+        ctx.fillText('⚡ BetIQ ANALYZER', width / 2, fy + 48);
+
+        // İndir
+        const link = document.createElement('a');
+        link.download = `betiq_kupon_${today.replace(/\./g, '-')}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+
+        const btn = document.getElementById('couponBtn');
+        btn.disabled = false;
+        btn.textContent = '🎫 Kupon Oluştur';
+    };
+
+    logo.onload = drawContent;
+    logo.onerror = drawContent; // logo yüklenmese de devam et
+}
+
+function getBadgeColor(type) {
+    const map = {
+        '1X2':       { bg: 'rgba(124,58,237,0.15)', border: 'rgba(124,58,237,0.5)', text: '#a78bfa' },
+        '2.5 Üst':   { bg: 'rgba(34,197,94,0.12)',  border: 'rgba(34,197,94,0.4)',  text: '#4ade80' },
+        '2.5 Alt':   { bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.4)', text: '#60a5fa' },
+        'KG Var':    { bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.4)', text: '#fbbf24' },
+        'KG Yok':    { bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.4)',  text: '#f87171' },
+        'İY 0.5 Üst':{ bg: 'rgba(168,85,247,0.12)', border: 'rgba(168,85,247,0.4)', text: '#c084fc' },
+    };
+    return map[type] || map['1X2'];
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
 }
 
 // ===== FIXTURES =====
@@ -332,8 +523,7 @@ function renderManualList() {
     if (manualMatches.length === 0) { container.innerHTML = ''; return; }
     container.innerHTML = manualMatches.map((m, i) => {
         const timeStr = formatTime(m.date);
-        return `
-        <div class="manual-item">
+        return `<div class="manual-item">
             <span>⚽ ${m.home_team} vs ${m.away_team} <small>(${m.league})</small>${timeStr ? ' 🕐 ' + timeStr : ''}</span>
             <button onclick="removeManual(${i})" class="btn-remove">✕</button>
         </div>`;
@@ -466,11 +656,16 @@ function renderMatches(matches) {
         return;
     }
     container.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:0 4px;">
-            <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px; border-radius:8px; border:none; background:#2563eb; color:#fff; font-size:13px; cursor:pointer; font-family:inherit; font-weight:600;">
-                📨 Telegram'a Gönder
-            </button>
-            <button onclick="clearAllMatches()" style="padding:6px 14px; border-radius:8px; border:1px solid #ef4444; background:transparent; color:#ef4444; font-size:12px; cursor:pointer; font-family:inherit;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 4px;">
+            <div style="display:flex;gap:8px;">
+                <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">
+                    📨 Telegram'a Gönder
+                </button>
+                <button id="couponBtn" onclick="generateCoupon()" style="padding:8px 18px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">
+                    🎫 Kupon Oluştur
+                </button>
+            </div>
+            <button onclick="clearAllMatches()" style="padding:6px 14px;border-radius:8px;border:1px solid #ef4444;background:transparent;color:#ef4444;font-size:12px;cursor:pointer;font-family:inherit;">
                 🗑️ Tümünü Sil
             </button>
         </div>
@@ -482,35 +677,28 @@ function renderMatches(matches) {
 function createMatchCard(match) {
     const prediction = match.prediction_1x2 || '?';
     const confidence = match.confidence || 'Orta';
-
     const confidenceClass = {
         'Çok Yüksek': 'confidence-very-high',
         'Yüksek':     'confidence-high',
         'Orta':       'confidence-medium',
         'Düşük':      'confidence-low',
     }[confidence] || 'confidence-medium';
-
     const cardClass = cardConfidenceClass(confidence);
-
     let reasoning = [];
     try { reasoning = JSON.parse(match.reasoning || '[]'); } catch (e) {}
-
     const timeStr = formatTime(match.match_time);
     const homeLogo = teamLogoHtml(match.home_team);
     const awayLogo = teamLogoHtml(match.away_team);
     const winner = getWinnerLabel(prediction, match.home_team, match.away_team);
-
     const over25 = match.over25_pct || 0;
     const ht2g   = match.ht2g_pct   || 0;
     const btts   = match.btts_pct   || 0;
-
-    // Gol trendi
     const trendHtml = buildTrendHtml(match);
 
     return `
         <div class="match-card ${cardClass}" id="matchcard-${match.id}">
-            <div style="display:flex; justify-content:flex-end; margin-bottom:4px;">
-                <button onclick="deleteMatch(${match.id})" style="background:transparent; border:none; color:#444; font-size:15px; cursor:pointer; padding:0; line-height:1;" title="Sil">🗑️</button>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:4px;">
+                <button onclick="deleteMatch(${match.id})" style="background:transparent;border:none;color:#444;font-size:15px;cursor:pointer;padding:0;line-height:1;" title="Sil">🗑️</button>
             </div>
             <div class="match-header">
                 <span class="league-badge">⚽ ${match.league || 'Bilinmeyen Lig'}</span>
