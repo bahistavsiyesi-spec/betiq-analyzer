@@ -64,17 +64,17 @@ def normalize_name(name):
     for old, new in replacements.items():
         name = name.replace(old, new)
     # Kulüp son eklerini temizle — uzundan kısaya sırala, ilk eşleşende dur
-    for suffix in ('afc', 'fc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv'):
+    for suffix in ('wanderers', 'united', 'city', 'town', 'afc', 'fc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv'):
         if name.endswith(suffix) and len(name) > len(suffix) + 2:
             name = name[:-len(suffix)]
-            break  # ilk eşleşen suffix'i kır, döngüyü durdur
+            break
     return name
 
 
 def teams_match(name_a, name_b):
     """
     İki takım isminin aynı takıma ait olup olmadığını kontrol et.
-    Kısa isim (Man United) ↔ uzun isim (Manchester United FC) gibi durumları yakalar.
+    Kısa isim (Wolves) ↔ uzun isim (Wolverhampton Wanderers FC) gibi durumları yakalar.
     """
     a = normalize_name(name_a)
     b = normalize_name(name_b)
@@ -440,10 +440,9 @@ def get_team_standing(team_name, country_code):
     standings = get_standings_cached(league_code)
     if not standings:
         return None
-    team_norm = normalize_name(team_name)
+    # teams_match kullanarak daha esnek eşleştirme
     for s in standings:
-        s_norm = normalize_name(s['team'])
-        if team_norm in s_norm or s_norm in team_norm:
+        if teams_match(team_name, s['team']):
             return s
     return None
 
