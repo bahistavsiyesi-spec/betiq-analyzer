@@ -1,7 +1,7 @@
 const API_BASE = '';
 let selectedFixtures = {};
 let manualMatches = [];
-let couponCanvas = null; // önizleme için canvas sakla
+let couponCanvas = null;
 
 const TEAM_IDS = {
     'Bayern': 5, 'Dortmund': 4, 'Leverkusen': 3, 'Leipzig': 721,
@@ -37,6 +37,9 @@ const TEAM_IDS = {
     'Torino': 586, 'Udinese': 115, 'Genoa': 107,
     'Cagliari': 104, 'Lecce': 5890, 'Verona': 450,
     'Parma': 112, 'Como': 7397, 'Monza': 5911,
+    'PSG': 524, 'Paris Saint-Germain': 524, 'Marseille': 516,
+    'Lyon': 523, 'Monaco': 548, 'Lille': 521, 'Nice': 522,
+    'Lens': 546, 'Rennes': 529, 'Nantes': 543,
 };
 
 function getTeamLogoUrl(teamName) {
@@ -84,6 +87,32 @@ function cardConfidenceClass(confidence) {
         'Düşük':      'card-confidence-low',
     };
     return map[confidence] || 'card-confidence-medium';
+}
+
+// ─── Kart PNG İndir ───────────────────────────────────────────────────────────
+async function downloadCard(matchId, homeTeam, awayTeam) {
+    const card = document.getElementById(`matchcard-${matchId}`);
+    if (!card) return;
+
+    const btn = document.getElementById(`dlbtn-${matchId}`);
+    if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+
+    try {
+        const canvas = await html2canvas(card, {
+            scale: 2,
+            backgroundColor: null,
+            useCORS: true,
+            logging: false,
+        });
+        const link = document.createElement('a');
+        link.download = `${homeTeam}_vs_${awayTeam}.png`.replace(/\s+/g, '_');
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    } catch(e) {
+        alert('İndirme hatası: ' + e.message);
+    }
+
+    if (btn) { btn.textContent = '📸'; btn.disabled = false; }
 }
 
 // ─── Gol Trendi HTML ─────────────────────────────────────────────────────────
@@ -155,7 +184,6 @@ async function generateCoupon() {
 
 function drawCouponCanvas(coupon) {
     const today = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
     const width = 480;
     const headerH = 110;
     const rowH = 68;
@@ -171,28 +199,24 @@ function drawCouponCanvas(coupon) {
     const ctx = canvas.getContext('2d');
     ctx.scale(2, 2);
 
-    // Arka plan
     const bg = ctx.createLinearGradient(0, 0, 0, height);
     bg.addColorStop(0, '#0d0d1a');
     bg.addColorStop(1, '#160a28');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, width, height);
 
-    // Mor glow sağ üst
     const glow = ctx.createRadialGradient(width, 0, 0, width, 0, 220);
     glow.addColorStop(0, 'rgba(124,58,237,0.3)');
     glow.addColorStop(1, 'transparent');
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
 
-    // Alt glow sol
     const glow2 = ctx.createRadialGradient(0, height, 0, 0, height, 180);
     glow2.addColorStop(0, 'rgba(124,58,237,0.15)');
     glow2.addColorStop(1, 'transparent');
     ctx.fillStyle = glow2;
     ctx.fillRect(0, 0, width, height);
 
-    // Border
     ctx.strokeStyle = '#2a1a4e';
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
@@ -202,22 +226,18 @@ function drawCouponCanvas(coupon) {
     logo.src = '/static/img/logo.png';
 
     const drawContent = () => {
-        // Logo
         if (logo.naturalWidth) ctx.drawImage(logo, 20, 20, 56, 56);
 
-        // Tarih
         ctx.fillStyle = '#555';
         ctx.font = '500 11px Syne, sans-serif';
         ctx.textAlign = 'right';
         ctx.fillText(today, width - 20, 32);
 
-        // GÜNÜN KUPONU
         ctx.fillStyle = '#7c3aed';
         ctx.font = '800 16px Syne, sans-serif';
         ctx.textAlign = 'right';
         ctx.fillText('GÜNÜN KUPONU', width - 20, 54);
 
-        // Güven badge
         ctx.fillStyle = 'rgba(124,58,237,0.15)';
         roundRect(ctx, width - 158, 62, 138, 24, 12);
         ctx.fill();
@@ -230,7 +250,6 @@ function drawCouponCanvas(coupon) {
         ctx.textAlign = 'center';
         ctx.fillText('✦ Yüksek Güven Analizi', width - 89, 78);
 
-        // Ayırıcı
         ctx.strokeStyle = '#1e1e3a';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -238,16 +257,13 @@ function drawCouponCanvas(coupon) {
         ctx.lineTo(width - 20, headerH - 6);
         ctx.stroke();
 
-        // Maçlar
         coupon.forEach((item, i) => {
             const y = headerH + i * rowH;
-
             if (i % 2 === 0) {
                 ctx.fillStyle = 'rgba(124,58,237,0.04)';
                 ctx.fillRect(0, y, width, rowH);
             }
 
-            // Takım isimleri — uzunsa kısalt
             ctx.font = '700 12px Syne, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'left';
@@ -258,12 +274,10 @@ function drawCouponCanvas(coupon) {
             }
             ctx.fillText(matchText, 20, y + 26);
 
-            // Lig
             ctx.fillStyle = '#444';
             ctx.font = '500 10px Syne, sans-serif';
             ctx.fillText(item.league, 20, y + 44);
 
-            // Tahmin badge sağda — SADECE TAHMİN, yüzde yok
             const badgeColor = getBadgeColor(item.prediction_type);
             const badgeW = 118;
             const badgeH = 44;
@@ -283,7 +297,6 @@ function drawCouponCanvas(coupon) {
             ctx.textAlign = 'center';
             ctx.fillText(item.prediction_label, badgeX + badgeW / 2, badgeY + badgeH / 2 + 5);
 
-            // Alt çizgi
             if (i < coupon.length - 1) {
                 ctx.strokeStyle = '#1a1a2e';
                 ctx.lineWidth = 1;
@@ -294,9 +307,7 @@ function drawCouponCanvas(coupon) {
             }
         });
 
-        // Footer
         const fy = headerH + coupon.length * rowH + extraPad / 2;
-
         ctx.strokeStyle = '#1e1e3a';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -309,9 +320,6 @@ function drawCouponCanvas(coupon) {
         ctx.textAlign = 'center';
         ctx.fillText('Bu tahminler yapay zeka analizi ile oluşturulmuştur. Sorumluluk kabul edilmez.', width / 2, fy + 32);
 
-
-
-        // Canvas'ı sakla ve önizleme modalını aç
         couponCanvas = canvas;
         showCouponPreview(canvas, today);
 
@@ -324,46 +332,30 @@ function drawCouponCanvas(coupon) {
 }
 
 function showCouponPreview(canvas, today) {
-    // Mevcut modalı varsa kaldır
     const existing = document.getElementById('couponModal');
     if (existing) existing.remove();
 
     const modal = document.createElement('div');
     modal.id = 'couponModal';
-    modal.style.cssText = `
-        position:fixed; inset:0; background:rgba(0,0,0,0.85);
-        z-index:9999; display:flex; align-items:center; justify-content:center;
-        padding:20px;
-    `;
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;`;
 
-    // Canvas'ı img olarak göster
     const imgSrc = canvas.toDataURL('image/png');
-
     modal.innerHTML = `
-        <div style="background:#0d0d1a; border:1px solid #2a1a4e; border-radius:16px; padding:20px; max-width:520px; width:100%;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-                <span style="color:#fff; font-weight:700; font-size:14px;">🎫 Kupon Önizleme</span>
-                <button onclick="document.getElementById('couponModal').remove()" style="background:transparent; border:none; color:#666; font-size:20px; cursor:pointer; line-height:1;">✕</button>
+        <div style="background:#0d0d1a;border:1px solid #2a1a4e;border-radius:16px;padding:20px;max-width:520px;width:100%;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <span style="color:#fff;font-weight:700;font-size:14px;">🎫 Kupon Önizleme</span>
+                <button onclick="document.getElementById('couponModal').remove()" style="background:transparent;border:none;color:#666;font-size:20px;cursor:pointer;line-height:1;">✕</button>
             </div>
-            <div style="display:flex; justify-content:center; margin-bottom:16px; max-height:70vh; overflow-y:auto;">
-                <img src="${imgSrc}" style="max-width:100%; border-radius:10px; border:1px solid #2a1a4e;">
+            <div style="display:flex;justify-content:center;margin-bottom:16px;max-height:70vh;overflow-y:auto;">
+                <img src="${imgSrc}" style="max-width:100%;border-radius:10px;border:1px solid #2a1a4e;">
             </div>
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
-                <button onclick="document.getElementById('couponModal').remove()" style="padding:10px 20px; border-radius:10px; border:1px solid #333; background:transparent; color:#aaa; font-size:13px; cursor:pointer; font-family:inherit;">
-                    İptal
-                </button>
-                <button onclick="downloadCoupon('${today}')" style="padding:10px 20px; border-radius:10px; border:none; background:#7c3aed; color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;">
-                    ⬇️ PNG İndir
-                </button>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button onclick="document.getElementById('couponModal').remove()" style="padding:10px 20px;border-radius:10px;border:1px solid #333;background:transparent;color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;">İptal</button>
+                <button onclick="downloadCoupon('${today}')" style="padding:10px 20px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⬇️ PNG İndir</button>
             </div>
-        </div>
-    `;
+        </div>`;
 
-    // Dışına tıklayınca kapat
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-    });
-
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
     document.body.appendChild(modal);
 }
 
@@ -635,7 +627,7 @@ async function checkAndReload(statusDiv, btn, total) {
             const txt = document.getElementById('progressText');
             if (bar) bar.style.width = '100%';
             if (txt) txt.textContent = '✅ Analiz tamamlandı!';
-            statusDiv.innerHTML = `<div class="status-box success"><span>✅ ${matches.length} maç analiz edildi! Yükleniyor...</span></div>`;
+            statusDiv.innerHTML = `<div class="status-box success"><span>✅ ${matches.length} maç analiz edildi!</span></div>`;
             renderMatches(matches);
             btn.disabled = false;
             btn.innerHTML = '🔍 Seçilenleri Analiz Et';
@@ -730,8 +722,6 @@ function createMatchCard(match) {
         'Düşük':      'confidence-low',
     }[confidence] || 'confidence-medium';
     const cardClass = cardConfidenceClass(confidence);
-    let reasoning = [];
-    try { reasoning = JSON.parse(match.reasoning || '[]'); } catch (e) {}
     const timeStr = formatTime(match.match_time);
     const homeLogo = teamLogoHtml(match.home_team);
     const awayLogo = teamLogoHtml(match.away_team);
@@ -743,8 +733,15 @@ function createMatchCard(match) {
 
     return `
         <div class="match-card ${cardClass}" id="matchcard-${match.id}">
-            <div style="display:flex;justify-content:flex-end;margin-bottom:4px;">
-                <button onclick="deleteMatch(${match.id})" style="background:transparent;border:none;color:#444;font-size:15px;cursor:pointer;padding:0;line-height:1;" title="Sil">🗑️</button>
+            <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
+                <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id}, '${match.home_team.replace(/'/g,"\\'")}', '${match.away_team.replace(/'/g,"\\'")}' )"
+                    style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;transition:color 0.2s;"
+                    onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#555'"
+                    title="Kartı İndir">📸</button>
+                <button onclick="deleteMatch(${match.id})"
+                    style="background:transparent;border:none;color:#444;font-size:15px;cursor:pointer;padding:0;line-height:1;transition:color 0.2s;"
+                    onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#444'"
+                    title="Sil">🗑️</button>
             </div>
             <div class="match-header">
                 <span class="league-badge">⚽ ${match.league || 'Bilinmeyen Lig'}</span>
@@ -794,11 +791,6 @@ function createMatchCard(match) {
                 <span class="confidence-badge ${confidenceClass}">Analiz Güveni: ${confidence}</span>
             </div>
             ${trendHtml}
-            ${reasoning.length > 0 ? `
-            <div class="reasoning">
-                <span class="reasoning-label">🧠 ANALİZ GEREKÇESİ</span>
-                ${reasoning.map(r => `<p class="reasoning-item">→ ${r}</p>`).join('')}
-            </div>` : ''}
         </div>`;
 }
 
