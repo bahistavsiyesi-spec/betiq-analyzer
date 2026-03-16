@@ -33,6 +33,8 @@ def init_db():
             away_form TEXT,
             home_goals_avg REAL,
             away_goals_avg REAL,
+            home_goals_trend TEXT,
+            away_goals_trend TEXT,
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
@@ -82,6 +84,14 @@ def init_db():
     except:
         conn.rollback()
 
+    # Trend sütunları (mevcut DB'ye ekle)
+    try:
+        cur.execute('ALTER TABLE analyses ADD COLUMN IF NOT EXISTS home_goals_trend TEXT')
+        cur.execute('ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT')
+        conn.commit()
+    except:
+        conn.rollback()
+
     conn.commit()
     cur.close()
     conn.close()
@@ -94,8 +104,8 @@ def save_analysis(data: dict):
             analysis_date, fixture_id, home_team, away_team, league, match_time,
             prediction_1x2, over25_pct, ht2g_pct, btts_pct, predicted_score,
             confidence, reasoning, h2h_summary, home_form, away_form,
-            home_goals_avg, away_goals_avg
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            home_goals_avg, away_goals_avg, home_goals_trend, away_goals_trend
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
         data.get('analysis_date', datetime.now().strftime('%Y-%m-%d')),
         data.get('fixture_id'),
@@ -106,7 +116,8 @@ def save_analysis(data: dict):
         data.get('predicted_score', ''), data.get('confidence', 'Orta'),
         data.get('reasoning', ''), data.get('h2h_summary', ''),
         data.get('home_form', ''), data.get('away_form', ''),
-        data.get('home_goals_avg', 0), data.get('away_goals_avg', 0)
+        data.get('home_goals_avg', 0), data.get('away_goals_avg', 0),
+        data.get('home_goals_trend'), data.get('away_goals_trend'),
     ))
     conn.commit()
     cur.close()
@@ -299,7 +310,6 @@ def clear_today_analyses():
     conn.close()
 
 def delete_analyses_by_fixture_ids(fixture_ids: list):
-    """Sadece belirtilen fixture_id'lere ait analizleri sil, diğerlerine dokunma."""
     if not fixture_ids:
         return
     conn = get_conn()
