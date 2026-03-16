@@ -181,6 +181,38 @@ ITALIAN_TEAM_NORMALIZED = {
     'palermo': 576, 'brescia': 580, 'spezia': 3964,
 }
 
+# ─── Fransız Takımları (Ligue 1) ─────────────────────────────────────────────
+FRENCH_TEAM_NORMALIZED = {
+    'psg': 524, 'parissaintgermain': 524, 'paris': 524,
+    'marseille': 516, 'olympiquedemarseille': 516, 'om': 516,
+    'lyon': 523, 'olympiquelyonnais': 523, 'ol': 523,
+    'monaco': 548, 'asmonaco': 548,
+    'lille': 521, 'losc': 521, 'loscliille': 521,
+    'nice': 522, 'ogcnice': 522,
+    'lens': 546, 'rclens': 546,
+    'rennes': 529, 'staderennais': 529,
+    'nantes': 543, 'fcnantes': 543,
+    'strasbourg': 576, 'rcstrasbourg': 576,
+    'montpellier': 527, 'montpellierhsc': 527,
+    'toulouse': 586, 'tfc': 586,
+    'reims': 547, 'staderheims': 547,
+    'brest': 3006, 'sbrest': 3006,
+    'lorient': 525, 'fclorient': 525,
+    'metz': 526, 'fcmetz': 526,
+    'havre': 541, 'lehavre': 541,
+    'clermont': 2816, 'clermontfoot': 2816,
+    'auxerre': 533, 'ajauxerre': 533,
+    'angers': 532, 'scoangers': 532,
+    'saintetienne': 519, 'stetienne': 519,
+    'caen': 539, 'smalec': 539,
+    'guingamp': 545, 'eaguingamp': 545,
+    'grenoble': 3028,
+    'laval': 3032,
+    'rodez': 3030,
+    'dunkerque': 3034,
+    'pau': 3031,
+}
+
 
 def _find_team_id(team_name, table):
     normalized = normalize_name(team_name)
@@ -202,6 +234,9 @@ def is_spanish_team(team_name):
 
 def is_italian_team(team_name):
     return _find_team_id(team_name, ITALIAN_TEAM_NORMALIZED) is not None
+
+def is_french_team(team_name):
+    return _find_team_id(team_name, FRENCH_TEAM_NORMALIZED) is not None
 
 
 # ─── football-data.co.uk Şut/Korner İstatistikleri ───────────────────────────
@@ -323,7 +358,6 @@ def _footballdata_last_matches(team_id, team_name, last=10):
         if not result or not result.get('matches'):
             return []
 
-        # Tarihe göre eskiden yeniye sırala, son N maçı al
         sorted_matches = sorted(result['matches'], key=lambda x: x.get('utcDate', ''))
         last_matches = sorted_matches[-last:]
 
@@ -549,6 +583,11 @@ def get_team_last_matches(team_name, last=10):
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
+    if is_french_team(team_name):
+        team_id = _find_team_id(team_name, FRENCH_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_last_matches(team_id, team_name, last)
+        return []
     logger.info('No stats source for ' + team_name + ', using ClubElo only')
     return []
 
@@ -575,6 +614,12 @@ def get_h2h(team1_name, team2_name, last=5):
     if is_italian_team(team1_name) or is_italian_team(team2_name):
         team_id = _find_team_id(team1_name, ITALIAN_TEAM_NORMALIZED) or \
                   _find_team_id(team2_name, ITALIAN_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_h2h(team_id, team1_name, team2_name, last)
+        return []
+    if is_french_team(team1_name) or is_french_team(team2_name):
+        team_id = _find_team_id(team1_name, FRENCH_TEAM_NORMALIZED) or \
+                  _find_team_id(team2_name, FRENCH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
