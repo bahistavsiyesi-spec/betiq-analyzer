@@ -107,15 +107,15 @@ UNDERSTAT_NAMES = {
 }
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
 }
 
 
 def _get_understat_name(team_name):
-    """Takım ismini Understat URL formatına çevir."""
     if team_name in UNDERSTAT_NAMES:
         return UNDERSTAT_NAMES[team_name]
-    # Kısmi eşleşme
     lower = team_name.lower()
     for key, val in UNDERSTAT_NAMES.items():
         if key.lower() in lower or lower in key.lower():
@@ -124,7 +124,6 @@ def _get_understat_name(team_name):
 
 
 def _fetch_team_xg_data(understat_name, season='2024'):
-    """Understat'tan takımın tüm maç xG verilerini çek."""
     today = date.today()
     cache_key = f'{understat_name}_{season}'
 
@@ -142,20 +141,48 @@ def _fetch_team_xg_data(understat_name, season='2024'):
         soup = BeautifulSoup(resp.text, 'html.parser')
         scripts = soup.find_all('script')
 
+        # Script içeriklerini logla — debug için
+        script_vars = []
+        for script in scripts:
+            if script.string:
+                # Tüm JSON.parse çağrılarını bul
+                vars_found = re.findall(r'(\w+)\s*=\s*JSON\.parse\(', script.string)
+                script_vars.extend(vars_found)
+
+        logger.info(f'Understat script vars for {understat_name}: {script_vars}')
+
         for script in scripts:
             if not script.string:
                 continue
-            if 'datesData' in script.string:
-                match = re.search(r"datesData\s*=\s*JSON\.parse\('(.+?)'\)", script.string)
-                if match:
-                    raw = match.group(1)
-                    raw = raw.encode('utf-8').decode('unicode_escape')
-                    data = json.loads(raw)
-                    _xg_cache[cache_key] = {'date': today, 'data': data}
-                    logger.info(f'Understat: {len(data)} matches loaded for {understat_name}')
-                    return data
 
-        logger.warning(f'Understat: datesData not found for {understat_name}')
+            # Pattern 1: datesData = JSON.parse('...')
+            match = re.search(r"datesData\s*=\s*JSON\.parse\('(.+?)'\)", script.string)
+            if match:
+                raw = match.group(1)
+                raw = raw.encode('utf-8').decode('unicode_escape')
+                data = json.loads(raw)
+                _xg_cache[cache_key] = {'date': today, 'data': data}
+                logger.info(f'Understat: {len(data)} matches loaded for {understat_name} (pattern1)')
+                return data
+
+            # Pattern 2: JSON.parse ile çift tırnak
+            match = re.search(r'datesData\s*=\s*JSON\.parse\("(.+?)"\)', script.string)
+            if match:
+                raw = match.group(1)
+                data = json.loads(raw)
+                _xg_cache[cache_key] = {'date': today, 'data': data}
+                logger.info(f'Understat: {len(data)} matches loaded for {understat_name} (pattern2)')
+                return data
+
+            # Pattern 3: Doğrudan atama (JSON.parse olmadan)
+            match = re.search(r'datesData\s*=\s*(\[.+?\]);', script.string, re.DOTALL)
+            if match:
+                data = json.loads(match.group(1))
+                _xg_cache[cache_key] = {'date': today, 'data': data}
+                logger.info(f'Understat: {len(data)} matches loaded for {understat_name} (pattern3)')
+                return data
+
+        logger.warning(f'Understat: no matching pattern for {understat_name}. Available vars: {script_vars}')
         return None
 
     except Exception as e:
@@ -166,13 +193,6 @@ def _fetch_team_xg_data(understat_name, season='2024'):
 def get_team_xg_stats(team_name, last=5, season='2024'):
     """
     Takımın son N maçının xG istatistiklerini döndür.
-    Döndürür: {
-        'xg_avg': 1.8,        → ortalama beklenen gol (atar)
-        'xga_avg': 0.9,       → ortalama beklenen gol (yer)
-        'xg_diff': +0.9,      → xG farkı (pozitif = baskı üstünlüğü)
-        'xg_overperform': 0.3 → gerçek gol - xG (pozitif = şans eseri kazanıyor)
-        'matches_used': 5
-    }
     """
     understat_name = _get_understat_name(team_name)
     if not understat_name:
@@ -183,7 +203,6 @@ def get_team_xg_stats(team_name, last=5, season='2024'):
     if not data:
         return None
 
-    # Sadece oynanan maçlar
     played = [m for m in data if m.get('isResult')]
     if not played:
         return None
