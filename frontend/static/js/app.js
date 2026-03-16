@@ -309,9 +309,7 @@ function drawCouponCanvas(coupon) {
         ctx.textAlign = 'center';
         ctx.fillText('Bu tahminler yapay zeka analizi ile oluşturulmuştur. Sorumluluk kabul edilmez.', width / 2, fy + 32);
 
-        ctx.fillStyle = '#7c3aed';
-        ctx.font = '700 11px Syne, sans-serif';
-        ctx.fillText('⚡ BetIQ ANALYZER', width / 2, fy + 52);
+
 
         // Canvas'ı sakla ve önizleme modalını aç
         couponCanvas = canvas;
