@@ -344,15 +344,29 @@ def _footballdata_last_matches(team_id, team_name, last=10):
                 ht = m.get('score', {}).get('halfTime', {})
                 ht_home = ht.get('home')
                 ht_away = ht.get('away')
+                home = m['homeTeam']['name']
+                away = m['awayTeam']['name']
+                hg = m['score']['fullTime']['home']
+                ag = m['score']['fullTime']['away']
+                date_str = m.get('utcDate', '')[:10]
+                is_home = teams_match(team_name, home)
+
+                if is_home:
+                    result_str = 'W' if hg > ag else ('D' if hg == ag else 'L')
+                else:
+                    result_str = 'W' if ag > hg else ('D' if ag == hg else 'L')
+
+                # DEBUG: Her maçı logla
+                logger.info(f'MATCH {team_name} | {date_str} | {home} {hg}-{ag} {away} | is_home={is_home} | {result_str}')
 
                 converted.append({
                     'teams': {
-                        'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
-                        'away': {'name': m['awayTeam']['name'], 'id': m['awayTeam']['id']}
+                        'home': {'name': home, 'id': m['homeTeam']['id']},
+                        'away': {'name': away, 'id': m['awayTeam']['id']}
                     },
                     'goals': {
-                        'home': m['score']['fullTime']['home'],
-                        'away': m['score']['fullTime']['away'],
+                        'home': hg,
+                        'away': ag,
                         'ht_home': ht_home,
                         'ht_away': ht_away,
                     }
