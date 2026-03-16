@@ -42,7 +42,8 @@ def build_prompt(home_team, away_team, league, match_time,
                  home_shot_stats=None, away_shot_stats=None,
                  home_ht_stats=None, away_ht_stats=None,
                  home_btts_stats=None, away_btts_stats=None,
-                 btts_mathematical=None):
+                 btts_mathematical=None,
+                 home_goals_trend=None, away_goals_trend=None):
 
     # Form yoksa Elo trendinden türet
     if not home_form and elo_data and elo_data.get('home_trend_label'):
@@ -78,6 +79,26 @@ def build_prompt(home_team, away_team, league, match_time,
             '- ' + home_team + ' form: ' + (home_form if home_form else 'Bilinmiyor') + '\n' +
             '- ' + away_team + ' form: ' + (away_form if away_form else 'Bilinmiyor')
         )
+
+    # Gol trendi
+    trend_text = ''
+    if home_goals_trend or away_goals_trend:
+        trend_text = '\nGol Trendi (Son 5 Maç — eskiden yeniye):\n'
+        if home_goals_trend:
+            scored_str = ' | '.join(str(g) for g in home_goals_trend['scored'])
+            conceded_str = ' | '.join(str(g) for g in home_goals_trend['conceded'])
+            trend_text += (
+                f'- {home_team} attığı goller: {scored_str} (ort. {home_goals_trend["scored_avg"]})\n'
+                f'- {home_team} yediği goller: {conceded_str} (ort. {home_goals_trend["conceded_avg"]})\n'
+            )
+        if away_goals_trend:
+            scored_str = ' | '.join(str(g) for g in away_goals_trend['scored'])
+            conceded_str = ' | '.join(str(g) for g in away_goals_trend['conceded'])
+            trend_text += (
+                f'- {away_team} attığı goller: {scored_str} (ort. {away_goals_trend["scored_avg"]})\n'
+                f'- {away_team} yediği goller: {conceded_str} (ort. {away_goals_trend["conceded_avg"]})\n'
+            )
+        trend_text += '- NOT: Son maçlardaki gol paterni, takımın mevcut hücum/savunma durumunu gösterir\n'
 
     # Ev/Deplasman ayrımlı istatistikler
     venue_text = ''
@@ -277,6 +298,7 @@ def build_prompt(home_team, away_team, league, match_time,
         'Tarih: ' + str(match_time) + '\n' +
         'Mac Tipi: ' + match_importance + '\n' +
         stats_text + '\n' +
+        trend_text + '\n' +
         venue_text + '\n' +
         standing_text + '\n' +
         h2h_text + '\n' +
@@ -294,8 +316,9 @@ def build_prompt(home_team, away_team, league, match_time,
         '6. Şut ve korner istatistikleri varsa: yüksek şut = baskı üstünlüğü, yüksek isabet oranı = gol kalitesi\n' +
         '7. ht2g_pct için MUTLAKA ilk yarı istatistiklerini kullan\n' +
         '8. btts_pct için matematiksel KG VAR değerini referans al, H2H ve maç önemi ile ince ayar yap\n' +
-        '9. Tum yanitlar TURKCE olacak\n' +
-        '10. Analizinde kesinlikle "Elo" kelimesini kullanma, "Guc Puani" kullan\n\n' +
+        '9. Gol trendi varsa son maçlardaki gol paterni over25_pct ve btts_pct için referans al\n' +
+        '10. Tum yanitlar TURKCE olacak\n' +
+        '11. Analizinde kesinlikle "Elo" kelimesini kullanma, "Guc Puani" kullan\n\n' +
         'Alan aciklamalari:\n' +
         '- over25_pct: Mac genelinde 2.5 gol ustu olma ihtimali (0-100)\n' +
         '- ht2g_pct: Ilk yaride EN AZ 1 gol olma ihtimali (0-100) — ilk yarı istatistiklerine dayandır\n' +
@@ -403,7 +426,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_shot_stats=None, away_shot_stats=None,
                         home_ht_stats=None, away_ht_stats=None,
                         home_btts_stats=None, away_btts_stats=None,
-                        btts_mathematical=None):
+                        btts_mathematical=None,
+                        home_goals_trend=None, away_goals_trend=None):
 
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
@@ -470,6 +494,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         home_btts_stats=home_btts_stats,
         away_btts_stats=away_btts_stats,
         btts_mathematical=btts_mathematical,
+        home_goals_trend=home_goals_trend,
+        away_goals_trend=away_goals_trend,
     )
 
     result = None
@@ -556,6 +582,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         'h2h_summary': result.get('h2h_summary', ''),
         'home_form': home_form, 'away_form': away_form,
         'home_goals_avg': home_goals_avg, 'away_goals_avg': away_goals_avg,
+        'home_goals_trend': json.dumps(home_goals_trend, ensure_ascii=False) if home_goals_trend else None,
+        'away_goals_trend': json.dumps(away_goals_trend, ensure_ascii=False) if away_goals_trend else None,
     }
 
 def mock_analysis(fixture, home_form='', away_form='', home_goals_avg=0, away_goals_avg=0):
@@ -575,4 +603,5 @@ def mock_analysis(fixture, home_form='', away_form='', home_goals_avg=0, away_go
         'h2h_summary': 'Genel istatistiklere gore tahmin',
         'home_form': home_form, 'away_form': away_form,
         'home_goals_avg': home_goals_avg, 'away_goals_avg': away_goals_avg,
+        'home_goals_trend': None, 'away_goals_trend': None,
     }
