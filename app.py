@@ -354,6 +354,61 @@ def api_clear_matches():
 
 # ─── Debug Endpointler ────────────────────────────────────────────────────────
 
+@app.route('/api/debug/rapidapi/leagues')
+def debug_rapidapi_leagues():
+    """RapidAPI lig listesi — Türkiye ligi var mı kontrol et."""
+    try:
+        import requests as req
+        key = os.environ.get('FOOTBALL_API_KEY', '')
+        if not key:
+            return jsonify({"error": "FOOTBALL_API_KEY tanımlı değil"}), 500
+        resp = req.get(
+            'https://free-api-live-football-data.p.rapidapi.com/football-get-all-leagues',
+            headers={
+                'x-rapidapi-key': key,
+                'x-rapidapi-host': 'free-api-live-football-data.p.rapidapi.com'
+            },
+            timeout=15
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        # Türkiye ile ilgili ligleri filtrele
+        leagues = data.get('response', data)
+        if isinstance(leagues, list):
+            turkey = [l for l in leagues if 'turk' in str(l).lower() or 'turkey' in str(l).lower()]
+            return jsonify({"all_count": len(leagues), "turkey": turkey, "sample": leagues[:10]})
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/debug/rapidapi/matches/<date_str>')
+def debug_rapidapi_matches(date_str):
+    """RapidAPI'den belirli bir günün maçlarını çek. Örnek: /api/debug/rapidapi/matches/2026-03-16"""
+    try:
+        import requests as req
+        key = os.environ.get('FOOTBALL_API_KEY', '')
+        if not key:
+            return jsonify({"error": "FOOTBALL_API_KEY tanımlı değil"}), 500
+        resp = req.get(
+            'https://free-api-live-football-data.p.rapidapi.com/football-get-all-fixtures-by-date',
+            headers={
+                'x-rapidapi-key': key,
+                'x-rapidapi-host': 'free-api-live-football-data.p.rapidapi.com'
+            },
+            params={'date': date_str},
+            timeout=15
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        matches = data.get('response', data)
+        # Türkiye maçlarını filtrele
+        if isinstance(matches, list):
+            turkey = [m for m in matches if 'turk' in str(m).lower() or 'süper' in str(m).lower() or 'super lig' in str(m).lower()]
+            return jsonify({"total": len(matches), "turkey_matches": turkey, "sample": matches[:5]})
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/debug/xg/<team_name>')
 def debug_xg(team_name):
     """xG test endpoint. Örnek: /api/debug/xg/Brentford"""
