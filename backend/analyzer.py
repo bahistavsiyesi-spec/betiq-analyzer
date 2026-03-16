@@ -113,6 +113,39 @@ def extract_goals_avg(matches, team_name):
     return avg_scored, avg_conceded
 
 
+def extract_goals_trend(matches, team_name):
+    """Son 5 maçtan gol attı/yedi trendini çıkarır."""
+    scored = []
+    conceded = []
+    for m in matches[-5:]:
+        try:
+            home_name = m['teams']['home']['name']
+            hg = m['goals']['home']
+            ag = m['goals']['away']
+            if hg is None or ag is None:
+                continue
+            is_home = teams_match(team_name, home_name)
+            if is_home:
+                scored.append(int(hg))
+                conceded.append(int(ag))
+            else:
+                scored.append(int(ag))
+                conceded.append(int(hg))
+        except:
+            continue
+
+    if not scored:
+        return None
+
+    return {
+        'scored': scored,
+        'conceded': conceded,
+        'scored_avg': round(sum(scored) / len(scored), 1),
+        'conceded_avg': round(sum(conceded) / len(conceded), 1),
+        'matches_used': len(scored),
+    }
+
+
 def extract_btts_stats(matches, team_name):
     scored_count = 0
     conceded_count = 0
@@ -260,14 +293,20 @@ def analyze_fixture(fixture):
     away_matches = get_team_last_matches(away_name, last=10)
     h2h = get_h2h(home_name, away_name, last=5)
 
-    # FIX: [:5] kaldırıldı — extract_form_from_fixtures zaten matches[-5:] kullanıyor
-    # Önceden [:5] ile ilk 5 maç gönderiliyordu, bu Sofascore ile uyuşmazlığa yol açıyordu
     home_form = extract_form_from_fixtures(home_matches if home_matches else [], home_name)
     away_form = extract_form_from_fixtures(away_matches if away_matches else [], away_name)
-
     home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
     away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
     h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
+
+    # Gol trendi (son 5 maç)
+    home_goals_trend = extract_goals_trend(home_matches, home_name)
+    away_goals_trend = extract_goals_trend(away_matches, away_name)
+
+    if home_goals_trend:
+        logger.info(f'Trend {home_name}: attı={home_goals_trend["scored"]} yedi={home_goals_trend["conceded"]}')
+    if away_goals_trend:
+        logger.info(f'Trend {away_name}: attı={away_goals_trend["scored"]} yedi={away_goals_trend["conceded"]}')
 
     home_venue_stats = get_team_home_away_stats(home_name, home_matches)
     away_venue_stats = get_team_home_away_stats(away_name, away_matches)
@@ -371,6 +410,8 @@ def analyze_fixture(fixture):
         home_btts_stats=home_btts_stats,
         away_btts_stats=away_btts_stats,
         btts_mathematical=btts_mathematical,
+        home_goals_trend=home_goals_trend,
+        away_goals_trend=away_goals_trend,
     )
 
 
