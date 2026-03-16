@@ -260,8 +260,11 @@ def analyze_fixture(fixture):
     away_matches = get_team_last_matches(away_name, last=10)
     h2h = get_h2h(home_name, away_name, last=5)
 
-    home_form = extract_form_from_fixtures(home_matches[:5] if home_matches else [], home_name)
-    away_form = extract_form_from_fixtures(away_matches[:5] if away_matches else [], away_name)
+    # FIX: [:5] kaldırıldı — extract_form_from_fixtures zaten matches[-5:] kullanıyor
+    # Önceden [:5] ile ilk 5 maç gönderiliyordu, bu Sofascore ile uyuşmazlığa yol açıyordu
+    home_form = extract_form_from_fixtures(home_matches if home_matches else [], home_name)
+    away_form = extract_form_from_fixtures(away_matches if away_matches else [], away_name)
+
     home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
     away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
     h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
