@@ -332,8 +332,14 @@ def _footballdata_last_matches(team_id, team_name, last=10):
         })
         if not result or not result.get('matches'):
             return []
+
+        # FIX: Maçları tarihe göre eskiden yeniye sırala, sonra son N tanesini al
+        # football-data.org bazen ters sırada dönüyor, bu Sofascore uyumsuzluğuna yol açıyordu
+        sorted_matches = sorted(result['matches'], key=lambda x: x.get('utcDate', ''))
+        last_matches = sorted_matches[-last:]
+
         converted = []
-        for m in result['matches'][-last:]:
+        for m in last_matches:
             try:
                 ht = m.get('score', {}).get('halfTime', {})
                 ht_home = ht.get('home')
