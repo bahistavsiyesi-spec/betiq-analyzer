@@ -73,7 +73,6 @@ function getWinnerLabel(prediction, homeTeam, awayTeam) {
     return { label: 'Belirsiz', icon: '❓' };
 }
 
-// 3. Yüzdeye göre renk sınıfı
 function pctClass(pct) {
     const v = parseFloat(pct) || 0;
     if (v >= 70) return 'pct-high';
@@ -81,7 +80,6 @@ function pctClass(pct) {
     return 'pct-low';
 }
 
-// 3. Yüzdeye göre bar renk sınıfı
 function barClass(pct) {
     const v = parseFloat(pct) || 0;
     if (v >= 70) return 'bar-high';
@@ -89,7 +87,6 @@ function barClass(pct) {
     return 'bar-low';
 }
 
-// 4. Güvene göre kart border sınıfı
 function cardConfidenceClass(confidence) {
     const map = {
         'Çok Yüksek': 'card-confidence-very-high',
@@ -98,6 +95,74 @@ function cardConfidenceClass(confidence) {
         'Düşük':      'card-confidence-low',
     };
     return map[confidence] || 'card-confidence-medium';
+}
+
+// ─── Gol Trendi HTML ─────────────────────────────────────────────────────────
+function buildTrendHtml(match) {
+    let homeTrend = null;
+    let awayTrend = null;
+
+    try { homeTrend = match.home_goals_trend ? JSON.parse(match.home_goals_trend) : null; } catch(e) {}
+    try { awayTrend = match.away_goals_trend ? JSON.parse(match.away_goals_trend) : null; } catch(e) {}
+
+    if (!homeTrend && !awayTrend) return '';
+
+    function goalDot(goals, type) {
+        // type: 'scored' veya 'conceded'
+        return goals.map(g => {
+            let color, emoji;
+            if (type === 'scored') {
+                color = g === 0 ? '#ef4444' : g >= 3 ? '#22c55e' : '#f59e0b';
+                emoji = g === 0 ? '○' : g;
+            } else {
+                color = g === 0 ? '#22c55e' : g >= 3 ? '#ef4444' : '#f59e0b';
+                emoji = g === 0 ? '○' : g;
+            }
+            return `<span style="
+                display:inline-flex; align-items:center; justify-content:center;
+                width:26px; height:26px; border-radius:50%;
+                background:${color}22; border:1px solid ${color};
+                color:${color}; font-size:11px; font-weight:700;
+            ">${emoji}</span>`;
+        }).join('');
+    }
+
+    function trendRow(label, goals, type) {
+        const avg = goals.length ? (goals.reduce((a,b) => a+b, 0) / goals.length).toFixed(1) : '0';
+        return `
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                <span style="font-size:11px; color:#666; width:90px; flex-shrink:0;">${label}</span>
+                <div style="display:flex; gap:4px;">${goalDot(goals, type)}</div>
+                <span style="font-size:11px; color:#555; margin-left:4px;">ort. ${avg}</span>
+            </div>`;
+    }
+
+    let html = `
+        <div style="margin-top:14px; padding:12px 14px; background:#0d0d1a; border-radius:10px; border:1px solid #1e1e3a;">
+            <div style="font-size:11px; color:#7c3aed; font-weight:700; letter-spacing:0.5px; margin-bottom:10px;">
+                📈 GOL TRENDİ (Son 5 Maç)
+            </div>`;
+
+    if (homeTrend) {
+        html += `<div style="margin-bottom:8px;">
+            <div style="font-size:11px; color:#aaa; font-weight:600; margin-bottom:4px;">${match.home_team}</div>
+            ${trendRow('⚽ Attığı', homeTrend.scored, 'scored')}
+            ${trendRow('🥅 Yediği', homeTrend.conceded, 'conceded')}
+        </div>`;
+    }
+
+    if (awayTrend) {
+        html += `<div style="margin-top:${homeTrend ? '8px' : '0'}; padding-top:${homeTrend ? '8px' : '0'}; ${homeTrend ? 'border-top:1px solid #1e1e3a;' : ''}">
+            <div style="font-size:11px; color:#aaa; font-weight:600; margin-bottom:4px;">${match.away_team}</div>
+            ${trendRow('⚽ Attığı', awayTrend.scored, 'scored')}
+            ${trendRow('🥅 Yediği', awayTrend.conceded, 'conceded')}
+        </div>`;
+    }
+
+    html += `<div style="font-size:10px; color:#333; margin-top:6px;">← Eski &nbsp;&nbsp;&nbsp; Yeni →</div>`;
+    html += `</div>`;
+
+    return html;
 }
 
 // ===== FIXTURES =====
@@ -418,7 +483,6 @@ function createMatchCard(match) {
     const prediction = match.prediction_1x2 || '?';
     const confidence = match.confidence || 'Orta';
 
-    // 2. Güven badge sınıfı
     const confidenceClass = {
         'Çok Yüksek': 'confidence-very-high',
         'Yüksek':     'confidence-high',
@@ -426,7 +490,6 @@ function createMatchCard(match) {
         'Düşük':      'confidence-low',
     }[confidence] || 'confidence-medium';
 
-    // 4. Kart border sınıfı
     const cardClass = cardConfidenceClass(confidence);
 
     let reasoning = [];
@@ -440,6 +503,9 @@ function createMatchCard(match) {
     const over25 = match.over25_pct || 0;
     const ht2g   = match.ht2g_pct   || 0;
     const btts   = match.btts_pct   || 0;
+
+    // Gol trendi
+    const trendHtml = buildTrendHtml(match);
 
     return `
         <div class="match-card ${cardClass}" id="matchcard-${match.id}">
@@ -493,6 +559,7 @@ function createMatchCard(match) {
                 </div>
                 <span class="confidence-badge ${confidenceClass}">Analiz Güveni: ${confidence}</span>
             </div>
+            ${trendHtml}
             ${reasoning.length > 0 ? `
             <div class="reasoning">
                 <span class="reasoning-label">🧠 ANALİZ GEREKÇESİ</span>
