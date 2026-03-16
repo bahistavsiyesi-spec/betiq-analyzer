@@ -63,7 +63,6 @@ def normalize_name(name):
     }
     for old, new in replacements.items():
         name = name.replace(old, new)
-    # Kulüp son eklerini temizle — uzundan kısaya sırala, ilk eşleşende dur
     for suffix in ('wanderers', 'united', 'city', 'town', 'afc', 'fc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv'):
         if name.endswith(suffix) and len(name) > len(suffix) + 2:
             name = name[:-len(suffix)]
@@ -72,21 +71,12 @@ def normalize_name(name):
 
 
 def teams_match(name_a, name_b):
-    """
-    İki takım isminin aynı takıma ait olup olmadığını kontrol et.
-    Kısa isim (Wolves) ↔ uzun isim (Wolverhampton Wanderers FC) gibi durumları yakalar.
-    """
     a = normalize_name(name_a)
     b = normalize_name(name_b)
-
-    # Tam veya kısmi eşleşme
     if a in b or b in a:
         return True
-
-    # İlk 5 karakter eşleşmesi
     if len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]:
         return True
-
     return False
 
 
@@ -333,8 +323,7 @@ def _footballdata_last_matches(team_id, team_name, last=10):
         if not result or not result.get('matches'):
             return []
 
-        # FIX: Maçları tarihe göre eskiden yeniye sırala, sonra son N tanesini al
-        # football-data.org bazen ters sırada dönüyor, bu Sofascore uyumsuzluğuna yol açıyordu
+        # Tarihe göre eskiden yeniye sırala, son N maçı al
         sorted_matches = sorted(result['matches'], key=lambda x: x.get('utcDate', ''))
         last_matches = sorted_matches[-last:]
 
@@ -344,29 +333,14 @@ def _footballdata_last_matches(team_id, team_name, last=10):
                 ht = m.get('score', {}).get('halfTime', {})
                 ht_home = ht.get('home')
                 ht_away = ht.get('away')
-                home = m['homeTeam']['name']
-                away = m['awayTeam']['name']
-                hg = m['score']['fullTime']['home']
-                ag = m['score']['fullTime']['away']
-                date_str = m.get('utcDate', '')[:10]
-                is_home = teams_match(team_name, home)
-
-                if is_home:
-                    result_str = 'W' if hg > ag else ('D' if hg == ag else 'L')
-                else:
-                    result_str = 'W' if ag > hg else ('D' if ag == hg else 'L')
-
-                # DEBUG: Her maçı logla
-                logger.info(f'MATCH {team_name} | {date_str} | {home} {hg}-{ag} {away} | is_home={is_home} | {result_str}')
-
                 converted.append({
                     'teams': {
-                        'home': {'name': home, 'id': m['homeTeam']['id']},
-                        'away': {'name': away, 'id': m['awayTeam']['id']}
+                        'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
+                        'away': {'name': m['awayTeam']['name'], 'id': m['awayTeam']['id']}
                     },
                     'goals': {
-                        'home': hg,
-                        'away': ag,
+                        'home': m['score']['fullTime']['home'],
+                        'away': m['score']['fullTime']['away'],
                         'ht_home': ht_home,
                         'ht_away': ht_away,
                     }
@@ -460,7 +434,6 @@ def get_team_standing(team_name, country_code):
     standings = get_standings_cached(league_code)
     if not standings:
         return None
-    # teams_match kullanarak daha esnek eşleştirme
     for s in standings:
         if teams_match(team_name, s['team']):
             return s
