@@ -252,6 +252,92 @@ def api_daily_report():
         logger.error(f"Daily report error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/coupon/today')
+def api_coupon_today():
+    """Bugünün analizlerinden otomatik kupon oluştur."""
+    try:
+        matches = get_today_matches()
+        if not matches:
+            return jsonify({"status": "error", "message": "Analiz bulunamadı"}), 404
+
+        CONFIDENCE_ORDER = ['Çok Yüksek', 'Yüksek', 'Orta', 'Düşük']
+        MIN_PCT = 65
+
+        candidates = []
+
+        for m in matches:
+            # Sadece Yüksek ve Çok Yüksek güven
+            if m.get('confidence') not in ['Yüksek', 'Çok Yüksek']:
+                continue
+
+            over25_pct = float(m.get('over25_pct') or 0)
+            btts_pct = float(m.get('btts_pct') or 0)
+            ht2g_pct = float(m.get('ht2g_pct') or 0)
+            confidence = m.get('confidence', 'Orta')
+            conf_score = 4 if confidence == 'Çok Yüksek' else 3
+
+            # Her maç için en iyi tahmini seç
+            options = []
+
+            # 1X2 — her zaman eklenir (güven skoru baz alınır)
+            pred = m.get('prediction_1x2', '?')
+            pred_text = {'1': f"{m['home_team']} Kazanır", 'X': 'Beraberlik', '2': f"{m['away_team']} Kazanır"}.get(pred, pred)
+            options.append({
+                'type': '1X2',
+                'label': pred_text,
+                'pct': conf_score * 20,  # güven skoru yüzdeye çevir
+                'conf_score': conf_score,
+                'match': m,
+            })
+
+            # 2.5 Üst
+            if over25_pct >= MIN_PCT:
+                options.append({'type': '2.5 Üst', 'label': '2.5 Gol Üstü', 'pct': over25_pct, 'conf_score': conf_score, 'match': m})
+            elif (100 - over25_pct) >= MIN_PCT:
+                options.append({'type': '2.5 Alt', 'label': '2.5 Gol Altı', 'pct': 100 - over25_pct, 'conf_score': conf_score, 'match': m})
+
+            # KG Var/Yok
+            if btts_pct >= MIN_PCT:
+                options.append({'type': 'KG Var', 'label': 'KG Var', 'pct': btts_pct, 'conf_score': conf_score, 'match': m})
+            elif (100 - btts_pct) >= MIN_PCT:
+                options.append({'type': 'KG Yok', 'label': 'KG Yok', 'pct': 100 - btts_pct, 'conf_score': conf_score, 'match': m})
+
+            # İY 0.5 Üst
+            if ht2g_pct >= MIN_PCT:
+                options.append({'type': 'İY 0.5 Üst', 'label': 'İY 0.5 Üstü', 'pct': ht2g_pct, 'conf_score': conf_score, 'match': m})
+
+            # En yüksek yüzdeli seçeneği al
+            if options:
+                best = max(options, key=lambda x: x['pct'])
+                candidates.append(best)
+
+        if not candidates:
+            return jsonify({"status": "error", "message": "Kriterlere uyan tahmin bulunamadı"}), 404
+
+        # En güçlü 4-5 tahmini seç (önce conf_score, sonra pct'ye göre)
+        candidates.sort(key=lambda x: (x['conf_score'], x['pct']), reverse=True)
+        selected = candidates[:5]
+
+        coupon = []
+        for c in selected:
+            m = c['match']
+            coupon.append({
+                'home_team': m['home_team'],
+                'away_team': m['away_team'],
+                'league': m.get('league', ''),
+                'match_time': m.get('match_time', ''),
+                'prediction_type': c['type'],
+                'prediction_label': c['label'],
+                'pct': round(c['pct']),
+                'confidence': m.get('confidence', 'Orta'),
+            })
+
+        return jsonify({"status": "success", "coupon": coupon})
+
+    except Exception as e:
+        logger.error(f"Coupon error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/parse/image', methods=['POST'])
 def api_parse_image():
     try:
@@ -356,7 +442,6 @@ def api_clear_matches():
 
 @app.route('/api/debug/rapidapi/leagues')
 def debug_rapidapi_leagues():
-    """RapidAPI lig listesi — Türkiye ligi var mı kontrol et."""
     try:
         import requests as req
         key = os.environ.get('FOOTBALL_API_KEY', '')
@@ -372,7 +457,6 @@ def debug_rapidapi_leagues():
         )
         resp.raise_for_status()
         data = resp.json()
-        # Türkiye ile ilgili ligleri filtrele
         leagues = data.get('response', data)
         if isinstance(leagues, list):
             turkey = [l for l in leagues if 'turk' in str(l).lower() or 'turkey' in str(l).lower()]
@@ -383,7 +467,6 @@ def debug_rapidapi_leagues():
 
 @app.route('/api/debug/rapidapi/matches/<date_str>')
 def debug_rapidapi_matches(date_str):
-    """RapidAPI'den belirli bir günün maçlarını çek. Örnek: /api/debug/rapidapi/matches/2026-03-16"""
     try:
         import requests as req
         key = os.environ.get('FOOTBALL_API_KEY', '')
@@ -401,7 +484,6 @@ def debug_rapidapi_matches(date_str):
         resp.raise_for_status()
         data = resp.json()
         matches = data.get('response', data)
-        # Türkiye maçlarını filtrele
         if isinstance(matches, list):
             turkey = [m for m in matches if 'turk' in str(m).lower() or 'süper' in str(m).lower() or 'super lig' in str(m).lower()]
             return jsonify({"total": len(matches), "turkey_matches": turkey, "sample": matches[:5]})
@@ -411,7 +493,6 @@ def debug_rapidapi_matches(date_str):
 
 @app.route('/api/debug/xg/<team_name>')
 def debug_xg(team_name):
-    """xG test endpoint. Örnek: /api/debug/xg/Brentford"""
     try:
         from backend.understat import get_team_xg_stats
         result = get_team_xg_stats(team_name)
