@@ -1,6 +1,7 @@
 const API_BASE = '';
 let selectedFixtures = {};
 let manualMatches = [];
+let couponCanvas = null; // önizleme için canvas sakla
 
 const TEAM_IDS = {
     'Bayern': 5, 'Dortmund': 4, 'Leverkusen': 3, 'Leipzig': 721,
@@ -155,16 +156,13 @@ async function generateCoupon() {
 function drawCouponCanvas(coupon) {
     const today = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    // 4:5 format
     const width = 480;
     const headerH = 110;
-    const rowH = 72;
+    const rowH = 68;
     const footerH = 70;
-    const minHeight = width * 1.25; // 4:5 oranı
+    const minHeight = width * 1.25;
     const contentH = headerH + coupon.length * rowH + footerH;
     const height = Math.max(minHeight, contentH);
-
-    // Boş alan: maçlar az ise alt padding ekle
     const extraPad = Math.max(0, height - contentH);
 
     const canvas = document.createElement('canvas');
@@ -205,9 +203,9 @@ function drawCouponCanvas(coupon) {
 
     const drawContent = () => {
         // Logo
-        logo.width && ctx.drawImage(logo, 20, 20, 56, 56);
+        if (logo.naturalWidth) ctx.drawImage(logo, 20, 20, 56, 56);
 
-        // Tarih sağ üst
+        // Tarih
         ctx.fillStyle = '#555';
         ctx.font = '500 11px Syne, sans-serif';
         ctx.textAlign = 'right';
@@ -249,34 +247,26 @@ function drawCouponCanvas(coupon) {
                 ctx.fillRect(0, y, width, rowH);
             }
 
-            // Maç bilgisi sol
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '700 13px Syne, sans-serif';
-            ctx.textAlign = 'left';
-
-            // Uzun isim kısalt
-            const maxW = 240;
-            let matchText = `${item.home_team} vs ${item.away_team}`;
+            // Takım isimleri — uzunsa kısalt
             ctx.font = '700 12px Syne, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'left';
+            const maxW = 230;
+            let matchText = `${item.home_team} vs ${item.away_team}`;
             while (ctx.measureText(matchText).width > maxW && matchText.length > 10) {
                 matchText = matchText.slice(0, -4) + '...';
             }
             ctx.fillText(matchText, 20, y + 26);
 
+            // Lig
             ctx.fillStyle = '#444';
             ctx.font = '500 10px Syne, sans-serif';
-            ctx.fillText(item.league, 20, y + 42);
+            ctx.fillText(item.league, 20, y + 44);
 
-            // Yüzde
-            ctx.fillStyle = '#7c3aed';
-            ctx.font = '800 14px Syne, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText(`%${item.pct}`, 20, y + 60);
-
-            // Tahmin badge sağda
+            // Tahmin badge sağda — SADECE TAHMİN, yüzde yok
             const badgeColor = getBadgeColor(item.prediction_type);
-            const badgeW = 120;
-            const badgeH = 48;
+            const badgeW = 118;
+            const badgeH = 44;
             const badgeX = width - badgeW - 20;
             const badgeY = y + (rowH - badgeH) / 2;
 
@@ -288,7 +278,6 @@ function drawCouponCanvas(coupon) {
             roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 10);
             ctx.stroke();
 
-            // Badge içinde sadece TAHMİN TÜRÜ (tek satır, ortalı)
             ctx.fillStyle = badgeColor.text;
             ctx.font = '700 13px Syne, sans-serif';
             ctx.textAlign = 'center';
@@ -324,11 +313,9 @@ function drawCouponCanvas(coupon) {
         ctx.font = '700 11px Syne, sans-serif';
         ctx.fillText('⚡ BetIQ ANALYZER', width / 2, fy + 52);
 
-        // İndir
-        const link = document.createElement('a');
-        link.download = `betiq_kupon_${today.replace(/\./g, '-')}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+        // Canvas'ı sakla ve önizleme modalını aç
+        couponCanvas = canvas;
+        showCouponPreview(canvas, today);
 
         const btn = document.getElementById('couponBtn');
         if (btn) { btn.disabled = false; btn.textContent = '🎫 Kupon Oluştur'; }
@@ -336,6 +323,59 @@ function drawCouponCanvas(coupon) {
 
     logo.onload = drawContent;
     logo.onerror = drawContent;
+}
+
+function showCouponPreview(canvas, today) {
+    // Mevcut modalı varsa kaldır
+    const existing = document.getElementById('couponModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'couponModal';
+    modal.style.cssText = `
+        position:fixed; inset:0; background:rgba(0,0,0,0.85);
+        z-index:9999; display:flex; align-items:center; justify-content:center;
+        padding:20px;
+    `;
+
+    // Canvas'ı img olarak göster
+    const imgSrc = canvas.toDataURL('image/png');
+
+    modal.innerHTML = `
+        <div style="background:#0d0d1a; border:1px solid #2a1a4e; border-radius:16px; padding:20px; max-width:520px; width:100%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <span style="color:#fff; font-weight:700; font-size:14px;">🎫 Kupon Önizleme</span>
+                <button onclick="document.getElementById('couponModal').remove()" style="background:transparent; border:none; color:#666; font-size:20px; cursor:pointer; line-height:1;">✕</button>
+            </div>
+            <div style="display:flex; justify-content:center; margin-bottom:16px; max-height:70vh; overflow-y:auto;">
+                <img src="${imgSrc}" style="max-width:100%; border-radius:10px; border:1px solid #2a1a4e;">
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button onclick="document.getElementById('couponModal').remove()" style="padding:10px 20px; border-radius:10px; border:1px solid #333; background:transparent; color:#aaa; font-size:13px; cursor:pointer; font-family:inherit;">
+                    İptal
+                </button>
+                <button onclick="downloadCoupon('${today}')" style="padding:10px 20px; border-radius:10px; border:none; background:#7c3aed; color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;">
+                    ⬇️ PNG İndir
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Dışına tıklayınca kapat
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
+}
+
+function downloadCoupon(today) {
+    if (!couponCanvas) return;
+    const link = document.createElement('a');
+    link.download = `betiq_kupon_${today.replace(/\./g, '-')}.png`;
+    link.href = couponCanvas.toDataURL('image/png');
+    link.click();
+    document.getElementById('couponModal')?.remove();
 }
 
 function getBadgeColor(type) {
