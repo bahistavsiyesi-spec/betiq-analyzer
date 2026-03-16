@@ -354,6 +354,19 @@ def api_clear_matches():
 
 # ─── Debug Endpointler ────────────────────────────────────────────────────────
 
+@app.route('/api/debug/xg/<team_name>')
+def debug_xg(team_name):
+    """xG test endpoint. Örnek: /api/debug/xg/Brentford"""
+    try:
+        from backend.understat import get_team_xg_stats
+        result = get_team_xg_stats(team_name)
+        if result:
+            return jsonify({"status": "success", "team": team_name, "xg": result})
+        return jsonify({"status": "error", "message": f"{team_name} için veri bulunamadı"}), 404
+    except Exception as e:
+        logger.error(f"xG debug error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/debug/openliga/<league>')
 def debug_openliga(league):
     try:
