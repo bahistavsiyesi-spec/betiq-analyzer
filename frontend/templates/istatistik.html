@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetIQ — İstatistikler</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+        .stats-container { max-width: 960px; margin: 0 auto; padding: 20px; }
+        .back-btn { display: inline-flex; align-items: center; gap: 8px; color: #7c3aed; text-decoration: none; font-weight: 600; margin-bottom: 20px; font-size: 14px; }
+        .back-btn:hover { color: #a855f7; }
+
+        /* Özet Kartları */
+        .overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 28px; }
+        .overview-card { background: #12121f; border: 1px solid #2a2a3e; border-radius: 12px; padding: 16px; text-align: center; }
+        .overview-card .ov-value { font-size: 28px; font-weight: 800; color: #7c3aed; }
+        .overview-card .ov-label { font-size: 11px; color: #555; margin-top: 4px; }
+        .overview-card.green .ov-value { color: #22c55e; }
+        .overview-card.yellow .ov-value { color: #f59e0b; }
+        .overview-card.blue .ov-value { color: #3b82f6; }
+        .overview-card.pink .ov-value { color: #ec4899; }
+
+        /* Bölüm başlıkları */
+        .section { margin-bottom: 32px; }
+        .section-title { font-size: 14px; font-weight: 700; color: #7c3aed; letter-spacing: 0.5px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: #1e1e3a; }
+
+        /* Grafik kutusu */
+        .chart-box { background: #12121f; border: 1px solid #2a2a3e; border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+        .chart-box canvas { max-height: 260px; }
+
+        /* Kategori tablosu */
+        .cat-table { width: 100%; border-collapse: collapse; }
+        .cat-table th { font-size: 11px; color: #555; text-align: left; padding: 8px 12px; border-bottom: 1px solid #1e1e3a; }
+        .cat-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #111; }
+        .cat-table tr:last-child td { border-bottom: none; }
+        .cat-name { color: #fff; font-weight: 600; }
+        .cat-pct { font-weight: 800; }
+        .cat-bar-wrap { background: #0d0d1a; border-radius: 4px; height: 6px; width: 100px; display: inline-block; vertical-align: middle; }
+        .cat-bar-fill { height: 6px; border-radius: 4px; background: #7c3aed; }
+        .pct-high { color: #22c55e; }
+        .pct-mid  { color: #f59e0b; }
+        .pct-low  { color: #ef4444; }
+
+        /* En iyi/kötü günler */
+        .day-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .day-card { background: #12121f; border: 1px solid #2a2a3e; border-radius: 12px; padding: 16px; }
+        .day-card h4 { font-size: 12px; margin-bottom: 12px; }
+        .day-card h4.best { color: #22c55e; }
+        .day-card h4.worst { color: #ef4444; }
+        .day-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; font-size: 13px; }
+        .day-item:last-child { border-bottom: none; }
+        .day-date { color: #aaa; }
+        .day-pct { font-weight: 700; }
+
+        /* Lig tablosu */
+        .league-grid { display: grid; gap: 10px; }
+        .league-row { background: #12121f; border: 1px solid #2a2a3e; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .league-name { font-size: 13px; font-weight: 700; color: #fff; flex: 1; min-width: 120px; }
+        .league-stat { text-align: center; min-width: 60px; }
+        .league-stat .ls-val { font-size: 14px; font-weight: 700; }
+        .league-stat .ls-lbl { font-size: 10px; color: #555; }
+
+        /* Güven tablosu */
+        .conf-grid { display: grid; gap: 10px; }
+        .conf-row { background: #12121f; border: 1px solid #2a2a3e; border-radius: 10px; padding: 14px 16px; }
+        .conf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .conf-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+        .conf-cok-yuksek { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
+        .conf-yuksek     { background: rgba(124,58,237,0.15); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+        .conf-orta       { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+        .conf-dusuk      { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+        .conf-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+        .conf-stat { font-size: 12px; color: #666; }
+        .conf-stat span { color: #fff; font-weight: 700; }
+
+        .no-data { text-align: center; padding: 40px; color: #444; font-size: 13px; }
+        .loading { text-align: center; padding: 40px; color: #555; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">⚡</span>
+                    <span class="logo-text">BetIQ</span>
+                    <span class="logo-sub">ANALYZER</span>
+                </div>
+            </div>
+        </header>
+        <main class="main-content">
+            <div class="stats-container">
+                <a href="/" class="back-btn">← Ana Sayfa</a>
+                <h2 style="color:#fff; margin-bottom:20px;">📊 İstatistikler</h2>
+
+                <!-- Genel Özet -->
+                <div class="section">
+                    <div class="section-title">🏆 Genel Özet</div>
+                    <div class="overview-grid" id="overviewGrid">
+                        <div class="loading">Yükleniyor...</div>
+                    </div>
+                </div>
+
+                <!-- Günlük Trend Grafiği -->
+                <div class="section">
+                    <div class="section-title">📈 Günlük Başarı Trendi (Son 30 Gün)</div>
+                    <div class="chart-box">
+                        <canvas id="dailyChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Kategori Başarısı -->
+                <div class="section">
+                    <div class="section-title">🎯 Tahmin Türüne Göre Başarı</div>
+                    <div class="chart-box">
+                        <table class="cat-table" id="categoryTable">
+                            <thead>
+                                <tr>
+                                    <th>Tahmin Türü</th>
+                                    <th>Doğru / Toplam</th>
+                                    <th>Başarı</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="categoryBody">
+                                <tr><td colspan="4" class="loading">Yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- İki kolon: Güven + Lig -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:32px;" class="two-col-section">
+                    <!-- Güven Seviyesi -->
+                    <div>
+                        <div class="section-title">💎 Güven Seviyesine Göre</div>
+                        <div class="conf-grid" id="confidenceGrid">
+                            <div class="loading">Yükleniyor...</div>
+                        </div>
+                    </div>
+                    <!-- Lig Bazında -->
+                    <div>
+                        <div class="section-title">🌍 Lig Bazında Başarı</div>
+                        <div class="league-grid" id="leagueGrid">
+                            <div class="loading">Yükleniyor...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- En İyi / En Kötü Günler -->
+                <div class="section">
+                    <div class="section-title">🏅 En İyi & En Kötü Günler</div>
+                    <div class="day-cards" id="dayCards">
+                        <div class="loading">Yükleniyor...</div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let dailyChartInstance = null;
+
+        function pctColor(pct) {
+            if (pct >= 60) return 'pct-high';
+            if (pct >= 40) return 'pct-mid';
+            return 'pct-low';
+        }
+
+        function formatDate(d) {
+            const [y, m, day] = d.split('-');
+            return `${day}/${m}`;
+        }
+
+        // ─── Genel Özet ──────────────────────────────────────────────────────
+        async function loadOverview() {
+            const resp = await fetch('/api/stats/overview');
+            const d = await resp.json();
+            if (d.error) { document.getElementById('overviewGrid').innerHTML = '<div class="no-data">Veri yok</div>'; return; }
+
+            document.getElementById('overviewGrid').innerHTML = `
+                <div class="overview-card">
+                    <div class="ov-value">${d.total}</div>
+                    <div class="ov-label">Toplam Sonuç</div>
+                </div>
+                <div class="overview-card green">
+                    <div class="ov-value">%${d['1x2'].pct}</div>
+                    <div class="ov-label">1X2 Başarı</div>
+                </div>
+                <div class="overview-card yellow">
+                    <div class="ov-value">%${d.over25.pct}</div>
+                    <div class="ov-label">2.5 Üst/Alt</div>
+                </div>
+                <div class="overview-card blue">
+                    <div class="ov-value">%${d.btts.pct}</div>
+                    <div class="ov-label">KG Var/Yok</div>
+                </div>
+                <div class="overview-card pink">
+                    <div class="ov-value">%${d.ht.pct}</div>
+                    <div class="ov-label">İY 0.5 Üst</div>
+                </div>
+                <div class="overview-card">
+                    <div class="ov-value">${d.score.correct}</div>
+                    <div class="ov-label">Skor Doğru</div>
+                </div>
+            `;
+        }
+
+        // ─── Günlük Trend ────────────────────────────────────────────────────
+        async function loadDailyChart() {
+            const resp = await fetch('/api/stats/daily');
+            const data = await resp.json();
+            if (!data.length) return;
+
+            const labels = data.map(d => formatDate(d.date));
+            const pct1x2 = data.map(d => d.pct_1x2);
+            const pctOver = data.map(d => d.pct_over25);
+            const pctBtts = data.map(d => d.pct_btts);
+
+            if (dailyChartInstance) dailyChartInstance.destroy();
+
+            const ctx = document.getElementById('dailyChart').getContext('2d');
+            dailyChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: '1X2 %',
+                            data: pct1x2,
+                            borderColor: '#7c3aed',
+                            backgroundColor: 'rgba(124,58,237,0.08)',
+                            tension: 0.4, fill: true, pointRadius: 3,
+                        },
+                        {
+                            label: '2.5 Üst %',
+                            data: pctOver,
+                            borderColor: '#22c55e',
+                            backgroundColor: 'rgba(34,197,94,0.05)',
+                            tension: 0.4, fill: false, pointRadius: 3,
+                        },
+                        {
+                            label: 'KG %',
+                            data: pctBtts,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245,158,11,0.05)',
+                            tension: 0.4, fill: false, pointRadius: 3,
+                        },
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#888', font: { size: 11 } } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#555', font: { size: 10 } }, grid: { color: '#111' } },
+                        y: {
+                            ticks: { color: '#555', font: { size: 10 }, callback: v => v + '%' },
+                            grid: { color: '#111' },
+                            min: 0, max: 100,
+                            // Referans çizgisi %50
+                        }
+                    }
+                }
+            });
+        }
+
+        // ─── Kategori Tablosu ─────────────────────────────────────────────────
+        async function loadCategories() {
+            const resp = await fetch('/api/stats/by-category');
+            const data = await resp.json();
+            if (!data.length) { document.getElementById('categoryBody').innerHTML = '<tr><td colspan="4" class="no-data">Veri yok</td></tr>'; return; }
+
+            document.getElementById('categoryBody').innerHTML = data.map(c => `
+                <tr>
+                    <td class="cat-name">${c.name}</td>
+                    <td style="color:#666;">${c.correct} / ${c.total}</td>
+                    <td class="cat-pct ${pctColor(c.pct)}">%${c.pct}</td>
+                    <td>
+                        <div class="cat-bar-wrap">
+                            <div class="cat-bar-fill" style="width:${c.pct}%; background:${c.pct >= 60 ? '#22c55e' : c.pct >= 40 ? '#f59e0b' : '#ef4444'};"></div>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // ─── Güven Seviyesi ───────────────────────────────────────────────────
+        async function loadConfidence() {
+            const resp = await fetch('/api/stats/by-confidence');
+            const data = await resp.json();
+            const container = document.getElementById('confidenceGrid');
+            if (!data.length) { container.innerHTML = '<div class="no-data">Veri yok</div>'; return; }
+
+            const badgeClass = { 'Çok Yüksek': 'conf-cok-yuksek', 'Yüksek': 'conf-yuksek', 'Orta': 'conf-orta', 'Düşük': 'conf-dusuk' };
+
+            container.innerHTML = data.map(c => `
+                <div class="conf-row">
+                    <div class="conf-header">
+                        <span class="conf-badge ${badgeClass[c.confidence] || 'conf-orta'}">${c.confidence}</span>
+                        <span style="font-size:12px; color:#555;">${c.total} maç</span>
+                    </div>
+                    <div class="conf-stats">
+                        <div class="conf-stat">1X2: <span class="${pctColor(c.pct_1x2)}">%${c.pct_1x2}</span></div>
+                        <div class="conf-stat">2.5: <span class="${pctColor(c.pct_over25)}">%${c.pct_over25}</span></div>
+                        <div class="conf-stat">KG: <span class="${pctColor(c.pct_btts)}">%${c.pct_btts}</span></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ─── Lig Bazında ──────────────────────────────────────────────────────
+        async function loadLeagues() {
+            const resp = await fetch('/api/stats/by-league');
+            const data = await resp.json();
+            const container = document.getElementById('leagueGrid');
+            if (!data.length) { container.innerHTML = '<div class="no-data">Veri yok (min 3 maç gerekli)</div>'; return; }
+
+            container.innerHTML = data.map(l => `
+                <div class="league-row">
+                    <div class="league-name">${l.league}</div>
+                    <div class="league-stat">
+                        <div class="ls-val ${pctColor(l.pct_1x2)}">${l.pct_1x2}%</div>
+                        <div class="ls-lbl">1X2</div>
+                    </div>
+                    <div class="league-stat">
+                        <div class="ls-val ${pctColor(l.pct_over25)}">${l.pct_over25}%</div>
+                        <div class="ls-lbl">2.5</div>
+                    </div>
+                    <div class="league-stat">
+                        <div class="ls-val ${pctColor(l.pct_btts)}">${l.pct_btts}%</div>
+                        <div class="ls-lbl">KG</div>
+                    </div>
+                    <div class="league-stat" style="color:#444; font-size:11px;">${l.total} maç</div>
+                </div>
+            `).join('');
+        }
+
+        // ─── En İyi / En Kötü Günler ──────────────────────────────────────────
+        async function loadBestWorst() {
+            const resp = await fetch('/api/stats/best-worst-days');
+            const data = await resp.json();
+            const container = document.getElementById('dayCards');
+
+            if (!data.best || !data.best.length) {
+                container.innerHTML = '<div class="no-data">Veri yok (min 2 maçlı gün gerekli)</div>';
+                return;
+            }
+
+            const bestHtml = data.best.map(d => `
+                <div class="day-item">
+                    <span class="day-date">${formatDate(d.date)}</span>
+                    <span>${d.correct}/${d.total} maç</span>
+                    <span class="day-pct pct-high">%${d.pct}</span>
+                </div>
+            `).join('');
+
+            const worstHtml = data.worst.map(d => `
+                <div class="day-item">
+                    <span class="day-date">${formatDate(d.date)}</span>
+                    <span>${d.correct}/${d.total} maç</span>
+                    <span class="day-pct pct-low">%${d.pct}</span>
+                </div>
+            `).join('');
+
+            container.innerHTML = `
+                <div class="day-card">
+                    <h4 class="best">🏆 En İyi Günler (1X2)</h4>
+                    ${bestHtml || '<div class="no-data">Veri yok</div>'}
+                </div>
+                <div class="day-card">
+                    <h4 class="worst">📉 En Kötü Günler (1X2)</h4>
+                    ${worstHtml || '<div class="no-data">Veri yok</div>'}
+                </div>
+            `;
+        }
+
+        // ─── Responsive: dar ekranda tek kolon ───────────────────────────────
+        function handleResize() {
+            const twoCol = document.querySelector('.two-col-section');
+            if (twoCol) {
+                twoCol.style.gridTemplateColumns = window.innerWidth < 640 ? '1fr' : '1fr 1fr';
+            }
+        }
+        window.addEventListener('resize', handleResize);
+        handleResize();
+
+        // ─── Hepsini Yükle ────────────────────────────────────────────────────
+        Promise.all([
+            loadOverview(),
+            loadDailyChart(),
+            loadCategories(),
+            loadConfidence(),
+            loadLeagues(),
+            loadBestWorst(),
+        ]);
+    </script>
+</body>
+</html>
