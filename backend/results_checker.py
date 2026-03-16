@@ -108,21 +108,36 @@ def get_fixture_result(fixture_id, home_team='', away_team='', match_time=''):
 def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_away_score=None):
     total_goals = home_score + away_score
 
+    # 1X2
     if home_score > away_score:
         actual_1x2 = '1'
     elif home_score == away_score:
         actual_1x2 = 'X'
     else:
         actual_1x2 = '2'
-
     pred_1x2_correct = (analysis.get('prediction_1x2') == actual_1x2)
 
+    # 2.5 Üst/Alt — yüzde eşiğine göre tahmin yönü belirlenir
+    over25_pct = int(analysis.get('over25_pct', 0))
     actual_over25 = total_goals > 2.5
-    over25_correct = actual_over25
+    if over25_pct >= 50:
+        # Tahmin: 2.5 ÜST → gol 3+ olursa doğru
+        over25_correct = actual_over25
+    else:
+        # Tahmin: 2.5 ALT → gol 2 veya az olursa doğru
+        over25_correct = not actual_over25
 
+    # KG Var/Yok — yüzde eşiğine göre tahmin yönü belirlenir
+    btts_pct = int(analysis.get('btts_pct', 0))
     actual_btts = home_score > 0 and away_score > 0
-    btts_correct = actual_btts
+    if btts_pct >= 50:
+        # Tahmin: KG VAR → her iki takım da gol atarsa doğru
+        btts_correct = actual_btts
+    else:
+        # Tahmin: KG YOK → en az bir takım gol atmazsa doğru
+        btts_correct = not actual_btts
 
+    # Skor tahmini
     predicted = analysis.get('predicted_score', '?-?')
     try:
         ph, pa = predicted.split('-')
@@ -130,10 +145,17 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
     except:
         score_correct = False
 
-    # İY 0.5 üst — ilk yarıda en az 1 gol
+    # İY 0.5 üst — yüzde eşiğine göre tahmin yönü belirlenir
     ht_correct = False
     if ht_home_score is not None and ht_away_score is not None:
-        ht_correct = (ht_home_score + ht_away_score) >= 1
+        ht_pct = int(analysis.get('ht2g_pct', 0))
+        actual_ht_goal = (ht_home_score + ht_away_score) >= 1
+        if ht_pct >= 50:
+            # Tahmin: İY gol olur
+            ht_correct = actual_ht_goal
+        else:
+            # Tahmin: İY gol olmaz
+            ht_correct = not actual_ht_goal
 
     return {
         'actual_1x2': actual_1x2,
@@ -169,9 +191,23 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
         '2': f"2 ({analysis.get('away_team','?')})"
     }.get(pred, pred)
 
+    over25_pct = int(analysis.get('over25_pct', 0))
+    btts_pct = int(analysis.get('btts_pct', 0))
+
+    # 2.5 için tahmin yönünü göster
+    over25_label = f"2.5 Üst (%{over25_pct})" if over25_pct >= 50 else f"2.5 Alt (%{100 - over25_pct})"
+    over25_result = f"{'Üstü ✓' if outcomes['actual_over25'] else 'Altı ✗'}"
+
+    # KG için tahmin yönünü göster
+    btts_label = f"KG Var (%{btts_pct})" if btts_pct >= 50 else f"KG Yok (%{100 - btts_pct})"
+    btts_result = f"{'Var ✓' if outcomes['actual_btts'] else 'Yok ✗'}"
+
     ht_line = ''
     if ht_home_score is not None and ht_away_score is not None:
-        ht_line = f"\n{tick(outcomes['ht_correct'])} İY 0.5 Üst: %{int(analysis.get('ht2g_pct', 0))} → <b>İY {ht_home_score}-{ht_away_score} ({'Var ✓' if outcomes['ht_correct'] else 'Yok ✗'})</b>"
+        ht_pct = int(analysis.get('ht2g_pct', 0))
+        ht_label = f"İY 0.5 Üst (%{ht_pct})" if ht_pct >= 50 else f"İY 0.5 Alt (%{100 - ht_pct})"
+        ht_result = f"İY {ht_home_score}-{ht_away_score} ({'Var ✓' if (ht_home_score + ht_away_score) >= 1 else 'Yok ✗'})"
+        ht_line = f"\n{tick(outcomes['ht_correct'])} {ht_label} → <b>{ht_result}</b>"
 
     msg = f"""
 <b>{'─' * 28}</b>
@@ -183,8 +219,8 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
 
 <b>Tahmin Sonuçları:</b>
 {tick(outcomes['pred_1x2_correct'])} 1X2: {pred_text} → <b>{outcomes['actual_1x2']}</b>
-{tick(outcomes['over25_correct'])} 2.5 Gol Üstü: %{int(analysis.get('over25_pct',0))} → <b>{'Üstü ✓' if outcomes['actual_over25'] else 'Altı ✗'}</b>
-{tick(outcomes['btts_correct'])} KG Var: %{int(analysis.get('btts_pct',0))} → <b>{'Var ✓' if outcomes['actual_btts'] else 'Yok ✗'}</b>{ht_line}"""
+{tick(outcomes['over25_correct'])} {over25_label} → <b>{over25_result}</b>
+{tick(outcomes['btts_correct'])} {btts_label} → <b>{btts_result}</b>{ht_line}"""
 
     send_message(msg)
 
