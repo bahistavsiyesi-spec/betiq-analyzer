@@ -61,12 +61,28 @@ def _find_match_in_odds(data, home_lower, away_lower):
                 }
     return None
 
+def _normalize_odds_name(name):
+    n = name.lower()
+    fixes = {
+        'sporting cp': 'sportinglisbon', 'sporting clube': 'sportinglisbon',
+        'bodoe/glimt': 'bodoglimt', 'bodø/glimt': 'bodoglimt', 'bodoe glimt': 'bodoglimt',
+        'paris saint-germain': 'psg', 'paris sg': 'psg',
+        'atletico madrid': 'atletico', 'atlético madrid': 'atletico',
+        'manchester united': 'manutd', 'manchester city': 'mancity',
+        'newcastle united': 'newcastle', 'nottingham forest': 'nottmforest',
+    }
+    for old, new in fixes.items():
+        if old in n:
+            return new
+    return n.replace(' ', '').replace('/', '').replace('-', '').replace('.', '')
+
+
 def get_odds_for_match(home_team, away_team):
     if not ODDS_API_KEY:
         return None
     try:
-        home_lower = home_team.lower().replace(' ', '')
-        away_lower = away_team.lower().replace(' ', '')
+        home_lower = _normalize_odds_name(home_team)
+        away_lower = _normalize_odds_name(away_team)
 
         for sport_key in ODDS_SPORT_KEYS:
             resp = requests.get(
