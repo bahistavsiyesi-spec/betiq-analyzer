@@ -3,7 +3,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 import os
 import threading
-import pandas as pd
 from datetime import datetime
 from backend.football_api import get_todays_fixtures
 from backend.analyzer import run_selected_analysis
@@ -84,6 +83,8 @@ def api_available_dates():
 def api_csv_upload():
     """CSV dosyasını yükle, maçları parse et ve analiz başlat"""
     try:
+        import pandas as pd
+        
         if 'file' not in request.files:
             return jsonify({"status": "error", "message": "Dosya gerekli"}), 400
         
