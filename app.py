@@ -128,22 +128,40 @@ def api_csv_upload():
         if not manual_matches:
             return jsonify({"status": "error", "message": "CSV'de geçerli maç bulunamadı"}), 400
         
-        # Analiz başlat (asenkron)
-        def run_async():
-            try:
-                run_selected_analysis(fixture_ids=[], manual_matches=manual_matches)
-                logger.info(f"CSV analiz tamamlandı: {len(manual_matches)} maç")
-            except Exception as e:
-                logger.error(f"CSV analiz hatası: {e}")
+        # Maçları database'e kaydet (analiz yapma, kullanıcı seçecek)
+        from backend.database import save_analysis
+        from datetime import datetime
         
-        thread = threading.Thread(target=run_async)
-        thread.daemon = False
-        thread.start()
+        saved_count = 0
+        for match in manual_matches:
+            try:
+                analysis_data = {
+                    'analysis_date': datetime.now().strftime('%Y-%m-%d'),
+                    'fixture_id': 0,
+                    'home_team': match['home_team'],
+                    'away_team': match['away_team'],
+                    'league': match['league'],
+                    'match_time': match['date'],
+                    'prediction_1x2': '?',
+                    'over25_pct': 0,
+                    'ht2g_pct': 0,
+                    'btts_pct': 0,
+                    'predicted_score': '?-?',
+                    'confidence': 'Beklemede',
+                    'reasoning': '[]',
+                    'h2h_summary': ''
+                }
+                save_analysis(analysis_data)
+                saved_count += 1
+            except Exception as e:
+                logger.error(f"Maç kaydetme hatası ({match['home_team']} vs {match['away_team']}): {e}")
+        
+        logger.info(f"CSV'den {saved_count} maç database'e kaydedildi")
         
         return jsonify({
             "status": "success", 
-            "message": f"{len(manual_matches)} maç analiz ediliyor...",
-            "total": len(manual_matches)
+            "message": f"{saved_count} maç eklendi! Seçip 'Seçilenleri Analiz Et' butonuna basın.",
+            "total": saved_count
         })
     
     except Exception as e:
