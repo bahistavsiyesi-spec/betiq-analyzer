@@ -72,7 +72,7 @@ def _normalize_odds_name(name):
         'sporting lisbon': 'sportinglisbon',
         'bodo/glimt': 'bodoglimt', 'bodoe/glimt': 'bodoglimt',
         'bodoe glimt': 'bodoglimt', 'bodo glimt': 'bodoglimt',
-        'paris saint-germain': 'psg', 'paris saint germain': 'psg', 'paris sg': 'psg',
+        'paris saint-germain': 'psg', 'paris saint germain': 'psg', 'paris sg': 'psg', 'parissaintgermain': 'psg',
         'atletico madrid': 'atletico', 'atletico de madrid': 'atletico',
         'manchester united': 'manutd', 'manchester city': 'mancity',
         'atalanta bc': 'atalanta', 'tottenham hotspur': 'tottenham',
