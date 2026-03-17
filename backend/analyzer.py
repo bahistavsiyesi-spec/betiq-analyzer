@@ -15,55 +15,81 @@ logger = logging.getLogger(__name__)
 
 ODDS_API_KEY = os.environ.get('ODDS_API_KEY', '')
 
+# Odds API sport key listesi — sırayla denenecek
+ODDS_SPORT_KEYS = [
+    'soccer_epl',
+    'soccer_germany_bundesliga',
+    'soccer_spain_la_liga',
+    'soccer_italy_serie_a',
+    'soccer_france_ligue_one',
+    'soccer_uefa_champs_league',
+    'soccer_uefa_europa_league',
+    'soccer_turkey_super_league',
+    'soccer_netherlands_eredivisie',
+    'soccer_portugal_primeira_liga',
+]
+
+def _find_match_in_odds(data, home_lower, away_lower):
+    """Verilen odds listesinde maçı bul."""
+    for game in data:
+        gh = game.get('home_team', '').lower().replace(' ', '')
+        ga = game.get('away_team', '').lower().replace(' ', '')
+        if (home_lower in gh or gh in home_lower) and (away_lower in ga or ga in away_lower):
+            bookmakers = game.get('bookmakers', [])
+            if not bookmakers:
+                continue
+            all_home, all_draw, all_away = [], [], []
+            for bm in bookmakers:
+                for market in bm.get('markets', []):
+                    if market.get('key') != 'h2h':
+                        continue
+                    for outcome in market.get('outcomes', []):
+                        name = outcome.get('name', '').lower().replace(' ', '')
+                        price = outcome.get('price', 0)
+                        if name in gh or gh in name:
+                            all_home.append(price)
+                        elif name in ga or ga in name:
+                            all_away.append(price)
+                        else:
+                            all_draw.append(price)
+            if all_home and all_away:
+                return {
+                    'home_odds': round(sum(all_home) / len(all_home), 2),
+                    'draw_odds': round(sum(all_draw) / len(all_draw), 2) if all_draw else None,
+                    'away_odds': round(sum(all_away) / len(all_away), 2),
+                    'bookmaker_count': len(bookmakers)
+                }
+    return None
+
 def get_odds_for_match(home_team, away_team):
     if not ODDS_API_KEY:
         return None
     try:
-        resp = requests.get(
-            'https://api.the-odds-api.com/v4/sports/soccer/odds',
-            params={
-                'apiKey': ODDS_API_KEY,
-                'regions': 'eu,uk',
-                'markets': 'h2h',
-                'oddsFormat': 'decimal',
-            },
-            timeout=10
-        )
-        if resp.status_code != 200:
-            logger.warning('Odds API error: ' + str(resp.status_code))
-            return None
-
-        data = resp.json()
         home_lower = home_team.lower().replace(' ', '')
         away_lower = away_team.lower().replace(' ', '')
 
-        for game in data:
-            gh = game.get('home_team', '').lower().replace(' ', '')
-            ga = game.get('away_team', '').lower().replace(' ', '')
-            if (home_lower in gh or gh in home_lower) and (away_lower in ga or ga in away_lower):
-                bookmakers = game.get('bookmakers', [])
-                if not bookmakers:
-                    continue
-                all_home, all_draw, all_away = [], [], []
-                for bm in bookmakers:
-                    for market in bm.get('markets', []):
-                        if market.get('key') != 'h2h':
-                            continue
-                        for outcome in market.get('outcomes', []):
-                            name = outcome.get('name', '').lower().replace(' ', '')
-                            price = outcome.get('price', 0)
-                            if name in gh or gh in name:
-                                all_home.append(price)
-                            elif name in ga or ga in name:
-                                all_away.append(price)
-                            else:
-                                all_draw.append(price)
-                if all_home and all_away:
-                    avg_home = round(sum(all_home) / len(all_home), 2)
-                    avg_draw = round(sum(all_draw) / len(all_draw), 2) if all_draw else None
-                    avg_away = round(sum(all_away) / len(all_away), 2)
-                    logger.info('Odds: ' + home_team + ' ' + str(avg_home) + ' | Draw ' + str(avg_draw) + ' | ' + away_team + ' ' + str(avg_away))
-                    return {'home_odds': avg_home, 'draw_odds': avg_draw, 'away_odds': avg_away, 'bookmaker_count': len(bookmakers)}
+        for sport_key in ODDS_SPORT_KEYS:
+            resp = requests.get(
+                f'https://api.the-odds-api.com/v4/sports/{sport_key}/odds',
+                params={
+                    'apiKey': ODDS_API_KEY,
+                    'regions': 'eu,uk',
+                    'markets': 'h2h',
+                    'oddsFormat': 'decimal',
+                },
+                timeout=10
+            )
+            if resp.status_code == 422:
+                continue  # Bu lig aktif değil, sonraki dene
+            if resp.status_code != 200:
+                logger.warning(f'Odds API error for {sport_key}: {resp.status_code}')
+                continue
+
+            result = _find_match_in_odds(resp.json(), home_lower, away_lower)
+            if result:
+                logger.info(f'Odds ({sport_key}): {home_team} {result["home_odds"]} | Draw {result["draw_odds"]} | {away_team} {result["away_odds"]}')
+                return result
+
         logger.info('Odds: no match found for ' + home_team + ' vs ' + away_team)
         return None
     except Exception as e:
@@ -299,7 +325,6 @@ def analyze_fixture(fixture):
     away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
     h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
 
-    # Gol trendi (son 5 maç)
     home_goals_trend = extract_goals_trend(home_matches, home_name)
     away_goals_trend = extract_goals_trend(away_matches, away_name)
 
