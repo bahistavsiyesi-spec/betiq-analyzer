@@ -3,6 +3,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 import os
 import threading
+import pandas as pd
+from datetime import datetime
 from backend.football_api import get_todays_fixtures
 from backend.analyzer import run_selected_analysis
 from backend.database import init_db, get_today_matches, get_analyses_by_date, get_available_dates
@@ -75,6 +77,79 @@ def api_matches_by_date(date_str):
 def api_available_dates():
     dates = get_available_dates()
     return jsonify(dates)
+
+# ─── CSV UPLOAD ENDPOINT ───────────────────────────────────────────────────────
+
+@app.route('/api/csv/upload', methods=['POST'])
+def api_csv_upload():
+    """CSV dosyasını yükle, maçları parse et ve analiz başlat"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"status": "error", "message": "Dosya gerekli"}), 400
+        
+        file = request.files['file']
+        
+        if not file.filename.endswith('.csv'):
+            return jsonify({"status": "error", "message": "CSV dosyası gerekli"}), 400
+        
+        # CSV oku
+        df = pd.read_csv(file)
+        
+        # Gerekli sütunları kontrol et
+        required_cols = ['date_GMT', 'League', 'Home Team', 'Away Team']
+        missing = [col for col in required_cols if col not in df.columns]
+        if missing:
+            return jsonify({"status": "error", "message": f"Eksik sütunlar: {', '.join(missing)}"}), 400
+        
+        # Manuel match formatı (analyzer.py'nin bekledği format)
+        manual_matches = []
+        for idx, row in df.iterrows():
+            try:
+                home_team = str(row['Home Team']).strip()
+                away_team = str(row['Away Team']).strip()
+                league = str(row['League']).strip()
+                date_str = str(row['date_GMT']).strip()
+                
+                if not home_team or not away_team:
+                    logger.warning(f"Row {idx}: Eksik takım adı, atlanıyor")
+                    continue
+                
+                manual_matches.append({
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'league': league,
+                    'date': date_str
+                })
+            except Exception as e:
+                logger.warning(f"Row {idx}: Parse hatası - {e}")
+                continue
+        
+        if not manual_matches:
+            return jsonify({"status": "error", "message": "CSV'de geçerli maç bulunamadı"}), 400
+        
+        # Analiz başlat (asenkron)
+        def run_async():
+            try:
+                run_selected_analysis(fixture_ids=[], manual_matches=manual_matches)
+                logger.info(f"CSV analiz tamamlandı: {len(manual_matches)} maç")
+            except Exception as e:
+                logger.error(f"CSV analiz hatası: {e}")
+        
+        thread = threading.Thread(target=run_async)
+        thread.daemon = False
+        thread.start()
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"{len(manual_matches)} maç analiz ediliyor...",
+            "total": len(manual_matches)
+        })
+    
+    except Exception as e:
+        logger.error(f"CSV upload error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ─── İstatistik Endpoints ──────────────────────────────────────────────────────
 
 @app.route('/api/stats/overview')
 def api_stats_overview():
