@@ -1,3 +1,144 @@
+// ===== CSV UPLOAD =====
+function initCsvUpload() {
+    const btn = document.getElementById('csvUploadBtn');
+    const input = document.getElementById('csvUpload');
+    if (!btn || !input) return;
+
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const status = document.getElementById('csvStatus');
+        status.textContent = '⏳ CSV okunuyor...';
+        status.style.color = '#888';
+
+        try {
+            const text = await file.text();
+            const lines = text.split('\n').filter(l => l.trim());
+            if (lines.length < 2) {
+                status.textContent = '❌ Geçersiz CSV';
+                status.style.color = '#ef4444';
+                return;
+            }
+
+            // Başlık satırını parse et
+            const headers = parseCSVLine(lines[0]);
+            const idx = {
+                homeTeam: findCol(headers, ['Home Team', 'home_team_name']),
+                awayTeam: findCol(headers, ['Away Team', 'away_team_name']),
+                league:   findCol(headers, ['League', 'league']),
+                country:  findCol(headers, ['Country', 'country']),
+                date:     findCol(headers, ['date_GMT', 'timestamp']),
+                status:   findCol(headers, ['Match Status', 'status']),
+            };
+
+            if (idx.homeTeam === -1 || idx.awayTeam === -1) {
+                status.textContent = '❌ Takım sütunları bulunamadı';
+                status.style.color = '#ef4444';
+                return;
+            }
+
+            // Bugünün tarihini al
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+
+            let added = 0;
+            const rows = lines.slice(1);
+
+            for (const line of rows) {
+                if (!line.trim()) continue;
+                const cols = parseCSVLine(line);
+                if (cols.length < 3) continue;
+
+                const homeTeam = (cols[idx.homeTeam] || '').trim().replace(/^"|"$/g, '');
+                const awayTeam = (cols[idx.awayTeam] || '').trim().replace(/^"|"$/g, '');
+                if (!homeTeam || !awayTeam) continue;
+
+                // Maç durumu — sadece incomplete (henüz oynanmamış)
+                if (idx.status !== -1) {
+                    const matchStatus = (cols[idx.status] || '').toLowerCase();
+                    if (matchStatus === 'complete') continue;
+                }
+
+                const league = idx.league !== -1 ? (cols[idx.league] || '').trim().replace(/^"|"$/g, '') : 'Bilinmeyen';
+                const country = idx.country !== -1 ? (cols[idx.country] || '').trim() : '';
+                const leagueName = country && league ? `${country} - ${league}` : league;
+
+                // Tarih parse
+                let matchDate = null;
+                if (idx.date !== -1 && cols[idx.date]) {
+                    try {
+                        const raw = cols[idx.date].trim().replace(/^"|"$/g, '');
+                        // Unix timestamp veya "Mar 17 2026 - 5:00pm" formatı
+                        if (/^\d+$/.test(raw)) {
+                            matchDate = new Date(parseInt(raw) * 1000).toISOString();
+                        } else {
+                            matchDate = new Date(raw).toISOString();
+                        }
+                    } catch(e) {}
+                }
+
+                // Zaten eklenmiş mi?
+                const exists = manualMatches.some(x => x.home_team === homeTeam && x.away_team === awayTeam);
+                if (!exists) {
+                    manualMatches.push({
+                        home_team: homeTeam,
+                        away_team: awayTeam,
+                        league: leagueName,
+                        date: matchDate,
+                        from_csv: true,
+                    });
+                    added++;
+                }
+            }
+
+            renderManualList();
+            updateSelectedCount();
+
+            if (added > 0) {
+                status.textContent = `✅ ${added} maç eklendi! Seçip analiz ettir.`;
+                status.style.color = '#22c55e';
+            } else {
+                status.textContent = '⚠️ Eklenecek yeni maç bulunamadı.';
+                status.style.color = '#f59e0b';
+            }
+        } catch(err) {
+            status.textContent = '❌ Hata: ' + err.message;
+            status.style.color = '#ef4444';
+        }
+
+        input.value = '';
+    });
+}
+
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+            inQuotes = !inQuotes;
+        } else if (ch === ',' && !inQuotes) {
+            result.push(current);
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+    result.push(current);
+    return result;
+}
+
+function findCol(headers, names) {
+    for (const name of names) {
+        const idx = headers.findIndex(h => h.trim().replace(/^"|"$/g, '').toLowerCase() === name.toLowerCase());
+        if (idx !== -1) return idx;
+    }
+    return -1;
+}
+
 const API_BASE = '';
 let selectedFixtures = {};
 let manualMatches = [];
@@ -834,4 +975,5 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('selectAll').addEventListener('click', selectAll);
     document.getElementById('addManual').addEventListener('click', addManualMatch);
     initImageUpload();
+    initCsvUpload();
 });
