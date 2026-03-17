@@ -32,8 +32,8 @@ ODDS_SPORT_KEYS = [
 def _find_match_in_odds(data, home_lower, away_lower):
     """Verilen odds listesinde maçı bul."""
     for game in data:
-        gh = game.get('home_team', '').lower().replace(' ', '')
-        ga = game.get('away_team', '').lower().replace(' ', '')
+        gh = _normalize_odds_name(game.get('home_team', ''))
+        ga = _normalize_odds_name(game.get('away_team', ''))
         if (home_lower in gh or gh in home_lower) and (away_lower in ga or ga in away_lower):
             bookmakers = game.get('bookmakers', [])
             if not bookmakers:
