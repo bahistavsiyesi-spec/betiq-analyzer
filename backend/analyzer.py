@@ -63,11 +63,17 @@ def _find_match_in_odds(data, home_lower, away_lower):
 
 def _normalize_odds_name(name):
     n = name.lower()
+    # Unicode karakterleri normalize et
+    n = n.replace('ø', 'o').replace('æ', 'ae').replace('å', 'a')
+    n = n.replace('é', 'e').replace('è', 'e').replace('ñ', 'n')
+    n = n.replace('ü', 'u').replace('ö', 'o').replace('ä', 'a')
     fixes = {
         'sporting cp': 'sportinglisbon', 'sporting clube': 'sportinglisbon',
-        'bodoe/glimt': 'bodoglimt', 'bodø/glimt': 'bodoglimt', 'bodoe glimt': 'bodoglimt',
+        'sporting lisbon': 'sportinglisbon',
+        'bodo/glimt': 'bodoglimt', 'bodoe/glimt': 'bodoglimt',
+        'bodoe glimt': 'bodoglimt', 'bodo glimt': 'bodoglimt',
         'paris saint-germain': 'psg', 'paris sg': 'psg',
-        'atletico madrid': 'atletico', 'atlético madrid': 'atletico',
+        'atletico madrid': 'atletico', 'atletico de madrid': 'atletico',
         'manchester united': 'manutd', 'manchester city': 'mancity',
         'newcastle united': 'newcastle', 'nottingham forest': 'nottmforest',
     }
