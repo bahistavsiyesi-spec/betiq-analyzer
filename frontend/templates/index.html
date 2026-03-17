@@ -3,367 +3,482 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BetIQ Analyzer - Futbol Analiz</title>
+    <title>BetIQ Analyzer - Maç Analizi</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .csv-upload-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .csv-upload-card h3 {
+            margin-top: 0;
+            color: white;
+        }
+        
+        #csvUploadForm {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        #csvUploadForm input[type="file"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 5px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+        }
+        
+        #csvUploadForm input[type="file"]::file-selector-button {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        #csvUploadForm button {
+            flex: 0 0 auto;
+            padding: 8px 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        #csvUploadForm button:hover {
+            background: white;
+            color: #667eea;
+        }
+        
+        #csvUploadStatus {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        #csvUploadStatus .loading {
+            color: #fff;
+            animation: pulse 1s infinite;
+        }
+        
+        #csvUploadStatus .success {
+            background: rgba(0,255,0,0.2);
+            color: #0f0;
+            border-left: 4px solid #0f0;
+        }
+        
+        #csvUploadStatus .error {
+            background: rgba(255,0,0,0.2);
+            color: #f00;
+            border-left: 4px solid #f00;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .match-card {
+            background: #1a1a2e;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            color: #ddd;
+        }
+        
+        .match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .match-teams {
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .match-league {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .match-prediction {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .prediction-item {
+            background: #0f0f1e;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 12px;
+        }
+        
+        .prediction-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .confidence-high {
+            color: #0f0;
+        }
+        
+        .confidence-medium {
+            color: #ff0;
+        }
+        
+        .confidence-low {
+            color: #f00;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <div class="logo">
-                <img src="/static/img/logo.png" alt="BetIQ" class="logo-img">
-                <h1>BetIQ Analyzer</h1>
-            </div>
-            <div class="header-icons">
-                <a href="https://github.com/bahistavsiyesi-spec/betiq-analyzer" target="_blank" title="GitHub">
-                    <span>📘 GitHub</span>
-                </a>
-            </div>
+            <h1>⚽ BetIQ Analyzer</h1>
+            <p>AI destekli futbol maç analizi ve tahminleri</p>
         </header>
 
-        <!-- Navigation Tabs -->
-        <nav class="nav-tabs">
-            <button class="nav-tab active" data-tab="bugun">📅 Bugün</button>
-            <button class="nav-tab" data-tab="gecmis">📋 Geçmiş</button>
-            <button class="nav-tab" data-tab="istatistik">📊 İstatistikler</button>
-        </nav>
+        <!-- CSV Upload Card -->
+        <div class="csv-upload-card">
+            <h3>📁 CSV ile Maç Ekle</h3>
+            <p style="font-size: 12px; margin: 0 0 10px 0; opacity: 0.9;">FootyStats'ten indirdiğiniz CSV dosyasını yükleyerek maçları analiz edin</p>
+            <form id="csvUploadForm" enctype="multipart/form-data">
+                <input type="file" id="csvFile" accept=".csv" required>
+                <button type="submit">CSV Yükle ve Analiz Et</button>
+            </form>
+            <div id="csvUploadStatus"></div>
+        </div>
 
-        <!-- CSV Upload Section -->
-        <section id="csvSection" class="csv-section">
-            <div class="csv-header">
-                <h2>📁 CSV ile Maç Ekle</h2>
-                <p>FootyStats'ten indirdiğiniz CSV dosyasını yükleyerek maçları analiz edin</p>
-            </div>
-            <div class="csv-upload">
-                <form id="csvUploadForm" enctype="multipart/form-data">
-                    <input type="file" id="csvFile" accept=".csv" required>
-                    <button type="submit">CSV Yükle</button>
-                </form>
-                <button id="clearBtn" class="btn-clear">🗑️ Bugünün Maçlarını Temizle</button>
-                <div id="csvUploadStatus"></div>
-            </div>
-        </section>
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" data-tab="today">📅 Bugün</button>
+            <button class="tab-button" data-tab="history">📊 Geçmiş</button>
+            <button class="tab-button" data-tab="stats">📈 İstatistikler</button>
+        </div>
 
-        <!-- Main Content -->
-        <div class="content">
-            <!-- Left Panel: Match List -->
-            <div class="left-panel">
-                <div id="bugun" class="tab-content active">
-                    <h3>Bugünün Maçları</h3>
-                    <div id="matchesList" class="matches-list">
-                        <p class="loading">Maçlar yükleniyor...</p>
-                    </div>
-                    <div class="analyze-buttons">
-                        <button id="analyzeBtn" class="btn-primary">▶️ Seçilenleri Analiz Et</button>
-                    </div>
-                </div>
-
-                <div id="gecmis" class="tab-content">
-                    <h3>Geçmiş Analizler</h3>
-                    <div id="historyDates" class="history-dates">
-                        <p class="loading">Tarihler yükleniyor...</p>
-                    </div>
-                    <div id="historyMatches" class="matches-list">
-                        <p class="loading">Bir tarih seçin</p>
-                    </div>
-                </div>
-
-                <div id="istatistik" class="tab-content">
-                    <h3>İstatistikler</h3>
-                    <div id="statsContainer">
-                        <p class="loading">İstatistikler yükleniyor...</p>
-                    </div>
+        <!-- Today Tab -->
+        <div id="today" class="tab-content active">
+            <div class="section">
+                <h2>Bugünün Maçları</h2>
+                <div id="todayMatches" class="matches-list">
+                    <p class="loading">Maçlar yükleniyor...</p>
                 </div>
             </div>
+        </div>
 
-            <!-- Right Panel: Analysis Results -->
-            <div class="right-panel">
-                <h3>Analiz Sonuçları</h3>
-                <div id="analysisResults" class="analysis-results">
-                    <p class="empty-state">Maç seçip analiz başlayın</p>
+        <!-- History Tab -->
+        <div id="history" class="tab-content">
+            <div class="section">
+                <h2>Geçmiş Analizler</h2>
+                <div>
+                    <label for="dateSelect">Tarih Seç: </label>
+                    <select id="dateSelect">
+                        <option value="">Tarihleri yükleniyor...</option>
+                    </select>
+                </div>
+                <div id="historyMatches" class="matches-list" style="margin-top: 20px;">
+                    <p class="loading">Lütfen bir tarih seçin</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Tab -->
+        <div id="stats" class="tab-content">
+            <div class="section">
+                <h2>📈 İstatistikler</h2>
+                <div id="statsContent">
+                    <p class="loading">İstatistikler yükleniyor...</p>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // ─── TAB NAVIGATION ───────────────────────────────────────────────────────
-        document.querySelectorAll('.nav-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                tab.classList.add('active');
-                const tabId = tab.getAttribute('data-tab');
-                document.getElementById(tabId).classList.add('active');
-
-                if (tabId === 'gecmis') loadHistoryDates();
-                if (tabId === 'istatistik') loadStats();
+        // Tab Navigation
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const tab = e.target.getAttribute('data-tab');
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+                document.getElementById(tab).classList.add('active');
+                document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                if (tab === 'history') {
+                    loadDates();
+                } else if (tab === 'stats') {
+                    loadStats();
+                } else if (tab === 'today') {
+                    loadTodayMatches();
+                }
             });
         });
 
-        // ─── CSV UPLOAD ───────────────────────────────────────────────────────────
+        // CSV Upload Handler
         document.getElementById('csvUploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const file = document.getElementById('csvFile').files[0];
-            if (!file) return;
-
+            
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            const statusDiv = document.getElementById('csvUploadStatus');
+            
+            if (!file) {
+                statusDiv.innerHTML = '<p class="error">Dosya seç!</p>';
+                return;
+            }
+            
             const formData = new FormData();
             formData.append('file', file);
-
-            const statusDiv = document.getElementById('csvUploadStatus');
-            statusDiv.innerHTML = '⏳ CSV yükleniyor...';
-
+            
+            statusDiv.innerHTML = '<p class="loading">⚙️ Yükleniyor ve analiz ediliyor...</p>';
+            
             try {
                 const response = await fetch('/api/csv/upload', {
                     method: 'POST',
                     body: formData
                 });
-
+                
                 const data = await response.json();
-
+                
                 if (data.status === 'success') {
-                    statusDiv.innerHTML = `✅ ${data.message}`;
-                    document.getElementById('csvFile').value = '';
-                    setTimeout(() => loadTodayMatches(), 1000);
+                    statusDiv.innerHTML = `<p class="success">✅ ${data.message}</p>`;
+                    fileInput.value = '';
+                    
+                    // 3 saniye sonra maçları yenile
+                    setTimeout(() => {
+                        loadTodayMatches();
+                    }, 3000);
                 } else {
-                    statusDiv.innerHTML = `❌ ${data.message}`;
+                    statusDiv.innerHTML = `<p class="error">❌ ${data.message}</p>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `❌ Hata: ${error.message}`;
+                statusDiv.innerHTML = `<p class="error">❌ Hata: ${error.message}</p>`;
             }
         });
 
-        // ─── SİL BUTONU ──────────────────────────────────────────────────────────
-        document.getElementById('clearBtn').addEventListener('click', async () => {
-            if (!confirm('Bugünün tüm maçlarını silmek istediğine emin misin?')) return;
-
-            try {
-                const response = await fetch('/api/matches/clear', { method: 'DELETE' });
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    alert('✅ Maçlar silindi!');
-                    document.getElementById('analysisResults').innerHTML = '<p class="empty-state">Maç seçip analiz başlayın</p>';
-                    await loadTodayMatches();
-                } else {
-                    alert('❌ Hata: ' + data.message);
-                }
-            } catch (error) {
-                alert('❌ Silme hatası: ' + error.message);
-            }
-        });
-
-        // ─── LOAD TODAY MATCHES ──────────────────────────────────────────────────
+        // Load Today's Matches
         async function loadTodayMatches() {
+            const container = document.getElementById('todayMatches');
+            container.innerHTML = '<p class="loading">Maçlar yükleniyor...</p>';
+            
             try {
                 const response = await fetch('/api/matches/today');
                 const matches = await response.json();
-
-                const matchesList = document.getElementById('matchesList');
-                if (!matches || matches.length === 0) {
-                    matchesList.innerHTML = '<p class="empty-state">Bugün için maç bulunamadı</p>';
+                
+                if (!Array.isArray(matches) || matches.length === 0) {
+                    container.innerHTML = '<p class="no-data">Bugün için analiz yapılmış maç yok</p>';
                     return;
                 }
-
-                matchesList.innerHTML = '';
-                matches.forEach(m => {
-                    const matchEl = document.createElement('div');
-                    matchEl.className = 'match-item';
-                    matchEl.innerHTML = `
-                        <input type="checkbox" class="match-checkbox" data-id="${m.id}" data-home="${m.home_team}" data-away="${m.away_team}">
-                        <div class="match-info">
-                            <strong>${m.home_team} vs ${m.away_team}</strong>
-                            <small>${m.league}</small>
+                
+                container.innerHTML = matches.map(m => `
+                    <div class="match-card">
+                        <div class="match-header">
+                            <div>
+                                <div class="match-teams">${m.home_team || '?'} vs ${m.away_team || '?'}</div>
+                                <div class="match-league">${m.league || ''}</div>
+                            </div>
+                            <div class="confidence-${m.confidence?.toLowerCase().includes('yüksek') ? 'high' : m.confidence?.toLowerCase().includes('orta') ? 'medium' : 'low'}">
+                                ${m.confidence || 'N/A'}
+                            </div>
                         </div>
-                        <span class="match-confidence ${m.confidence ? m.confidence.toLowerCase() : ''}">
-                            ${m.confidence || 'Beklemede'}
-                        </span>
-                    `;
-                    matchesList.appendChild(matchEl);
-                });
+                        <div class="match-prediction">
+                            <div class="prediction-item">
+                                <div>Tahmin</div>
+                                <div class="prediction-value">${m.prediction_1x2 || '?'}</div>
+                            </div>
+                            <div class="prediction-item">
+                                <div>2.5 Üst %</div>
+                                <div class="prediction-value">${Math.round(m.over25_pct || 0)}</div>
+                            </div>
+                            <div class="prediction-item">
+                                <div>KG Var %</div>
+                                <div class="prediction-value">${Math.round(m.btts_pct || 0)}</div>
+                            </div>
+                            <div class="prediction-item">
+                                <div>İY 0.5 %</div>
+                                <div class="prediction-value">${Math.round(m.ht2g_pct || 0)}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #333; font-size: 12px; color: #999;">
+                            <strong>Skor Tahmini:</strong> ${m.predicted_score || '?-?'}
+                        </div>
+                    </div>
+                `).join('');
             } catch (error) {
-                console.error('Error loading matches:', error);
-                document.getElementById('matchesList').innerHTML = '<p class="error">Maçlar yüklenemedi</p>';
+                container.innerHTML = `<p class="error">Hata: ${error.message}</p>`;
             }
         }
 
-        // ─── ANALYZE SELECTED ────────────────────────────────────────────────────
-        document.getElementById('analyzeBtn').addEventListener('click', async () => {
-            const selected = Array.from(document.querySelectorAll('.match-checkbox:checked'));
-            if (selected.length === 0) {
-                alert('Lütfen en az bir maç seçin!');
-                return;
-            }
-
-            const manual_matches = selected.map(cb => ({
-                home_team: cb.getAttribute('data-home'),
-                away_team: cb.getAttribute('data-away'),
-                fixture_id: cb.getAttribute('data-id')
-            }));
-
-            const resultsDiv = document.getElementById('analysisResults');
-            resultsDiv.innerHTML = `<div class="loading-spinner">⏳ ${selected.length} maç analiz ediliyor...</div>`;
-
-            try {
-                const response = await fetch('/api/analyze/selected', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        fixture_ids: [],
-                        manual_matches: manual_matches
-                    })
-                });
-
-                const data = await response.json();
-                if (data.status === 'success') {
-                    // Poll for results
-                    let pollCount = 0;
-                    const pollInterval = setInterval(async () => {
-                        pollCount++;
-                        const matchesResponse = await fetch('/api/matches/today');
-                        const matches = await matchesResponse.json();
-                        
-                        const analyzed = matches.filter(m => 
-                            selected.some(cb => cb.getAttribute('data-home') === m.home_team && cb.getAttribute('data-away') === m.away_team) &&
-                            m.confidence !== 'Beklemede'
-                        );
-
-                        if (analyzed.length === selected.length || pollCount > 20) {
-                            clearInterval(pollInterval);
-                            displayAnalysisResults(analyzed);
-                        }
-                    }, 1000);
-                } else {
-                    resultsDiv.innerHTML = `<p class="error">Analiz hatası: ${data.message}</p>`;
-                }
-            } catch (error) {
-                resultsDiv.innerHTML = `<p class="error">Hata: ${error.message}</p>`;
-            }
-        });
-
-        // ─── DISPLAY ANALYSIS RESULTS ────────────────────────────────────────────
-        function displayAnalysisResults(matches) {
-            const resultsDiv = document.getElementById('analysisResults');
-            if (!matches || matches.length === 0) {
-                resultsDiv.innerHTML = '<p class="empty-state">Sonuç bulunamadı</p>';
-                return;
-            }
-
-            resultsDiv.innerHTML = '';
-            matches.forEach(m => {
-                const confidenceClass = m.confidence ? m.confidence.toLowerCase().replace(' ', '-') : '';
-                const card = document.createElement('div');
-                card.className = `analysis-card ${confidenceClass}`;
-                card.innerHTML = `
-                    <div class="card-header">
-                        <h4>${m.home_team} vs ${m.away_team}</h4>
-                        <span class="league">${m.league}</span>
-                        <span class="confidence">${m.confidence}</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="stat">
-                            <div class="stat-label">Tahmin</div>
-                            <div class="stat-value">${m.prediction_1x2}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">2.5 Üst %</div>
-                            <div class="stat-value">${m.over25_pct}%</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">KG Var %</div>
-                            <div class="stat-value">${m.btts_pct}%</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">İY 0.5 %</div>
-                            <div class="stat-value">${m.ht2g_pct}%</div>
-                        </div>
-                    </div>
-                    <div class="card-footer">
-                        <p><strong>Skor Tahmini:</strong> ${m.predicted_score}</p>
-                        <p><strong>Analiz:</strong> ${m.reasoning ? JSON.parse(m.reasoning).slice(0, 2).join(', ') : 'N/A'}</p>
-                    </div>
-                `;
-                resultsDiv.appendChild(card);
-            });
-        }
-
-        // ─── HISTORY ────────────────────────────────────────────────────────────
-        async function loadHistoryDates() {
+        // Load Available Dates
+        async function loadDates() {
+            const select = document.getElementById('dateSelect');
+            
             try {
                 const response = await fetch('/api/dates');
                 const dates = await response.json();
-                const datesDiv = document.getElementById('historyDates');
-                datesDiv.innerHTML = '';
-
-                (dates || []).slice(0, 10).forEach(date => {
-                    const btn = document.createElement('button');
-                    btn.className = 'date-btn';
-                    btn.textContent = date;
-                    btn.addEventListener('click', () => loadHistoryMatches(date));
-                    datesDiv.appendChild(btn);
+                
+                select.innerHTML = '<option value="">Tarih seçin...</option>' + 
+                    dates.map(d => `<option value="${d}">${d}</option>`).join('');
+                
+                select.addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        loadHistoryMatches(e.target.value);
+                    }
                 });
             } catch (error) {
-                console.error('Error loading dates:', error);
+                select.innerHTML = '<option>Tarihler yüklenemedi</option>';
             }
         }
 
+        // Load History Matches by Date
         async function loadHistoryMatches(date) {
+            const container = document.getElementById('historyMatches');
+            container.innerHTML = '<p class="loading">Maçlar yükleniyor...</p>';
+            
             try {
                 const response = await fetch(`/api/matches/date/${date}`);
                 const matches = await response.json();
-                const matchesDiv = document.getElementById('historyMatches');
-                matchesDiv.innerHTML = '';
-
-                (matches || []).forEach(m => {
-                    const matchEl = document.createElement('div');
-                    matchEl.className = 'match-item';
-                    matchEl.innerHTML = `
-                        <div class="match-info">
-                            <strong>${m.home_team} ${m.home_score || '?'}-${m.away_score || '?'} ${m.away_team}</strong>
-                            <small>${m.league}</small>
+                
+                if (!Array.isArray(matches) || matches.length === 0) {
+                    container.innerHTML = '<p class="no-data">Bu tarihte analiz yok</p>';
+                    return;
+                }
+                
+                container.innerHTML = matches.map(m => `
+                    <div class="match-card">
+                        <div class="match-header">
+                            <div>
+                                <div class="match-teams">
+                                    ${m.home_team || '?'} 
+                                    <span style="color: #667eea; font-weight: bold;">
+                                        ${m.home_score !== null ? m.home_score : '?'}
+                                    </span>
+                                    - 
+                                    <span style="color: #667eea; font-weight: bold;">
+                                        ${m.away_score !== null ? m.away_score : '?'}
+                                    </span>
+                                    ${m.away_team || '?'}
+                                </div>
+                                <div class="match-league">${m.league || ''}</div>
+                            </div>
                         </div>
-                        <span class="prediction">${m.prediction_1x2}</span>
-                    `;
-                    matchesDiv.appendChild(matchEl);
-                });
+                        <div class="match-prediction">
+                            <div class="prediction-item">
+                                <div>Tahmin</div>
+                                <div class="prediction-value">${m.prediction_1x2 || '?'}</div>
+                            </div>
+                            <div class="prediction-item">
+                                <div>1X2 ${m.pred_1x2_correct ? '✅' : '❌'}</div>
+                                <div style="font-size: 10px; color: #999;">${m.actual_1x2 || '-'}</div>
+                            </div>
+                            <div class="prediction-item">
+                                <div>2.5 ${m.over25_correct ? '✅' : '❌'}</div>
+                                <div style="font-size: 10px; color: #999;">${m.total_goals || '-'} gol</div>
+                            </div>
+                            <div class="prediction-item">
+                                <div>KG ${m.btts_correct ? '✅' : '❌'}</div>
+                                <div style="font-size: 10px; color: #999;">${m.actual_btts ? 'Var' : 'Yok'}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
             } catch (error) {
-                console.error('Error loading history:', error);
+                container.innerHTML = `<p class="error">Hata: ${error.message}</p>`;
             }
         }
 
-        // ─── STATS ──────────────────────────────────────────────────────────────
+        // Load Stats
         async function loadStats() {
+            const container = document.getElementById('statsContent');
+            container.innerHTML = '<p class="loading">İstatistikler yükleniyor...</p>';
+            
             try {
-                const overview = await fetch('/api/stats/overview').then(r => r.json());
-                const byCategory = await fetch('/api/stats/by-category').then(r => r.json());
-                const byLeague = await fetch('/api/stats/by-league').then(r => r.json());
-
-                const statsDiv = document.getElementById('statsContainer');
-                statsDiv.innerHTML = `
-                    <div class="stats-section">
-                        <h4>Genel Özet</h4>
-                        <p>Toplam Maç: ${overview.total}</p>
-                        <p>1X2 Başarısı: ${overview['1x2'].correct}/${overview.total} (${overview['1x2'].pct}%)</p>
-                        <p>2.5 Üst: ${overview.over25.correct}/${overview.total} (${overview.over25.pct}%)</p>
-                        <p>KG Var: ${overview.btts.correct}/${overview.total} (${overview.btts.pct}%)</p>
+                const [overview, daily, category, league, confidence] = await Promise.all([
+                    fetch('/api/stats/overview').then(r => r.json()),
+                    fetch('/api/stats/daily').then(r => r.json()),
+                    fetch('/api/stats/by-category').then(r => r.json()),
+                    fetch('/api/stats/by-league').then(r => r.json()),
+                    fetch('/api/stats/by-confidence').then(r => r.json())
+                ]);
+                
+                container.innerHTML = `
+                    <div style="background: #0f0f1e; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                        <h3>Genel İstatistikler (Tüm Zamanlar)</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                            <div style="background: #1a1a2e; padding: 15px; border-radius: 5px; border-left: 4px solid #667eea;">
+                                <div style="color: #999; font-size: 12px;">Toplam Maç</div>
+                                <div style="font-size: 24px; font-weight: bold; color: white;">${overview.total || 0}</div>
+                            </div>
+                            <div style="background: #1a1a2e; padding: 15px; border-radius: 5px; border-left: 4px solid #0f0;">
+                                <div style="color: #999; font-size: 12px;">1X2 Başarı</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #0f0;">${overview['1x2'].pct}%</div>
+                                <div style="font-size: 10px; color: #666;">${overview['1x2'].correct}/${overview.total}</div>
+                            </div>
+                            <div style="background: #1a1a2e; padding: 15px; border-radius: 5px; border-left: 4px solid #ffff00;">
+                                <div style="color: #999; font-size: 12px;">2.5 Üst Başarı</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #ffff00;">${overview.over25.pct}%</div>
+                                <div style="font-size: 10px; color: #666;">${overview.over25.correct}/${overview.total}</div>
+                            </div>
+                            <div style="background: #1a1a2e; padding: 15px; border-radius: 5px; border-left: 4px solid #ff6b9d;">
+                                <div style="color: #999; font-size: 12px;">KG Var Başarı</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #ff6b9d;">${overview.btts.pct}%</div>
+                                <div style="font-size: 10px; color: #666;">${overview.btts.correct}/${overview.total}</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="stats-section">
-                        <h4>Tahmin Türlerine Göre</h4>
-                        ${(byCategory || []).map(c => `<p>${c.name}: ${c.correct}/${c.total} (${c.pct}%)</p>`).join('')}
-                    </div>
-                    <div class="stats-section">
-                        <h4>Liglere Göre (Top 5)</h4>
-                        ${(byLeague || []).slice(0, 5).map(l => `<p>${l.league}: ${l.total} maç (${l.pct_1x2}%)</p>`).join('')}
+                    
+                    <div style="background: #0f0f1e; padding: 20px; border-radius: 10px;">
+                        <h3>Kategori Bazında Başarı</h3>
+                        <table style="width: 100%; color: #ddd; font-size: 12px;">
+                            <tr style="border-bottom: 1px solid #333;">
+                                <th style="text-align: left; padding: 10px;">Kategori</th>
+                                <th style="text-align: center; padding: 10px;">Doğru</th>
+                                <th style="text-align: center; padding: 10px;">Toplam</th>
+                                <th style="text-align: center; padding: 10px;">Başarı %</th>
+                            </tr>
+                            ${category.map(c => `
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 10px;">${c.name}</td>
+                                    <td style="text-align: center; padding: 10px;">${c.correct}</td>
+                                    <td style="text-align: center; padding: 10px;">${c.total}</td>
+                                    <td style="text-align: center; padding: 10px; color: ${c.pct >= 60 ? '#0f0' : c.pct >= 50 ? '#ffff00' : '#f00'}; font-weight: bold;">
+                                        ${c.pct}%
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </table>
                     </div>
                 `;
             } catch (error) {
-                console.error('Error loading stats:', error);
-                document.getElementById('statsContainer').innerHTML = '<p class="error">İstatistikler yüklenemedi</p>';
+                container.innerHTML = `<p class="error">Hata: ${error.message}</p>`;
             }
         }
 
-        // ─── INITIAL LOAD ───────────────────────────────────────────────────────
-        loadTodayMatches();
+        // Load today's matches on page load
+        window.addEventListener('load', loadTodayMatches);
     </script>
 </body>
 </html>
