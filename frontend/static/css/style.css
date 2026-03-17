@@ -247,13 +247,19 @@ body {
 }
 
 /* ── Match Cards ── */
+#matchCardsList {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 360px));
+    gap: 12px;
+}
+
 .match-card {
     background: #12121f;
     border: 1px solid #1e1e3a;
     border-radius: 14px;
     padding: 16px;
-    margin-bottom: 12px;
     transition: border-color 0.2s;
+    width: 100%;
 }
 .match-card:hover { border-color: #2a1a4e; }
 
@@ -387,4 +393,5 @@ body {
     .two-column { grid-template-columns: 1fr; }
     .main-content { padding: 12px; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    #matchCardsList { grid-template-columns: 1fr; }
 }
