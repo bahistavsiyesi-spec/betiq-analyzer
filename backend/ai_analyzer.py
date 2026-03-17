@@ -31,6 +31,124 @@ def elo_trend_to_form(trend_label, trend_30d):
     else:
         return 'WDWDL'
 
+
+def build_csv_section(home_team, away_team, csv_data):
+    """
+    CSV'den gelen verileri prompt'a eklemek için ayrı bir bölüm oluşturur.
+    csv_data anahtarları (hepsi opsiyonel):
+      home_xg, away_xg          — Pre-match xG
+      btts_avg                  — BTTS Average (%)
+      over25_avg                — Over 2.5 Average (%)
+      over15_avg                — Over 1.5 Average (%)
+      avg_goals                 — Maç başı ortalama gol
+      avg_corners               — Maç başı ortalama korner
+      odds_home                 — 1 oranı
+      odds_draw                 — X oranı
+      odds_away                 — 2 oranı
+      odds_over25               — Over 2.5 oranı
+      odds_btts_yes             — KG VAR oranı
+      home_ppg                  — Ev sahibi puan/maç (pre-match)
+      away_ppg                  — Deplasman puan/maç (pre-match)
+    """
+    if not csv_data:
+        return ''
+
+    lines = ['\n── FootyStats CSV Verileri ──']
+
+    # Pre-match xG
+    home_xg = csv_data.get('home_xg')
+    away_xg = csv_data.get('away_xg')
+    if home_xg is not None or away_xg is not None:
+        lines.append('Pre-Match xG (beklenen gol):')
+        if home_xg is not None:
+            lines.append(f'  - {home_team}: {home_xg} xG')
+        if away_xg is not None:
+            lines.append(f'  - {away_team}: {away_xg} xG')
+        if home_xg and away_xg:
+            xg_diff = round(float(home_xg) - float(away_xg), 2)
+            dominant = home_team if xg_diff > 0 else away_team
+            lines.append(f'  - xG farkı: {abs(xg_diff)} ({dominant} üstün)')
+
+    # Puan/maç ortalamaları
+    home_ppg = csv_data.get('home_ppg')
+    away_ppg = csv_data.get('away_ppg')
+    if home_ppg is not None or away_ppg is not None:
+        lines.append('Puan/Maç Ortalaması (pre-match):')
+        if home_ppg is not None:
+            lines.append(f'  - {home_team}: {home_ppg} puan/maç')
+        if away_ppg is not None:
+            lines.append(f'  - {away_team}: {away_ppg} puan/maç')
+
+    # İstatistiksel averajlar
+    stat_lines = []
+    avg_goals = csv_data.get('avg_goals')
+    over25_avg = csv_data.get('over25_avg')
+    over15_avg = csv_data.get('over15_avg')
+    btts_avg = csv_data.get('btts_avg')
+    avg_corners = csv_data.get('avg_corners')
+
+    if avg_goals is not None:
+        stat_lines.append(f'  - Ortalama gol/maç: {avg_goals}')
+    if over25_avg is not None:
+        stat_lines.append(f'  - Over 2.5 oranı: %{over25_avg}')
+    if over15_avg is not None:
+        stat_lines.append(f'  - Over 1.5 oranı: %{over15_avg}')
+    if btts_avg is not None:
+        stat_lines.append(f'  - KG VAR (BTTS) oranı: %{btts_avg}')
+    if avg_corners is not None:
+        stat_lines.append(f'  - Ortalama korner/maç: {avg_corners}')
+
+    if stat_lines:
+        lines.append('Maç İstatistik Ortalamaları (CSV):')
+        lines.extend(stat_lines)
+
+    # Bahis oranları (CSV kaynaklı)
+    odds_home = csv_data.get('odds_home')
+    odds_draw = csv_data.get('odds_draw')
+    odds_away = csv_data.get('odds_away')
+    odds_over25 = csv_data.get('odds_over25')
+    odds_btts = csv_data.get('odds_btts_yes')
+
+    odds_lines = []
+    if odds_home:
+        try:
+            imp = round(1 / float(odds_home) * 100, 1)
+            odds_lines.append(f'  - {home_team} kazanır: {odds_home} (implied %{imp})')
+        except:
+            odds_lines.append(f'  - {home_team} kazanır: {odds_home}')
+    if odds_draw:
+        try:
+            imp = round(1 / float(odds_draw) * 100, 1)
+            odds_lines.append(f'  - Beraberlik: {odds_draw} (implied %{imp})')
+        except:
+            odds_lines.append(f'  - Beraberlik: {odds_draw}')
+    if odds_away:
+        try:
+            imp = round(1 / float(odds_away) * 100, 1)
+            odds_lines.append(f'  - {away_team} kazanır: {odds_away} (implied %{imp})')
+        except:
+            odds_lines.append(f'  - {away_team} kazanır: {odds_away}')
+    if odds_over25:
+        try:
+            imp = round(1 / float(odds_over25) * 100, 1)
+            odds_lines.append(f'  - Over 2.5: {odds_over25} (implied %{imp})')
+        except:
+            odds_lines.append(f'  - Over 2.5: {odds_over25}')
+    if odds_btts:
+        try:
+            imp = round(1 / float(odds_btts) * 100, 1)
+            odds_lines.append(f'  - KG VAR: {odds_btts} (implied %{imp})')
+        except:
+            odds_lines.append(f'  - KG VAR: {odds_btts}')
+
+    if odds_lines:
+        lines.append('Bahis Oranları (CSV):')
+        lines.extend(odds_lines)
+
+    lines.append('── CSV Verisi Sonu ──')
+    return '\n'.join(lines)
+
+
 def build_prompt(home_team, away_team, league, match_time,
                  home_form, away_form, home_goals_avg, away_goals_avg,
                  home_conceded_avg, away_conceded_avg, h2h_summary,
@@ -43,7 +161,8 @@ def build_prompt(home_team, away_team, league, match_time,
                  home_ht_stats=None, away_ht_stats=None,
                  home_btts_stats=None, away_btts_stats=None,
                  btts_mathematical=None,
-                 home_goals_trend=None, away_goals_trend=None):
+                 home_goals_trend=None, away_goals_trend=None,
+                 csv_data=None):           # ← YENİ parametre
 
     # Form yoksa Elo trendinden türet
     if not home_form and elo_data and elo_data.get('home_trend_label'):
@@ -151,7 +270,7 @@ def build_prompt(home_team, away_team, league, match_time,
             elif away_pos >= total - 2:
                 standing_text += '- ' + away_team + ' kume dusme baskisi var, KRITIK mac\n'
 
-    # Elo
+    # Elo (CSV yoksa kullanılır)
     elo_text = ''
     if elo_data:
         home_elo = elo_data.get('home_elo')
@@ -196,9 +315,9 @@ def build_prompt(home_team, away_team, league, match_time,
                     '- NOT: Bu olasiliklar matematiksel guc analizine gore hesaplanmistir'
                 )
 
-    # Bahis oranları
+    # Bahis oranları (API kaynaklı — CSV yoksa)
     odds_text = ''
-    if odds_data:
+    if odds_data and not (csv_data and csv_data.get('odds_home')):
         home_odds = odds_data.get('home_odds')
         draw_odds = odds_data.get('draw_odds')
         away_odds = odds_data.get('away_odds')
@@ -217,7 +336,7 @@ def build_prompt(home_team, away_team, league, match_time,
             except:
                 pass
 
-    # Şut / Korner istatistikleri
+    # Şut / Korner istatistikleri (API kaynaklı)
     shot_text = ''
     if home_shot_stats or away_shot_stats:
         shot_text = '\nŞut ve Baskı İstatistikleri (Son 5 Maç):\n'
@@ -289,7 +408,23 @@ def build_prompt(home_team, away_team, league, match_time,
                 f'ancak H2H ve motivasyon gibi faktörleri de göz önünde bulundur\n'
             )
 
+    # ── CSV verileri bölümü ──
+    csv_text = build_csv_section(home_team, away_team, csv_data)
+
     match_importance = detect_match_importance(league)
+
+    # CSV varsa over25/btts için ek yönlendirme
+    csv_hint = ''
+    if csv_data:
+        hints = []
+        if csv_data.get('over25_avg'):
+            hints.append(f'Over 2.5 için CSV ortalama %{csv_data["over25_avg"]} veriyor — bunu temel referans al')
+        if csv_data.get('btts_avg'):
+            hints.append(f'KG VAR için CSV ortalama %{csv_data["btts_avg"]} veriyor — bunu temel referans al')
+        if csv_data.get('home_xg') and csv_data.get('away_xg'):
+            hints.append(f'xG verileri tahmine en çok yansıtılacak istatistik — yüksek xG → yüksek gol ihtimali')
+        if hints:
+            csv_hint = '\nCSV Veri Önceliklendirmesi:\n' + '\n'.join(f'- {h}' for h in hints) + '\n'
 
     prompt = (
         'Asagidaki futbol macini analiz et ve SADECE JSON formatinda yanit ver:\n\n' +
@@ -306,23 +441,26 @@ def build_prompt(home_team, away_team, league, match_time,
         odds_text + '\n' +
         shot_text + '\n' +
         ht_text + '\n' +
-        btts_text + '\n\n' +
-        'Analiz yaparken su faktorleri goz onunde bulundur:\n' +
+        btts_text + '\n' +
+        csv_text + '\n' +       # ← CSV bölümü eklendi
+        csv_hint + '\n' +       # ← CSV önceliklendirme ipuçları
+        '\nAnaliz yaparken su faktorleri goz onunde bulundur:\n' +
         '1. Ev sahibi avantaji + ev/deplasman istatistikleri birlikte degerlendir\n' +
         '2. Puan durumu motivasyonu: kume dusme baskisi veya sampiyonluk yarisi performansi etkiler\n' +
-        '3. Matematiksel guc analizi varsa temel referans olarak kullan\n' +
-        '4. Form trendi: Yukselende olan takim momentum avantajina sahiptir\n' +
-        '5. Bahis piyasasi varsa dikkate al\n' +
-        '6. Şut ve korner istatistikleri varsa: yüksek şut = baskı üstünlüğü, yüksek isabet oranı = gol kalitesi\n' +
-        '7. ht2g_pct için MUTLAKA ilk yarı istatistiklerini kullan\n' +
-        '8. btts_pct için matematiksel KG VAR değerini referans al, H2H ve maç önemi ile ince ayar yap\n' +
-        '9. Gol trendi varsa son maçlardaki gol paterni over25_pct ve btts_pct için referans al\n' +
-        '10. Tum yanitlar TURKCE olacak\n' +
-        '11. Analizinde kesinlikle "Elo" kelimesini kullanma, "Guc Puani" kullan\n\n' +
+        '3. CSV xG verisi varsa en güvenilir kaynak olarak kullan — gol beklentisini yansıtır\n' +
+        '4. CSV Over25/BTTS ortalamaları varsa over25_pct ve btts_pct için temel referans al\n' +
+        '5. Form trendi: Yukselende olan takim momentum avantajina sahiptir\n' +
+        '6. Bahis oranları (CSV veya API): implied probability göz önünde bulundur\n' +
+        '7. Şut ve korner istatistikleri varsa: yüksek şut = baskı üstünlüğü\n' +
+        '8. ht2g_pct için MUTLAKA ilk yarı istatistiklerini kullan\n' +
+        '9. btts_pct için matematiksel KG VAR değerini ve CSV BTTS%\'ini birlikte değerlendir\n' +
+        '10. Gol trendi varsa son maçlardaki gol paterni over25_pct için referans al\n' +
+        '11. Tum yanitlar TURKCE olacak\n' +
+        '12. Analizinde kesinlikle "Elo" kelimesini kullanma, "Guc Puani" kullan\n\n' +
         'Alan aciklamalari:\n' +
         '- over25_pct: Mac genelinde 2.5 gol ustu olma ihtimali (0-100)\n' +
         '- ht2g_pct: Ilk yaride EN AZ 1 gol olma ihtimali (0-100) — ilk yarı istatistiklerine dayandır\n' +
-        '- btts_pct: Her iki takimin da gol atma ihtimali (0-100) — matematiksel KG VAR değerini referans al\n\n' +
+        '- btts_pct: Her iki takimin da gol atma ihtimali (0-100) — CSV BTTS% ve matematiksel değeri referans al\n\n' +
         'SADECE su JSON formatinda yanit ver:\n' +
         '{\n' +
         '  "prediction_1x2": "1 veya X veya 2",\n' +
@@ -427,7 +565,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_ht_stats=None, away_ht_stats=None,
                         home_btts_stats=None, away_btts_stats=None,
                         btts_mathematical=None,
-                        home_goals_trend=None, away_goals_trend=None):
+                        home_goals_trend=None, away_goals_trend=None,
+                        csv_data=None):              # ← YENİ parametre
 
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
@@ -496,6 +635,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         btts_mathematical=btts_mathematical,
         home_goals_trend=home_goals_trend,
         away_goals_trend=away_goals_trend,
+        csv_data=csv_data,         # ← prompt'a taşındı
     )
 
     result = None
