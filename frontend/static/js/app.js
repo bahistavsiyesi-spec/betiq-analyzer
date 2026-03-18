@@ -243,7 +243,7 @@ async function downloadCard(matchId, homeTeam, awayTeam) {
     const btn=document.getElementById(`dlbtn-${matchId}`);
     if(btn){btn.textContent='⏳';btn.disabled=true;}
     try {
-        const canvas=await html2canvas(card,{scale:2,backgroundColor:null,useCORS:true,logging:false});
+        const canvas=await html2canvas(card,{scale:3,backgroundColor:null,useCORS:true,logging:false});
         const link=document.createElement('a');
         link.download=`${homeTeam}_vs_${awayTeam}.png`.replace(/\s+/g,'_');
         link.href=canvas.toDataURL('image/png'); link.click();
