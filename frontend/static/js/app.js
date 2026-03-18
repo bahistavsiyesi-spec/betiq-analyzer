@@ -92,9 +92,23 @@ function initCsvUpload() {
                         if (/^\d+$/.test(raw)) {
                             matchDate = new Date(parseInt(raw)*1000).toISOString();
                         } else {
-                            // "Mar 18 2026 - 12:00am" → "Mar 18 2026 12:00am"
-                            const cleaned = raw.replace(' - ', ' ');
-                            matchDate = new Date(cleaned).toISOString();
+                            // "Mar 18 2026 - 5:30pm" formatını parse et
+                            const m = raw.match(/^(\w+)\s+(\d+)\s+(\d+)\s*-\s*(\d+):(\d+)(am|pm)$/i);
+                            if (m) {
+                                const months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+                                const mon = months[m[1].toLowerCase()];
+                                const day = parseInt(m[2]);
+                                const yr  = parseInt(m[3]);
+                                let hr    = parseInt(m[4]);
+                                const min = parseInt(m[5]);
+                                const ampm = m[6].toLowerCase();
+                                if (ampm === 'pm' && hr !== 12) hr += 12;
+                                if (ampm === 'am' && hr === 12) hr = 0;
+                                // UTC olarak oluştur
+                                matchDate = new Date(Date.UTC(yr, mon, day, hr, min)).toISOString();
+                            } else {
+                                matchDate = new Date(raw).toISOString();
+                            }
                         }
                     } catch(e) {}
                 }
