@@ -269,6 +269,34 @@ async function downloadCard(matchId, homeTeam, awayTeam) {
     if(btn){btn.textContent='📸';btn.disabled=false;}
 }
 
+
+// ─── Value Bet HTML ──────────────────────────────────────────────────────────
+function buildValueBetsHtml(match) {
+    let valueBets = null;
+    try { valueBets = match.value_bets ? JSON.parse(match.value_bets) : null; } catch(e) {}
+    if (!valueBets || valueBets.length === 0) return '';
+
+    const items = valueBets.map(v => {
+        const diffColor = v.diff >= 15 ? '#22c55e' : v.diff >= 10 ? '#f59e0b' : '#a78bfa';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#0d0d1a;border-radius:8px;border:1px solid #1e1e3a;margin-bottom:4px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:13px;">💎</span>
+                <span style="font-size:12px;font-weight:700;color:#fff;">${v.label}</span>
+                <span style="font-size:10px;color:#555;">@ ${v.odds}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:10px;color:#555;">Bizim: %${v.our_pct} | Bahisçi: %${v.implied_pct}</span>
+                <span style="font-size:11px;font-weight:800;color:${diffColor};background:${diffColor}22;padding:2px 6px;border-radius:6px;">+${v.diff}%</span>
+            </div>
+        </div>`;
+    }).join('');
+
+    return `<div style="margin-top:10px;padding:10px 12px;background:#12121f;border-radius:10px;border:1px solid #2a1a4e;">
+        <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">💎 VALUE BET FIRSATLARI</div>
+        ${items}
+    </div>`;
+}
+
 // ─── Gol Trendi — sade beyaz daireler ────────────────────────────────────────
 function buildTrendHtml(match) {
     let homeTrend=null, awayTrend=null;
@@ -634,6 +662,7 @@ function createMatchCard(match) {
     const winner=getWinnerLabel(prediction,match.home_team,match.away_team);
     const over25=match.over25_pct||0,ht2g=match.ht2g_pct||0,btts=match.btts_pct||0;
     const trendHtml=buildTrendHtml(match);
+    const valueBetsHtml=buildValueBetsHtml(match);
     return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
             <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${match.home_team.replace(/'/g,"\\'")}','${match.away_team.replace(/'/g,"\\'")}' )"
@@ -664,6 +693,7 @@ function createMatchCard(match) {
             <div class="predicted-score"><span class="score-label">${winner.icon} KAZANAN TAHMİNİ</span><span class="score-value">${winner.label}</span></div>
             <span class="confidence-badge ${confidenceClass}">Analiz Güveni: ${confidence}</span>
         </div>
+        ${valueBetsHtml}
         ${trendHtml}
     </div>`;
 }
