@@ -70,7 +70,7 @@ function initCsvUpload() {
                 status.textContent = '❌ Takım sütunları bulunamadı'; status.style.color = '#ef4444'; return;
             }
 
-            let added = 0;
+            const matches = [];
             for (const line of lines.slice(1)) {
                 if (!line.trim()) continue;
                 const cols = parseCSVLine(line);
@@ -117,14 +117,30 @@ function initCsvUpload() {
                     odds_dnb_1: sf(idx.oddsDnb1), odds_dnb_2: sf(idx.oddsDnb2),
                     odds_corners_85: sf(idx.oddsCorn85), odds_corners_95: sf(idx.oddsCorn95), odds_corners_105: sf(idx.oddsCorn105),
                 };
-                if (!manualMatches.some(x => x.home_team === homeTeam && x.away_team === awayTeam)) {
-                    manualMatches.push({ home_team: homeTeam, away_team: awayTeam, league: leagueName, date: matchDate, from_csv: true, csv_data });
-                    added++;
-                }
+                matches.push({ home_team: homeTeam, away_team: awayTeam, league: leagueName, date: matchDate, csv_data });
             }
-            renderManualList(); updateSelectedCount();
-            status.textContent = added > 0 ? `✅ ${added} maç eklendi! Seçip analiz ettir.` : '⚠️ Eklenecek yeni maç bulunamadı.';
-            status.style.color = added > 0 ? '#22c55e' : '#f59e0b';
+
+            if (matches.length === 0) {
+                status.textContent = '⚠️ Eklenecek maç bulunamadı.'; status.style.color = '#f59e0b'; return;
+            }
+
+            // Backend'e kaydet
+            status.textContent = '⏳ Sunucuya kaydediliyor...';
+            const resp = await fetch('/api/csv/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ matches })
+            });
+            const data = await resp.json();
+            if (data.status === 'success') {
+                status.textContent = `✅ ${data.total} maç yüklendi! Sol panelden seç.`;
+                status.style.color = '#22c55e';
+                // Sol paneli yenile
+                await loadFixtures();
+            } else {
+                status.textContent = '❌ Hata: ' + data.message;
+                status.style.color = '#ef4444';
+            }
         } catch(err) {
             status.textContent = '❌ Hata: ' + err.message; status.style.color = '#ef4444';
         }
@@ -216,65 +232,64 @@ function getWinnerLabel(prediction, homeTeam, awayTeam) {
     return { label: 'Belirsiz', icon: '❓' };
 }
 
-function pctClass(pct) { const v = parseFloat(pct)||0; return v>=70?'pct-high':v>=40?'pct-medium':'pct-low'; }
-function barClass(pct) { const v = parseFloat(pct)||0; return v>=70?'bar-high':v>=40?'bar-medium':'bar-low'; }
+function pctClass(pct) { const v=parseFloat(pct)||0; return v>=70?'pct-high':v>=40?'pct-medium':'pct-low'; }
+function barClass(pct) { const v=parseFloat(pct)||0; return v>=70?'bar-high':v>=40?'bar-medium':'bar-low'; }
 function cardConfidenceClass(c) {
     return {'Çok Yüksek':'card-confidence-very-high','Yüksek':'card-confidence-high','Orta':'card-confidence-medium','Düşük':'card-confidence-low'}[c]||'card-confidence-medium';
 }
 
 async function downloadCard(matchId, homeTeam, awayTeam) {
-    const card = document.getElementById(`matchcard-${matchId}`); if (!card) return;
-    const btn = document.getElementById(`dlbtn-${matchId}`);
-    if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+    const card=document.getElementById(`matchcard-${matchId}`); if(!card) return;
+    const btn=document.getElementById(`dlbtn-${matchId}`);
+    if(btn){btn.textContent='⏳';btn.disabled=true;}
     try {
-        const canvas = await html2canvas(card, { scale: 2, backgroundColor: null, useCORS: true, logging: false });
-        const link = document.createElement('a');
-        link.download = `${homeTeam}_vs_${awayTeam}.png`.replace(/\s+/g, '_');
-        link.href = canvas.toDataURL('image/png'); link.click();
-    } catch(e) { alert('İndirme hatası: ' + e.message); }
-    if (btn) { btn.textContent = '📸'; btn.disabled = false; }
+        const canvas=await html2canvas(card,{scale:2,backgroundColor:null,useCORS:true,logging:false});
+        const link=document.createElement('a');
+        link.download=`${homeTeam}_vs_${awayTeam}.png`.replace(/\s+/g,'_');
+        link.href=canvas.toDataURL('image/png'); link.click();
+    } catch(e){alert('İndirme hatası: '+e.message);}
+    if(btn){btn.textContent='📸';btn.disabled=false;}
 }
 
 function buildTrendHtml(match) {
-    let homeTrend = null, awayTrend = null;
-    try { homeTrend = match.home_goals_trend ? JSON.parse(match.home_goals_trend) : null; } catch(e) {}
-    try { awayTrend = match.away_goals_trend ? JSON.parse(match.away_goals_trend) : null; } catch(e) {}
-    if (!homeTrend && !awayTrend) return '';
-    function goalDot(goals, type) {
-        return goals.map(g => {
-            let color = type==='scored' ? (g===0?'#ef4444':g>=3?'#22c55e':'#f59e0b') : (g===0?'#22c55e':g>=3?'#ef4444':'#f59e0b');
+    let homeTrend=null,awayTrend=null;
+    try{homeTrend=match.home_goals_trend?JSON.parse(match.home_goals_trend):null;}catch(e){}
+    try{awayTrend=match.away_goals_trend?JSON.parse(match.away_goals_trend):null;}catch(e){}
+    if(!homeTrend&&!awayTrend) return '';
+    function goalDot(goals,type){
+        return goals.map(g=>{
+            let color=type==='scored'?(g===0?'#ef4444':g>=3?'#22c55e':'#f59e0b'):(g===0?'#22c55e':g>=3?'#ef4444':'#f59e0b');
             return `<span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${color}22;border:1px solid ${color};color:${color};font-size:11px;font-weight:700;">${g===0?'○':g}</span>`;
         }).join('');
     }
-    function trendRow(label, goals, type) {
-        const avg = goals.length?(goals.reduce((a,b)=>a+b,0)/goals.length).toFixed(1):'0';
+    function trendRow(label,goals,type){
+        const avg=goals.length?(goals.reduce((a,b)=>a+b,0)/goals.length).toFixed(1):'0';
         return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
             <span style="font-size:11px;color:#666;width:90px;flex-shrink:0;">${label}</span>
             <div style="display:flex;gap:4px;">${goalDot(goals,type)}</div>
             <span style="font-size:11px;color:#555;margin-left:4px;">ort. ${avg}</span>
         </div>`;
     }
-    let html = `<div style="margin-top:14px;padding:12px 14px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
+    let html=`<div style="margin-top:14px;padding:12px 14px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
         <div style="font-size:11px;color:#7c3aed;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📈 GOL TRENDİ (Son 5 Maç)</div>`;
-    if (homeTrend) html += `<div style="margin-bottom:8px;"><div style="font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px;">${match.home_team}</div>${trendRow('⚽ Attığı',homeTrend.scored,'scored')}${trendRow('🥅 Yediği',homeTrend.conceded,'conceded')}</div>`;
-    if (awayTrend) html += `<div style="margin-top:${homeTrend?'8px':'0'};padding-top:${homeTrend?'8px':'0'};${homeTrend?'border-top:1px solid #1e1e3a;':''}"><div style="font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px;">${match.away_team}</div>${trendRow('⚽ Attığı',awayTrend.scored,'scored')}${trendRow('🥅 Yediği',awayTrend.conceded,'conceded')}</div>`;
-    html += `<div style="font-size:10px;color:#333;margin-top:6px;">← Eski &nbsp;&nbsp;&nbsp; Yeni →</div></div>`;
+    if(homeTrend) html+=`<div style="margin-bottom:8px;"><div style="font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px;">${match.home_team}</div>${trendRow('⚽ Attığı',homeTrend.scored,'scored')}${trendRow('🥅 Yediği',homeTrend.conceded,'conceded')}</div>`;
+    if(awayTrend) html+=`<div style="margin-top:${homeTrend?'8px':'0'};padding-top:${homeTrend?'8px':'0'};${homeTrend?'border-top:1px solid #1e1e3a;':''}"><div style="font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px;">${match.away_team}</div>${trendRow('⚽ Attığı',awayTrend.scored,'scored')}${trendRow('🥅 Yediği',awayTrend.conceded,'conceded')}</div>`;
+    html+=`<div style="font-size:10px;color:#333;margin-top:6px;">← Eski &nbsp;&nbsp;&nbsp; Yeni →</div></div>`;
     return html;
 }
 
 async function generateCoupon() {
-    const btn = document.getElementById('couponBtn');
-    btn.disabled = true; btn.textContent = '⏳ Oluşturuluyor...';
+    const btn=document.getElementById('couponBtn');
+    btn.disabled=true; btn.textContent='⏳ Oluşturuluyor...';
     try {
-        const resp = await fetch('/api/coupon/today');
-        const data = await resp.json();
-        if (data.status !== 'success') { alert(data.message||'Kupon oluşturulamadı.'); btn.disabled=false; btn.textContent='🎫 Kupon Oluştur'; return; }
+        const resp=await fetch('/api/coupon/today'); const data=await resp.json();
+        if(data.status!=='success'){alert(data.message||'Kupon oluşturulamadı.');btn.disabled=false;btn.textContent='🎫 Kupon Oluştur';return;}
         drawCouponCanvas(data.coupon);
-    } catch(e) { alert('Hata: '+e.message); btn.disabled=false; btn.textContent='🎫 Kupon Oluştur'; }
+    } catch(e){alert('Hata: '+e.message);btn.disabled=false;btn.textContent='🎫 Kupon Oluştur';}
 }
 
 function drawCouponCanvas(coupon) {
-    const today = new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const today=new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
     const width=480,headerH=110,rowH=68,footerH=70;
     const contentH=headerH+coupon.length*rowH+footerH;
     const height=Math.max(width*1.25,contentH);
@@ -366,16 +381,18 @@ function roundRect(ctx,x,y,w,h,r){
     ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
 }
 
-// ===== FIXTURES =====
+// ===== FIXTURES — CSV'den DB'ye, sol panelde göster =====
 async function loadFixtures() {
     const container = document.getElementById('fixturesList');
-    container.innerHTML = `<div class="loading-fixtures"><div class="spinner"></div><span>Maçlar yükleniyor...</span></div>`;
+    container.innerHTML = `<div class="loading-fixtures"><div class="spinner"></div><span>Yükleniyor...</span></div>`;
     try {
         const resp = await fetch('/api/fixtures/today');
         const fixtures = await resp.json();
         if (!fixtures || fixtures.length === 0) {
-            container.innerHTML = `<div class="no-matches"><p>📭 API kotası doldu.<br>📸 Görsel yükle veya CSV ekle.</p></div>`; return;
+            container.innerHTML = `<div class="no-matches"><p>📂 CSV yükle ve maçları seç.</p></div>`;
+            return;
         }
+        // Ligle grupla
         const grouped = {};
         fixtures.forEach(f => { const l=f.league||'Diğer'; if(!grouped[l])grouped[l]=[]; grouped[l].push(f); });
         let html = '';
@@ -383,7 +400,7 @@ async function loadFixtures() {
             html += `<div class="league-group"><div class="league-title">🏆 ${league}</div>`;
             matches.forEach(f => {
                 const time = formatTime(f.date);
-                html += `<div class="fixture-item" data-id="${f.id}" onclick="toggleFixture(${f.id},'${f.home_team}','${f.away_team}','${f.league}','${f.date}')">
+                html += `<div class="fixture-item" data-id="${f.id}" onclick="toggleFixture(${f.id}, '${f.home_team.replace(/'/g,"\\'")}', '${f.away_team.replace(/'/g,"\\'")}', '${(f.league||'').replace(/'/g,"\\'")}', '${f.date||''}')">
                     <div class="fixture-check" id="check-${f.id}">☐</div>
                     <div class="fixture-info">
                         <span class="fixture-teams">${f.home_team} vs ${f.away_team}</span>
@@ -394,32 +411,40 @@ async function loadFixtures() {
             html += `</div>`;
         }
         container.innerHTML = html;
+        updateSelectedCount();
     } catch(e) {
-        container.innerHTML = `<div class="no-matches"><p>📭 API kotası doldu.<br>📸 Görsel yükle veya CSV ekle.</p></div>`;
+        container.innerHTML = `<div class="no-matches"><p>📂 CSV yükle ve maçları seç.</p></div>`;
     }
 }
 
-function toggleFixture(id,home,away,league,date) {
-    if(selectedFixtures[id]){delete selectedFixtures[id];document.getElementById(`check-${id}`).textContent='☐';document.querySelector(`[data-id="${id}"]`).classList.remove('selected');}
-    else{selectedFixtures[id]={id,home_team:home,away_team:away,league,date};document.getElementById(`check-${id}`).textContent='✅';document.querySelector(`[data-id="${id}"]`).classList.add('selected');}
+function toggleFixture(id, home, away, league, date) {
+    if (selectedFixtures[id]) {
+        delete selectedFixtures[id];
+        document.getElementById(`check-${id}`).textContent = '☐';
+        document.querySelector(`[data-id="${id}"]`).classList.remove('selected');
+    } else {
+        selectedFixtures[id] = { id, home_team: home, away_team: away, league, date };
+        document.getElementById(`check-${id}`).textContent = '✅';
+        document.querySelector(`[data-id="${id}"]`).classList.add('selected');
+    }
     updateSelectedCount();
 }
 
 function selectAll() {
-    const items=document.querySelectorAll('.fixture-item');
-    const allSelected=items.length===Object.keys(selectedFixtures).length;
-    items.forEach(item=>{
-        const id=parseInt(item.dataset.id);
-        if(allSelected){delete selectedFixtures[id];document.getElementById(`check-${id}`).textContent='☐';item.classList.remove('selected');}
-        else{selectedFixtures[id]={id};document.getElementById(`check-${id}`).textContent='✅';item.classList.add('selected');}
+    const items = document.querySelectorAll('.fixture-item');
+    const allSelected = items.length === Object.keys(selectedFixtures).length;
+    items.forEach(item => {
+        const id = parseInt(item.dataset.id);
+        if (allSelected) { delete selectedFixtures[id]; document.getElementById(`check-${id}`).textContent='☐'; item.classList.remove('selected'); }
+        else { selectedFixtures[id]={id}; document.getElementById(`check-${id}`).textContent='✅'; item.classList.add('selected'); }
     });
     updateSelectedCount();
 }
 
 function updateSelectedCount() {
-    const total=Object.keys(selectedFixtures).length+manualMatches.length;
-    document.getElementById('selectedCount').textContent=`${total} maç seçildi`;
-    document.getElementById('analyzeBtn').disabled=total===0;
+    const total = Object.keys(selectedFixtures).length + manualMatches.length;
+    document.getElementById('selectedCount').textContent = `${total} maç seçildi`;
+    document.getElementById('analyzeBtn').disabled = total === 0;
 }
 
 // ===== IMAGE UPLOAD =====
@@ -489,7 +514,8 @@ function renderManualList() {
 async function runAnalysis() {
     const btn=document.getElementById('analyzeBtn');
     const statusDiv=document.getElementById('analysisStatus');
-    const total=Object.keys(selectedFixtures).length+manualMatches.length;
+    const fixtureIds = Object.keys(selectedFixtures).map(Number);
+    const total = fixtureIds.length + manualMatches.length;
     btn.disabled=true; btn.innerHTML='⏳ Analiz başlatılıyor...';
     statusDiv.style.display='block';
     statusDiv.innerHTML=`<div class="status-box"><div class="status-spinner"></div><div class="status-text">
@@ -508,10 +534,13 @@ async function runAnalysis() {
     });
     try {
         const resp=await fetch('/api/analyze/selected',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fixture_ids:Object.keys(selectedFixtures).map(Number),manual_matches:manualMatches})});
+            body:JSON.stringify({fixture_ids: fixtureIds, manual_matches: manualMatches})});
         const data=await resp.json();
-        if(data.status==='success') setTimeout(async()=>await checkAndReload(statusDiv,btn,total),duration+5000);
-        else showError(statusDiv,btn,data.message);
+        if(data.status==='success'){
+            // Seçimi temizle
+            selectedFixtures={};
+            setTimeout(async()=>await checkAndReload(statusDiv,btn,total),duration+5000);
+        } else showError(statusDiv,btn,data.message);
     } catch(e){showError(statusDiv,btn,e.message);}
 }
 
@@ -523,6 +552,8 @@ async function checkAndReload(statusDiv,btn,total) {
             if(bar)bar.style.width='100%'; if(txt)txt.textContent='✅ Analiz tamamlandı!';
             statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} maç analiz edildi!</span></div>`;
             renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Seçilenleri Analiz Et'; statusDiv.style.display='none';
+            // Sol paneli yenile (analiz edilenler hâlâ seçilebilir)
+            await loadFixtures();
         } else setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);
     } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);}
 }
@@ -545,7 +576,9 @@ async function loadMatches() {
     const container=document.getElementById('matchesContainer');
     try {
         const resp=await fetch('/api/matches/today'); const matches=await resp.json();
-        if(!matches||matches.length===0){container.innerHTML=`<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p><p>Sol taraftan maç seçip analiz et.</p></div>`;return;}
+        if(!matches||matches.length===0){
+            container.innerHTML=`<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p><p>Sol taraftan maç seçip analiz et.</p></div>`;return;
+        }
         renderMatches(matches);
     } catch(e){container.innerHTML=`<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;}
 }
@@ -573,7 +606,7 @@ function createMatchCard(match) {
     const homeLogo=teamLogoHtml(match.home_team);
     const awayLogo=teamLogoHtml(match.away_team);
     const winner=getWinnerLabel(prediction,match.home_team,match.away_team);
-    const over25=match.over25_pct||0, ht2g=match.ht2g_pct||0, btts=match.btts_pct||0;
+    const over25=match.over25_pct||0,ht2g=match.ht2g_pct||0,btts=match.btts_pct||0;
     const trendHtml=buildTrendHtml(match);
     return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
@@ -586,7 +619,7 @@ function createMatchCard(match) {
         </div>
         <div class="match-header">
             <span class="league-badge">⚽ ${match.league||'Bilinmeyen Lig'}</span>
-            ${timeStr?`<span class="match-time">${timeStr}`:''}${timeStr?'</span>':''}
+            ${timeStr?`<span class="match-time">${timeStr}</span>`:''}
         </div>
         <div class="teams">
             <div class="team home-team">${homeLogo}<span class="team-name">${match.home_team}</span><span class="team-form">${match.home_form||'N/A'}</span></div>
@@ -639,10 +672,12 @@ function formatTime(dateStr) {
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded',()=>{
-    loadFixtures(); loadMatches();
+    loadFixtures();
+    loadMatches();
     document.getElementById('analyzeBtn').addEventListener('click',runAnalysis);
     document.getElementById('refreshFixtures').addEventListener('click',loadFixtures);
     document.getElementById('selectAll').addEventListener('click',selectAll);
     document.getElementById('addManual').addEventListener('click',addManualMatch);
-    initImageUpload(); initCsvUpload();
+    initImageUpload();
+    initCsvUpload();
 });
