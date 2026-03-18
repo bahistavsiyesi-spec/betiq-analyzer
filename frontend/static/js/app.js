@@ -677,7 +677,7 @@ function formatTime(dateStr) {
     try {
         const d=new Date(dateStr); if(isNaN(d.getTime())) return '';
         const t=d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Istanbul'});
-        if(t==='00:00'||t==='03:00') return '';
+        if(t==='00:00') return '';
         return t;
     } catch{return '';}
 }
