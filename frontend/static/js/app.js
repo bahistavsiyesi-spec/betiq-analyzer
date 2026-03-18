@@ -89,7 +89,13 @@ function initCsvUpload() {
                 if (idx.date !== -1 && cols[idx.date]) {
                     try {
                         const raw = cols[idx.date].trim().replace(/^"|"$/g, '');
-                        matchDate = /^\d+$/.test(raw) ? new Date(parseInt(raw)*1000).toISOString() : new Date(raw).toISOString();
+                        if (/^\d+$/.test(raw)) {
+                            matchDate = new Date(parseInt(raw)*1000).toISOString();
+                        } else {
+                            // "Mar 18 2026 - 12:00am" → "Mar 18 2026 12:00am"
+                            const cleaned = raw.replace(' - ', ' ');
+                            matchDate = new Date(cleaned).toISOString();
+                        }
                     } catch(e) {}
                 }
                 function sf(ci) {
