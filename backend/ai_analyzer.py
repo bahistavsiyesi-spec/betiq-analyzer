@@ -12,6 +12,8 @@ ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 ANALYSIS_MODE = os.environ.get('ANALYSIS_MODE', 'claude')
 
+VALUE_THRESHOLD = 5.0  # Minimum value farkı (%)
+
 
 def detect_match_importance(league):
     league_lower = league.lower()
@@ -24,13 +26,82 @@ def detect_match_importance(league):
     return 'Lig maci — puan kaybi istemeyen iki takim'
 
 
+def calculate_value_bets(result, csv_data, home_team, away_team):
+    """
+    Claude'un tahminleri ile bahisçi oranlarını karşılaştırır.
+    VALUE_THRESHOLD üzerinde fark varsa value bet olarak işaretler.
+    
+    Döner: [{'label': 'Over 2.5', 'our_pct': 81, 'implied_pct': 61, 'diff': 20, 'odds': 1.65}, ...]
+    """
+    if not csv_data or not result:
+        return []
+
+    value_bets = []
+
+    checks = [
+        # (label, our_pct_key, odds_key)
+        ('Over 2.5',    'over25_pct',  'odds_over25'),
+        ('KG Var',      'btts_pct',    'odds_btts_yes'),
+        ('İY 0.5 Üst',  'ht2g_pct',   'odds_ht_over05'),
+        ('Over 1.5',    None,          'odds_over15'),   # over15 pct yok, skip
+        ('Over 3.5',    None,          'odds_over35'),
+    ]
+
+    # 1X2 için özel hesap
+    pred = result.get('prediction_1x2')
+    pred_map = {
+        '1': ('1X2 (Ev)', 'odds_home'),
+        'X': ('1X2 (Beraberlik)', 'odds_draw'),
+        '2': ('1X2 (Deplasman)', 'odds_away'),
+    }
+    if pred in pred_map:
+        label, odds_key = pred_map[pred]
+        odds = csv_data.get(odds_key)
+        if odds:
+            try:
+                implied = round(1 / float(odds) * 100, 1)
+                # 1X2 için confidence'ı pct'ye çevir
+                conf_map = {'Çok Yüksek': 85, 'Yüksek': 75, 'Orta': 60, 'Düşük': 45}
+                our_pct = conf_map.get(result.get('confidence', 'Orta'), 60)
+                diff = round(our_pct - implied, 1)
+                if diff >= VALUE_THRESHOLD:
+                    value_bets.append({
+                        'label': label, 'our_pct': our_pct,
+                        'implied_pct': implied, 'diff': diff, 'odds': float(odds)
+                    })
+            except:
+                pass
+
+    # Diğer bahisler
+    for label, our_key, odds_key in checks:
+        if our_key is None:
+            continue
+        our_pct = result.get(our_key)
+        odds = csv_data.get(odds_key)
+        if our_pct is None or odds is None:
+            continue
+        try:
+            implied = round(1 / float(odds) * 100, 1)
+            diff = round(float(our_pct) - implied, 1)
+            if diff >= VALUE_THRESHOLD:
+                value_bets.append({
+                    'label': label, 'our_pct': round(float(our_pct)),
+                    'implied_pct': implied, 'diff': diff, 'odds': float(odds)
+                })
+        except:
+            continue
+
+    # En yüksek value'ya göre sırala
+    value_bets.sort(key=lambda x: x['diff'], reverse=True)
+    return value_bets[:3]  # Max 3 value bet göster
+
+
 def build_csv_section(home_team, away_team, csv_data):
     if not csv_data:
         return ''
 
     lines = ['\n── FootyStats CSV Verileri ──']
 
-    # xG
     hxg = csv_data.get('home_xg')
     axg = csv_data.get('away_xg')
     if hxg is not None or axg is not None:
@@ -42,7 +113,6 @@ def build_csv_section(home_team, away_team, csv_data):
             dominant = home_team if diff > 0 else away_team
             lines.append(f'  - xG farkı: {abs(diff)} ({dominant} üstün)')
 
-    # PPG
     hppg = csv_data.get('home_ppg')
     appg = csv_data.get('away_ppg')
     if hppg is not None or appg is not None:
@@ -50,7 +120,6 @@ def build_csv_section(home_team, away_team, csv_data):
         if hppg is not None: lines.append(f'  - {home_team}: {hppg} puan/maç')
         if appg is not None: lines.append(f'  - {away_team}: {appg} puan/maç')
 
-    # Gol bantları
     gol_lines = []
     for key, label in [
         ('avg_goals',   'Ort. gol/maç'),
@@ -68,7 +137,6 @@ def build_csv_section(home_team, away_team, csv_data):
         lines.append('Gol İstatistikleri (CSV):')
         lines.extend(gol_lines)
 
-    # BTTS
     btts_lines = []
     btts = csv_data.get('btts_avg')
     btts1h = csv_data.get('btts_1h_avg')
@@ -78,7 +146,6 @@ def build_csv_section(home_team, away_team, csv_data):
         lines.append('BTTS İstatistikleri (CSV):')
         lines.extend(btts_lines)
 
-    # İlk yarı gol
     ht_lines = []
     ht05 = csv_data.get('ht_over05_avg')
     ht15 = csv_data.get('ht_over15_avg')
@@ -88,7 +155,6 @@ def build_csv_section(home_team, away_team, csv_data):
         lines.append('İlk Yarı İstatistikleri (CSV):')
         lines.extend(ht_lines)
 
-    # Korner
     corn_lines = []
     for key, label in [
         ('avg_corners',    'Ort. korner/maç'),
@@ -102,12 +168,10 @@ def build_csv_section(home_team, away_team, csv_data):
         lines.append('Korner İstatistikleri (CSV):')
         lines.extend(corn_lines)
 
-    # Kart
     cards = csv_data.get('avg_cards')
     if cards is not None:
         lines.append(f'Ortalama Kart/Maç: {cards}')
 
-    # Bahis oranları
     odds_lines = []
     for key, label in [
         ('odds_home',        f'{home_team} kazanır (1)'),
@@ -162,7 +226,6 @@ def build_prompt(home_team, away_team, league, match_time,
                  home_goals_trend=None, away_goals_trend=None,
                  csv_data=None):
 
-    # H2H
     h2h_text = ''
     if h2h_summary:
         h2h_text = (
@@ -173,7 +236,6 @@ def build_prompt(home_team, away_team, league, match_time,
             f'- Maç başı ort. gol: {h2h_summary["avg_goals"]}'
         )
 
-    # Form / genel istatistikler
     stats_text = ''
     if home_goals_avg > 0 or away_goals_avg > 0:
         stats_text = '\nGenel İstatistikler (son maçlar):\n'
@@ -188,7 +250,6 @@ def build_prompt(home_team, away_team, league, match_time,
             f'- {away_team} form: {away_form if away_form else "Bilinmiyor"}'
         )
 
-    # Gol trendi
     trend_text = ''
     if home_goals_trend or away_goals_trend:
         trend_text = '\nGol Trendi (Son 5 Maç — eskiden yeniye):\n'
@@ -199,7 +260,6 @@ def build_prompt(home_team, away_team, league, match_time,
             trend_text += f'- {away_team} attığı: {" | ".join(str(g) for g in away_goals_trend["scored"])} (ort. {away_goals_trend["scored_avg"]})\n'
             trend_text += f'- {away_team} yediği: {" | ".join(str(g) for g in away_goals_trend["conceded"])} (ort. {away_goals_trend["conceded_avg"]})\n'
 
-    # Ev/Deplasman
     venue_text = ''
     has_venue = (home_home_avg is not None and home_home_avg > 0) or (away_away_avg is not None and away_away_avg > 0)
     if has_venue:
@@ -213,7 +273,6 @@ def build_prompt(home_team, away_team, league, match_time,
             if away_away_form: venue_text += f' | deplasman formu: {away_away_form}'
             venue_text += '\n'
 
-    # Puan durumu
     standing_text = ''
     if home_standing or away_standing:
         standing_text = '\nPuan Durumu:\n'
@@ -224,10 +283,8 @@ def build_prompt(home_team, away_team, league, match_time,
             standing_text += (f'- {away_team}: {away_standing["position"]}. sıra | {away_standing["points"]} puan | '
                               f'{away_standing["played"]} maç | {away_standing["won"]}G {away_standing["draw"]}B {away_standing["lost"]}M\n')
 
-    # CSV bölümü
     csv_text = build_csv_section(home_team, away_team, csv_data)
 
-    # CSV önceliklendirme ipuçları
     csv_hint = ''
     if csv_data:
         hints = []
@@ -502,6 +559,11 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     if not result:
         return mock_analysis(fixture, home_form, away_form, home_goals_avg, away_goals_avg)
 
+    # ── Value bet hesapla ──
+    value_bets = calculate_value_bets(result, csv_data, home_team, away_team)
+    if value_bets:
+        logger.info(f'Value bets {home_team} vs {away_team}: {[v["label"] + " +" + str(v["diff"]) + "%" for v in value_bets]}')
+
     return {
         'analysis_date': datetime.now().strftime('%Y-%m-%d'),
         'fixture_id': fixture['fixture']['id'],
@@ -519,6 +581,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         'home_goals_avg': home_goals_avg, 'away_goals_avg': away_goals_avg,
         'home_goals_trend': json.dumps(home_goals_trend, ensure_ascii=False) if home_goals_trend else None,
         'away_goals_trend': json.dumps(away_goals_trend, ensure_ascii=False) if away_goals_trend else None,
+        'value_bets': json.dumps(value_bets, ensure_ascii=False) if value_bets else None,
     }
 
 
@@ -537,4 +600,5 @@ def mock_analysis(fixture, home_form='', away_form='', home_goals_avg=0, away_go
         'home_form': home_form, 'away_form': away_form,
         'home_goals_avg': home_goals_avg, 'away_goals_avg': away_goals_avg,
         'home_goals_trend': None, 'away_goals_trend': None,
+        'value_bets': None,
     }
