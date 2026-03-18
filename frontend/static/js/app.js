@@ -124,7 +124,6 @@ function initCsvUpload() {
                 status.textContent = '⚠️ Eklenecek maç bulunamadı.'; status.style.color = '#f59e0b'; return;
             }
 
-            // Backend'e kaydet
             status.textContent = '⏳ Sunucuya kaydediliyor...';
             const resp = await fetch('/api/csv/upload', {
                 method: 'POST',
@@ -135,7 +134,6 @@ function initCsvUpload() {
             if (data.status === 'success') {
                 status.textContent = `✅ ${data.total} maç yüklendi! Sol panelden seç.`;
                 status.style.color = '#22c55e';
-                // Sol paneli yenile
                 await loadFixtures();
             } else {
                 status.textContent = '❌ Hata: ' + data.message;
@@ -251,31 +249,42 @@ async function downloadCard(matchId, homeTeam, awayTeam) {
     if(btn){btn.textContent='📸';btn.disabled=false;}
 }
 
+// ─── Gol Trendi — sade beyaz daireler ────────────────────────────────────────
 function buildTrendHtml(match) {
-    let homeTrend=null,awayTrend=null;
+    let homeTrend=null, awayTrend=null;
     try{homeTrend=match.home_goals_trend?JSON.parse(match.home_goals_trend):null;}catch(e){}
     try{awayTrend=match.away_goals_trend?JSON.parse(match.away_goals_trend):null;}catch(e){}
     if(!homeTrend&&!awayTrend) return '';
-    function goalDot(goals,type){
-        return goals.map(g=>{
-            let color=type==='scored'?(g===0?'#ef4444':g>=3?'#22c55e':'#f59e0b'):(g===0?'#22c55e':g>=3?'#ef4444':'#f59e0b');
-            return `<span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${color}22;border:1px solid ${color};color:${color};font-size:11px;font-weight:700;">${g===0?'○':g}</span>`;
-        }).join('');
+
+    function goalDot(goals) {
+        return goals.map(g =>
+            `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #3a3a5a;background:#12121f;color:#ccc;font-size:11px;font-weight:700;">${g}</span>`
+        ).join('');
     }
-    function trendRow(label,goals,type){
-        const avg=goals.length?(goals.reduce((a,b)=>a+b,0)/goals.length).toFixed(1):'0';
-        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <span style="font-size:11px;color:#666;width:90px;flex-shrink:0;">${label}</span>
-            <div style="display:flex;gap:4px;">${goalDot(goals,type)}</div>
-            <span style="font-size:11px;color:#555;margin-left:4px;">ort. ${avg}</span>
+
+    function trendRow(icon, goals) {
+        const avg = goals.length ? (goals.reduce((a,b)=>a+b,0)/goals.length).toFixed(1) : '0';
+        return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+            <span style="font-size:13px;flex-shrink:0;">${icon}</span>
+            <div style="display:flex;gap:4px;">${goalDot(goals)}</div>
+            <span style="font-size:10px;color:#444;margin-left:2px;">ort. ${avg}</span>
         </div>`;
     }
-    let html=`<div style="margin-top:14px;padding:12px 14px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
-        <div style="font-size:11px;color:#7c3aed;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">📈 GOL TRENDİ (Son 5 Maç)</div>`;
-    if(homeTrend) html+=`<div style="margin-bottom:8px;"><div style="font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px;">${match.home_team}</div>${trendRow('⚽ Attığı',homeTrend.scored,'scored')}${trendRow('🥅 Yediği',homeTrend.conceded,'conceded')}</div>`;
-    if(awayTrend) html+=`<div style="margin-top:${homeTrend?'8px':'0'};padding-top:${homeTrend?'8px':'0'};${homeTrend?'border-top:1px solid #1e1e3a;':''}"><div style="font-size:11px;color:#aaa;font-weight:600;margin-bottom:4px;">${match.away_team}</div>${trendRow('⚽ Attığı',awayTrend.scored,'scored')}${trendRow('🥅 Yediği',awayTrend.conceded,'conceded')}</div>`;
-    html+=`<div style="font-size:10px;color:#333;margin-top:6px;">← Eski &nbsp;&nbsp;&nbsp; Yeni →</div></div>`;
-    return html;
+
+    function teamBlock(name, trend, borderTop) {
+        return `<div style="${borderTop?'border-top:1px solid #1e1e3a;padding-top:8px;margin-top:8px':''}">
+            <div style="font-size:11px;color:#666;font-weight:600;margin-bottom:6px;">${name}</div>
+            ${trendRow('⚽', trend.scored)}
+            ${trendRow('🥅', trend.conceded)}
+        </div>`;
+    }
+
+    return `<div style="margin-top:12px;padding:10px 12px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
+        <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">📈 GOL TRENDİ (Son 5 Maç)</div>
+        ${homeTrend ? teamBlock(match.home_team, homeTrend, false) : ''}
+        ${awayTrend ? teamBlock(match.away_team, awayTrend, !!homeTrend) : ''}
+        <div style="font-size:9px;color:#2a2a3a;margin-top:6px;text-align:right;">← Eski &nbsp; Yeni →</div>
+    </div>`;
 }
 
 async function generateCoupon() {
@@ -381,7 +390,7 @@ function roundRect(ctx,x,y,w,h,r){
     ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
 }
 
-// ===== FIXTURES — CSV'den DB'ye, sol panelde göster =====
+// ===== FIXTURES =====
 async function loadFixtures() {
     const container = document.getElementById('fixturesList');
     container.innerHTML = `<div class="loading-fixtures"><div class="spinner"></div><span>Yükleniyor...</span></div>`;
@@ -392,7 +401,6 @@ async function loadFixtures() {
             container.innerHTML = `<div class="no-matches"><p>📂 CSV yükle ve maçları seç.</p></div>`;
             return;
         }
-        // Ligle grupla
         const grouped = {};
         fixtures.forEach(f => { const l=f.league||'Diğer'; if(!grouped[l])grouped[l]=[]; grouped[l].push(f); });
         let html = '';
@@ -537,7 +545,6 @@ async function runAnalysis() {
             body:JSON.stringify({fixture_ids: fixtureIds, manual_matches: manualMatches})});
         const data=await resp.json();
         if(data.status==='success'){
-            // Seçimi temizle
             selectedFixtures={};
             setTimeout(async()=>await checkAndReload(statusDiv,btn,total),duration+5000);
         } else showError(statusDiv,btn,data.message);
@@ -552,7 +559,6 @@ async function checkAndReload(statusDiv,btn,total) {
             if(bar)bar.style.width='100%'; if(txt)txt.textContent='✅ Analiz tamamlandı!';
             statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} maç analiz edildi!</span></div>`;
             renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Seçilenleri Analiz Et'; statusDiv.style.display='none';
-            // Sol paneli yenile (analiz edilenler hâlâ seçilebilir)
             await loadFixtures();
         } else setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);
     } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);}
