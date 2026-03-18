@@ -35,6 +35,7 @@ def init_db():
             away_goals_avg REAL,
             home_goals_trend TEXT,
             away_goals_trend TEXT,
+            value_bets TEXT,
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
@@ -77,7 +78,6 @@ def init_db():
         )
     ''')
 
-    # ── YENİ: CSV'den gelen bekleyen maçlar tablosu ──
     cur.execute('''
         CREATE TABLE IF NOT EXISTS pending_matches (
             id SERIAL PRIMARY KEY,
@@ -98,6 +98,7 @@ def init_db():
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_correct INTEGER DEFAULT 0',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS home_goals_trend TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT',
+        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS value_bets TEXT',  # ← YENİ
     ]:
         try:
             cur.execute(sql)
@@ -113,7 +114,6 @@ def init_db():
 # ── Pending Matches ───────────────────────────────────────────────────────────
 
 def save_pending_matches(matches: list):
-    """CSV'den gelen maçları pending_matches tablosuna kaydet."""
     import json
     today = datetime.now().strftime('%Y-%m-%d')
     conn = get_conn()
@@ -134,7 +134,6 @@ def save_pending_matches(matches: list):
 
 
 def get_pending_matches():
-    """Bugünün bekleyen maçlarını getir."""
     today = datetime.now().strftime('%Y-%m-%d')
     import json
     conn = get_conn()
@@ -159,7 +158,6 @@ def get_pending_matches():
 
 
 def clear_pending_matches():
-    """Tüm bekleyen maçları sil (yeni CSV yüklenince veya gece sıfırlamada)."""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute('DELETE FROM pending_matches')
@@ -169,7 +167,6 @@ def clear_pending_matches():
 
 
 def clear_old_pending_matches():
-    """Bugünden önceki bekleyen maçları sil (gece sıfırlama)."""
     today = datetime.now().strftime('%Y-%m-%d')
     conn = get_conn()
     cur = conn.cursor()
@@ -189,8 +186,9 @@ def save_analysis(data: dict):
             analysis_date, fixture_id, home_team, away_team, league, match_time,
             prediction_1x2, over25_pct, ht2g_pct, btts_pct, predicted_score,
             confidence, reasoning, h2h_summary, home_form, away_form,
-            home_goals_avg, away_goals_avg, home_goals_trend, away_goals_trend
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            home_goals_avg, away_goals_avg, home_goals_trend, away_goals_trend,
+            value_bets
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
         data.get('analysis_date', datetime.now().strftime('%Y-%m-%d')),
         data.get('fixture_id'),
@@ -203,6 +201,7 @@ def save_analysis(data: dict):
         data.get('home_form', ''), data.get('away_form', ''),
         data.get('home_goals_avg', 0), data.get('away_goals_avg', 0),
         data.get('home_goals_trend'), data.get('away_goals_trend'),
+        data.get('value_bets'),  # ← YENİ
     ))
     conn.commit()
     cur.close()
