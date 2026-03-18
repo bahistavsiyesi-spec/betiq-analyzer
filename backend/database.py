@@ -6,12 +6,12 @@ from datetime import datetime, timedelta
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 def get_conn():
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+    return psycopg2.connect(DATABASE_URL)
 
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
+
     cur.execute('''
         CREATE TABLE IF NOT EXISTS analyses (
             id SERIAL PRIMARY KEY,
@@ -38,6 +38,7 @@ def init_db():
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
+
     cur.execute('''
         CREATE TABLE IF NOT EXISTS run_logs (
             id SERIAL PRIMARY KEY,
@@ -49,6 +50,7 @@ def init_db():
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
+
     cur.execute('''
         CREATE TABLE IF NOT EXISTS match_results (
             id SERIAL PRIMARY KEY,
@@ -75,26 +77,109 @@ def init_db():
         )
     ''')
 
-    # Mevcut tabloya kolon ekle (zaten varsa hata vermez)
-    try:
-        cur.execute('ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER')
-        cur.execute('ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_away_score INTEGER')
-        cur.execute('ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_correct INTEGER DEFAULT 0')
-        conn.commit()
-    except:
-        conn.rollback()
+    # ── YENİ: CSV'den gelen bekleyen maçlar tablosu ──
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS pending_matches (
+            id SERIAL PRIMARY KEY,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            league TEXT,
+            match_date TEXT,
+            csv_data TEXT,
+            added_date TEXT NOT NULL,
+            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    ''')
 
-    # Trend sütunları (mevcut DB'ye ekle)
-    try:
-        cur.execute('ALTER TABLE analyses ADD COLUMN IF NOT EXISTS home_goals_trend TEXT')
-        cur.execute('ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT')
-        conn.commit()
-    except:
-        conn.rollback()
+    # Mevcut tablolara eksik kolonları ekle
+    for sql in [
+        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER',
+        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_away_score INTEGER',
+        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_correct INTEGER DEFAULT 0',
+        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS home_goals_trend TEXT',
+        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT',
+    ]:
+        try:
+            cur.execute(sql)
+            conn.commit()
+        except:
+            conn.rollback()
 
     conn.commit()
     cur.close()
     conn.close()
+
+
+# ── Pending Matches ───────────────────────────────────────────────────────────
+
+def save_pending_matches(matches: list):
+    """CSV'den gelen maçları pending_matches tablosuna kaydet."""
+    import json
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = get_conn()
+    cur = conn.cursor()
+    for m in matches:
+        cur.execute('''
+            INSERT INTO pending_matches (home_team, away_team, league, match_date, csv_data, added_date)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (
+            m['home_team'], m['away_team'],
+            m.get('league', ''), m.get('date', ''),
+            json.dumps(m.get('csv_data'), ensure_ascii=False) if m.get('csv_data') else None,
+            today
+        ))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_pending_matches():
+    """Bugünün bekleyen maçlarını getir."""
+    today = datetime.now().strftime('%Y-%m-%d')
+    import json
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        'SELECT * FROM pending_matches WHERE added_date = %s ORDER BY id ASC',
+        (today,)
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    result = []
+    for r in rows:
+        row = dict(r)
+        if row.get('csv_data'):
+            try:
+                row['csv_data'] = json.loads(row['csv_data'])
+            except:
+                row['csv_data'] = None
+        result.append(row)
+    return result
+
+
+def clear_pending_matches():
+    """Tüm bekleyen maçları sil (yeni CSV yüklenince veya gece sıfırlamada)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM pending_matches')
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def clear_old_pending_matches():
+    """Bugünden önceki bekleyen maçları sil (gece sıfırlama)."""
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM pending_matches WHERE added_date < %s', (today,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+# ── Analyses ──────────────────────────────────────────────────────────────────
 
 def save_analysis(data: dict):
     conn = get_conn()
@@ -123,6 +208,7 @@ def save_analysis(data: dict):
     cur.close()
     conn.close()
 
+
 def get_today_matches():
     today = datetime.now().strftime('%Y-%m-%d')
     conn = get_conn()
@@ -135,6 +221,7 @@ def get_today_matches():
     cur.close()
     conn.close()
     return [dict(r) for r in rows]
+
 
 def get_recent_analyses(days=7):
     since = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
@@ -149,6 +236,7 @@ def get_recent_analyses(days=7):
     conn.close()
     return [dict(r) for r in rows]
 
+
 def get_analyses_by_date(date_str):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -161,25 +249,19 @@ def get_analyses_by_date(date_str):
     conn.close()
     return [dict(r) for r in rows]
 
+
 def get_analyses_by_date_with_results(date_str):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute('''
-        SELECT 
+        SELECT
             a.*,
-            r.home_score,
-            r.away_score,
-            r.ht_home_score,
-            r.ht_away_score,
-            r.actual_1x2,
-            r.pred_1x2_correct,
-            r.actual_over25,
-            r.over25_correct,
-            r.actual_btts,
-            r.btts_correct,
-            r.score_correct,
-            r.ht_correct,
-            r.total_goals
+            r.home_score, r.away_score,
+            r.ht_home_score, r.ht_away_score,
+            r.actual_1x2, r.pred_1x2_correct,
+            r.actual_over25, r.over25_correct,
+            r.actual_btts, r.btts_correct,
+            r.score_correct, r.ht_correct, r.total_goals
         FROM analyses a
         LEFT JOIN match_results r ON a.id = r.analysis_id
         WHERE a.analysis_date = %s
@@ -190,6 +272,7 @@ def get_analyses_by_date_with_results(date_str):
     conn.close()
     return [dict(r) for r in rows]
 
+
 def get_analysis_by_id(analysis_id):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -199,16 +282,16 @@ def get_analysis_by_id(analysis_id):
     conn.close()
     return dict(row) if row else None
 
+
 def get_available_dates():
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(
-        'SELECT DISTINCT analysis_date FROM analyses ORDER BY analysis_date DESC LIMIT 30'
-    )
+    cur.execute('SELECT DISTINCT analysis_date FROM analyses ORDER BY analysis_date DESC LIMIT 30')
     rows = cur.fetchall()
     cur.close()
     conn.close()
     return [r[0] for r in rows]
+
 
 def get_pending_result_checks():
     since = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
@@ -227,6 +310,7 @@ def get_pending_result_checks():
     cur.close()
     conn.close()
     return [dict(r) for r in rows]
+
 
 def save_match_result(analysis_id, fixture_id, home_score, away_score,
                       actual_1x2, pred_1x2_correct,
@@ -249,12 +333,9 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                 score_correct=%s, ht_correct=%s,
                 total_goals=%s, source=%s
             WHERE analysis_id=%s
-        ''', (home_score, away_score,
-              ht_home_score, ht_away_score,
-              actual_1x2, pred_1x2_correct,
-              actual_over25, over25_correct,
-              actual_btts, btts_correct,
-              score_correct, ht_correct,
+        ''', (home_score, away_score, ht_home_score, ht_away_score,
+              actual_1x2, pred_1x2_correct, actual_over25, over25_correct,
+              actual_btts, btts_correct, score_correct, ht_correct,
               total_goals, source, analysis_id))
     else:
         cur.execute('''
@@ -278,16 +359,15 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
     cur.close()
     conn.close()
 
+
 def mark_telegram_sent(analysis_id):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(
-        'UPDATE match_results SET telegram_sent=1 WHERE analysis_id=%s',
-        (analysis_id,)
-    )
+    cur.execute('UPDATE match_results SET telegram_sent=1 WHERE analysis_id=%s', (analysis_id,))
     conn.commit()
     cur.close()
     conn.close()
+
 
 def log_run(run_date, status, matches_found=0, matches_analyzed=0, error=None):
     conn = get_conn()
@@ -300,14 +380,6 @@ def log_run(run_date, status, matches_found=0, matches_analyzed=0, error=None):
     cur.close()
     conn.close()
 
-def clear_today_analyses():
-    today = datetime.now().strftime('%Y-%m-%d')
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('DELETE FROM analyses WHERE analysis_date = %s', (today,))
-    conn.commit()
-    cur.close()
-    conn.close()
 
 def delete_analyses_by_fixture_ids(fixture_ids: list):
     if not fixture_ids:
@@ -324,6 +396,7 @@ def delete_analyses_by_fixture_ids(fixture_ids: list):
     cur.close()
     conn.close()
 
+
 def delete_analysis(analysis_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -332,6 +405,7 @@ def delete_analysis(analysis_id):
     conn.commit()
     cur.close()
     conn.close()
+
 
 def delete_today_analyses():
     today = datetime.now().strftime('%Y-%m-%d')
@@ -346,3 +420,7 @@ def delete_today_analyses():
     conn.commit()
     cur.close()
     conn.close()
+
+
+def clear_today_analyses():
+    delete_today_analyses()
