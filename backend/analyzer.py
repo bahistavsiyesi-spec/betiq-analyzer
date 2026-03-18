@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 def extract_form_from_fixtures(matches, team_name):
     form = []
-    for m in matches[-5:]:
+    # reversed → yeni→eski sırası (Sofascore ile uyumlu)
+    for m in reversed(matches[-5:]):
         try:
             home_name = m['teams']['home']['name']
             home_goals = m['goals']['home'] or 0
@@ -130,7 +131,6 @@ def analyze_fixture(fixture, csv_data=None):
     away_name = str(away_name).strip()
     logger.info('Analyzing: ' + home_name + ' vs ' + away_name)
 
-    # football-data.org: form, H2H, gol trendi, puan durumu
     home_matches = get_team_last_matches(home_name, last=10)
     away_matches = get_team_last_matches(away_name, last=10)
     h2h = get_h2h(home_name, away_name, last=5)
@@ -152,7 +152,6 @@ def analyze_fixture(fixture, csv_data=None):
     home_venue_stats = get_team_home_away_stats(home_name, home_matches)
     away_venue_stats = get_team_home_away_stats(away_name, away_matches)
 
-    # Puan durumu
     home_standing = None
     away_standing = None
     country_code = _get_country_code(fixture)
@@ -167,7 +166,6 @@ def analyze_fixture(fixture, csv_data=None):
         except Exception as e:
             logger.warning('Standings failed: ' + str(e))
 
-    # CSV varsa oranları oradan al, yoksa None
     odds_data = None
     if csv_data and csv_data.get('odds_home') and csv_data.get('odds_away'):
         odds_data = {
@@ -198,17 +196,17 @@ def analyze_fixture(fixture, csv_data=None):
         home_conceded_avg=home_conceded_avg,
         away_conceded_avg=away_conceded_avg,
         h2h_summary=h2h_summary,
-        elo_data=None,          # ClubElo kapatıldı
+        elo_data=None,
         odds_data=odds_data,
         home_standing=home_standing,
         away_standing=away_standing,
         home_venue_stats=home_venue_stats,
         away_venue_stats=away_venue_stats,
-        home_shot_stats=None,   # football-data.co.uk kapatıldı
+        home_shot_stats=None,
         away_shot_stats=None,
-        home_ht_stats=None,     # CSV'den geliyor artık
+        home_ht_stats=None,
         away_ht_stats=None,
-        home_btts_stats=None,   # CSV'den geliyor artık
+        home_btts_stats=None,
         away_btts_stats=None,
         btts_mathematical=None,
         home_goals_trend=home_goals_trend,
