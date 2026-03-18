@@ -7,7 +7,6 @@ body {
     min-height: 100vh;
 }
 
-/* ── App Shell ── */
 .app-container { display: flex; flex-direction: column; min-height: 100vh; }
 
 .app-header {
@@ -23,7 +22,6 @@ body {
 }
 
 .header-content { display: flex; align-items: center; gap: 16px; width: 100%; }
-
 .logo { display: flex; align-items: center; gap: 6px; }
 .logo-icon { font-size: 18px; }
 .logo-text { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: 1px; }
@@ -31,10 +29,8 @@ body {
 
 .main-content { flex: 1; padding: 20px 24px; }
 
-/* ── Two Column ── */
 .two-column { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
 
-/* ── Panels ── */
 .left-panel, .right-panel {
     background: #0d0d1a;
     border: 1px solid #1e1e3a;
@@ -50,9 +46,7 @@ body {
     padding-bottom: 12px;
     border-bottom: 1px solid #1e1e3a;
 }
-
 .panel-header h2 { font-size: 14px; font-weight: 700; color: #fff; }
-
 .panel-actions { display: flex; gap: 6px; }
 
 .btn-secondary {
@@ -68,7 +62,6 @@ body {
 }
 .btn-secondary:hover { border-color: #7c3aed; color: #a78bfa; }
 
-/* ── Fixtures ── */
 .loading-fixtures {
     display: flex;
     align-items: center;
@@ -116,14 +109,12 @@ body {
 .fixture-teams { font-size: 12px; font-weight: 600; color: #ddd; }
 .fixture-time { font-size: 10px; color: #555; margin-top: 1px; }
 
-/* ── Manual Section ── */
 .manual-section {
     margin-top: 16px;
     padding-top: 14px;
     border-top: 1px solid #1e1e3a;
 }
 .manual-section h3 { font-size: 12px; font-weight: 700; color: #888; margin-bottom: 10px; }
-
 .manual-form { display: flex; flex-direction: column; gap: 6px; }
 
 .input-field {
@@ -173,9 +164,7 @@ body {
     padding: 0 4px;
 }
 
-/* ── Analyze Section ── */
 .analyze-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid #1e1e3a; }
-
 .selected-count { font-size: 11px; color: #555; margin-bottom: 8px; }
 
 .analyze-btn {
@@ -194,15 +183,9 @@ body {
 .analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .analyze-btn:hover:not(:disabled) { opacity: 0.9; }
 
-/* ── No Matches ── */
-.no-matches {
-    text-align: center;
-    padding: 40px 20px;
-    color: #333;
-}
+.no-matches { text-align: center; padding: 40px 20px; color: #333; }
 .no-matches p { font-size: 13px; margin-bottom: 6px; }
 
-/* ── Analysis Status ── */
 .status-box {
     display: flex;
     align-items: flex-start;
@@ -274,13 +257,7 @@ body {
     align-items: center;
     margin-bottom: 12px;
 }
-
-.league-badge {
-    font-size: 10px;
-    font-weight: 700;
-    color: #7c3aed;
-    letter-spacing: 0.3px;
-}
+.league-badge { font-size: 10px; font-weight: 700; color: #7c3aed; letter-spacing: 0.3px; }
 .match-time { font-size: 11px; color: #444; }
 
 /* ── Teams ── */
@@ -292,13 +269,7 @@ body {
     margin-bottom: 14px;
 }
 
-.team {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    text-align: center;
-}
+.team { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
 .team-name { font-size: 13px; font-weight: 700; color: #fff; }
 .team-form { font-size: 10px; color: #555; font-family: 'JetBrains Mono', monospace; }
 
@@ -315,8 +286,18 @@ body {
     color: #7c3aed;
     flex-shrink: 0;
     overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 .vs-badge img { width: 28px; height: 28px; object-fit: contain; }
+
+/* ── Logo çevresi: tahmin renk sistemi ──
+   1 = Ev sahibi favorisi  → Yeşil
+   X = Beraberlik          → Sarı
+   2 = Deplasman favorisi  → Mor
+*/
+.prediction-1 { border-color: #22c55e !important; box-shadow: 0 0 10px rgba(34, 197, 94, 0.45); }
+.prediction-x { border-color: #f59e0b !important; box-shadow: 0 0 10px rgba(245, 158, 11, 0.45); }
+.prediction-2 { border-color: #7c3aed !important; box-shadow: 0 0 10px rgba(124, 58, 237, 0.45); }
 
 /* ── Stats Grid ── */
 .stats-grid {
@@ -355,17 +336,11 @@ body {
     border: 1px solid #1e1e3a;
     margin-bottom: 8px;
 }
-
 .predicted-score { display: flex; flex-direction: column; gap: 2px; }
 .score-label { font-size: 9px; font-weight: 700; color: #444; letter-spacing: 0.3px; }
 .score-value { font-size: 14px; font-weight: 700; color: #fff; }
 
-.confidence-badge {
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 10px;
-    font-weight: 700;
-}
+.confidence-badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; }
 .confidence-very-high { background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.25); }
 .confidence-high      { background: rgba(124,58,237,0.12); color: #a78bfa; border: 1px solid rgba(124,58,237,0.25); }
 .confidence-medium    { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
