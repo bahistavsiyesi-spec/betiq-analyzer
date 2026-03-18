@@ -1,20 +1,15 @@
 import logging
 import json
 import time
-import requests
 import os
 from datetime import datetime
 from backend.football_api import (
     get_todays_fixtures, get_h2h, get_team_last_matches,
-    get_team_home_away_stats, get_team_standing, get_team_shot_stats,
-    teams_match
+    get_team_home_away_stats, get_team_standing, teams_match
 )
 from backend.database import save_analysis, delete_analyses_by_fixture_ids, log_run
 
 logger = logging.getLogger(__name__)
-
-# Odds API ve ClubElo artık CSV'den geldiği için devre dışı
-# ODDS_API_KEY = os.environ.get('ODDS_API_KEY', '')
 
 
 def extract_form_from_fixtures(matches, team_name):
@@ -47,11 +42,9 @@ def extract_goals_avg(matches, team_name):
             away_goals = m['goals']['away'] or 0
             is_home = teams_match(team_name, home_name)
             if is_home:
-                scored.append(home_goals)
-                conceded.append(away_goals)
+                scored.append(home_goals); conceded.append(away_goals)
             else:
-                scored.append(away_goals)
-                conceded.append(home_goals)
+                scored.append(away_goals); conceded.append(home_goals)
         except:
             continue
     avg_scored = round(sum(scored)/len(scored), 1) if scored else 0
@@ -60,9 +53,7 @@ def extract_goals_avg(matches, team_name):
 
 
 def extract_goals_trend(matches, team_name):
-    """Son 5 maçtan gol attı/yedi trendini çıkarır."""
-    scored = []
-    conceded = []
+    scored, conceded = [], []
     for m in matches[-5:]:
         try:
             home_name = m['teams']['home']['name']
@@ -72,113 +63,18 @@ def extract_goals_trend(matches, team_name):
                 continue
             is_home = teams_match(team_name, home_name)
             if is_home:
-                scored.append(int(hg))
-                conceded.append(int(ag))
+                scored.append(int(hg)); conceded.append(int(ag))
             else:
-                scored.append(int(ag))
-                conceded.append(int(hg))
+                scored.append(int(ag)); conceded.append(int(hg))
         except:
             continue
-
     if not scored:
         return None
-
     return {
-        'scored': scored,
-        'conceded': conceded,
-        'scored_avg': round(sum(scored) / len(scored), 1),
-        'conceded_avg': round(sum(conceded) / len(conceded), 1),
+        'scored': scored, 'conceded': conceded,
+        'scored_avg': round(sum(scored)/len(scored), 1),
+        'conceded_avg': round(sum(conceded)/len(conceded), 1),
         'matches_used': len(scored),
-    }
-
-
-def extract_btts_stats(matches, team_name):
-    scored_count = 0
-    conceded_count = 0
-    total = 0
-
-    for m in matches:
-        try:
-            home_name = m['teams']['home']['name']
-            hg = m['goals']['home']
-            ag = m['goals']['away']
-            if hg is None or ag is None:
-                continue
-
-            is_home = teams_match(team_name, home_name)
-            team_goals = hg if is_home else ag
-            opp_goals = ag if is_home else hg
-
-            if team_goals > 0:
-                scored_count += 1
-            if opp_goals > 0:
-                conceded_count += 1
-            total += 1
-        except:
-            continue
-
-    if total == 0:
-        return None
-
-    scored_pct = round(scored_count / total * 100)
-    conceded_pct = round(conceded_count / total * 100)
-    btts_estimate = round(scored_pct * conceded_pct / 100)
-
-    logger.info(f'BTTS stats {team_name}: %{scored_pct} gol atar, %{conceded_pct} gol yer (son {total} maç)')
-
-    return {
-        'scored_pct': scored_pct,
-        'conceded_pct': conceded_pct,
-        'btts_estimate': btts_estimate,
-        'matches_used': total,
-    }
-
-
-def extract_ht_stats(matches, team_name):
-    ht_scored = []
-    ht_conceded = []
-
-    for m in matches:
-        try:
-            goals = m.get('goals', {})
-            ht_home = goals.get('ht_home')
-            ht_away = goals.get('ht_away')
-
-            if ht_home is None or ht_away is None:
-                continue
-
-            home_name = m['teams']['home']['name']
-            is_home = teams_match(team_name, home_name)
-
-            if is_home:
-                ht_scored.append(ht_home)
-                ht_conceded.append(ht_away)
-            else:
-                ht_scored.append(ht_away)
-                ht_conceded.append(ht_home)
-        except:
-            continue
-
-    if not ht_scored:
-        return None
-
-    n = len(ht_scored)
-    ht_goals_avg = round(sum(ht_scored) / n, 2)
-    ht_conceded_avg = round(sum(ht_conceded) / n, 2)
-    ht_over05_count = sum(1 for s, c in zip(ht_scored, ht_conceded) if s + c >= 1)
-    ht_over05_pct = round(ht_over05_count / n * 100)
-    ht_scored_count = sum(1 for s in ht_scored if s >= 1)
-    ht_scored_pct = round(ht_scored_count / n * 100)
-
-    logger.info(f'HT stats {team_name}: {ht_goals_avg} gol atar, {ht_conceded_avg} yer, '
-                f'%{ht_over05_pct} maçta ilk yarı gol var (son {n} maç)')
-
-    return {
-        'ht_goals_avg': ht_goals_avg,
-        'ht_conceded_avg': ht_conceded_avg,
-        'ht_over05_pct': ht_over05_pct,
-        'ht_scored_pct': ht_scored_pct,
-        'matches_used': n,
     }
 
 
@@ -207,7 +103,7 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
     return {
         'home_wins': home_wins, 'away_wins': away_wins,
         'draws': draws, 'total': total,
-        'avg_goals': round(total_goals / total, 1) if total else 0
+        'avg_goals': round(total_goals/total, 1) if total else 0
     }
 
 
@@ -221,27 +117,6 @@ def _get_country_code(fixture):
 
 
 def analyze_fixture(fixture, csv_data=None):
-    """
-    fixture: standart fixture dict
-    csv_data: CSV'den gelen ek veriler (xG, BTTS%, Over25%, oranlar, vb.)
-              Örnek:
-              {
-                'home_xg': 1.45,
-                'away_xg': 0.92,
-                'btts_avg': 52,
-                'over25_avg': 61,
-                'over15_avg': 78,
-                'avg_goals': 2.4,
-                'avg_corners': 10.2,
-                'odds_home': 1.85,
-                'odds_draw': 3.40,
-                'odds_away': 4.20,
-                'odds_over25': 1.72,
-                'odds_btts_yes': 1.80,
-                'home_ppg': 1.8,
-                'away_ppg': 1.1,
-              }
-    """
     from backend.ai_analyzer import analyze_with_claude
 
     home_name = fixture['teams']['home']['name']
@@ -255,13 +130,13 @@ def analyze_fixture(fixture, csv_data=None):
     away_name = str(away_name).strip()
     logger.info('Analyzing: ' + home_name + ' vs ' + away_name)
 
-    # football-data.org: form, H2H, gol trendi için hâlâ kullanılıyor
+    # football-data.org: form, H2H, gol trendi, puan durumu
     home_matches = get_team_last_matches(home_name, last=10)
     away_matches = get_team_last_matches(away_name, last=10)
     h2h = get_h2h(home_name, away_name, last=5)
 
-    home_form = extract_form_from_fixtures(home_matches if home_matches else [], home_name)
-    away_form = extract_form_from_fixtures(away_matches if away_matches else [], away_name)
+    home_form = extract_form_from_fixtures(home_matches or [], home_name)
+    away_form = extract_form_from_fixtures(away_matches or [], away_name)
     home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
     away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
     h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
@@ -277,18 +152,7 @@ def analyze_fixture(fixture, csv_data=None):
     home_venue_stats = get_team_home_away_stats(home_name, home_matches)
     away_venue_stats = get_team_home_away_stats(away_name, away_matches)
 
-    home_ht_stats = extract_ht_stats(home_matches, home_name)
-    away_ht_stats = extract_ht_stats(away_matches, away_name)
-
-    home_btts_stats = extract_btts_stats(home_matches, home_name)
-    away_btts_stats = extract_btts_stats(away_matches, away_name)
-
-    if home_btts_stats and away_btts_stats:
-        btts_mathematical = round(home_btts_stats['scored_pct'] * away_btts_stats['scored_pct'] / 100)
-    else:
-        btts_mathematical = None
-
-    # Puan durumu — country_code varsa çek
+    # Puan durumu
     home_standing = None
     away_standing = None
     country_code = _get_country_code(fixture)
@@ -296,56 +160,31 @@ def analyze_fixture(fixture, csv_data=None):
         try:
             home_standing = get_team_standing(home_name, country_code)
             away_standing = get_team_standing(away_name, country_code)
+            if home_standing:
+                logger.info(f'Standing {home_name}: {home_standing["position"]}. sıra, {home_standing["points"]} puan')
+            if away_standing:
+                logger.info(f'Standing {away_name}: {away_standing["position"]}. sıra, {away_standing["points"]} puan')
         except Exception as e:
             logger.warning('Standings failed: ' + str(e))
 
-    # ── CSV veri varsa oranlar/xG CSV'den gelir, API'den çekilmez ──
+    # CSV varsa oranları oradan al, yoksa None
     odds_data = None
-    if csv_data:
-        # CSV'den gelen oranları odds_data formatına dönüştür
-        if csv_data.get('odds_home') and csv_data.get('odds_away'):
-            odds_data = {
-                'home_odds': csv_data['odds_home'],
-                'draw_odds': csv_data.get('odds_draw'),
-                'away_odds': csv_data['odds_away'],
-                'bookmaker_count': 1,  # CSV kaynağı
-                'source': 'CSV',
-            }
-            logger.info(f'Odds (CSV): {home_name} {odds_data["home_odds"]} | '
-                        f'Draw {odds_data["draw_odds"]} | {away_name} {odds_data["away_odds"]}')
+    if csv_data and csv_data.get('odds_home') and csv_data.get('odds_away'):
+        odds_data = {
+            'home_odds': csv_data['odds_home'],
+            'draw_odds': csv_data.get('odds_draw'),
+            'away_odds': csv_data['odds_away'],
+            'bookmaker_count': 1,
+            'source': 'CSV',
+        }
+        logger.info(f'Odds (CSV): {home_name} {odds_data["home_odds"]} | Draw {odds_data["draw_odds"]} | {away_name} {odds_data["away_odds"]}')
 
-    # Shot stats — CSV varsa korner CSV'den gelir, API çağrısı yapma
-    home_shot_stats = None
-    away_shot_stats = None
-    if csv_data and csv_data.get('avg_corners'):
-        # CSV'de takım bazlı korner ayrımı yok; maç geneli avg_corners var
-        # Bunu prompt'a csv_data üzerinden ayrıca göndereceğiz
-        pass
-    elif country_code:
-        try:
-            home_shot_stats = get_team_shot_stats(home_name, country_code, last=5)
-            away_shot_stats = get_team_shot_stats(away_name, country_code, last=5)
-        except Exception as e:
-            logger.warning(f'Shot stats failed: {e}')
+    logger.info(f'Stats: {home_name} form={home_form} avg={home_goals_avg}, {away_name} form={away_form} avg={away_goals_avg}')
 
-    # ClubElo — CSV varsa kullanma
-    elo_data = None
-    if not csv_data:
-        try:
-            from backend.clubelo import get_elo_for_match
-            elo_data = get_elo_for_match(home_name, away_name)
-            if elo_data:
-                logger.info('ClubElo: ' + home_name + ' ' + str(elo_data.get('home_elo', '?')) +
-                            ' vs ' + away_name + ' ' + str(elo_data.get('away_elo', '?')))
-        except Exception as e:
-            logger.warning('ClubElo failed: ' + str(e))
-
-    logger.info('Stats: ' + home_name + ' form=' + home_form + ' avg=' + str(home_goals_avg) +
-                ', ' + away_name + ' form=' + away_form + ' avg=' + str(away_goals_avg))
     if csv_data:
         logger.info(f'CSV data: xG={csv_data.get("home_xg")}/{csv_data.get("away_xg")} '
                     f'BTTS%={csv_data.get("btts_avg")} Over25%={csv_data.get("over25_avg")} '
-                    f'AvgGoals={csv_data.get("avg_goals")}')
+                    f'IY05%={csv_data.get("ht_over05_avg")} AvgGoals={csv_data.get("avg_goals")}')
 
     return analyze_with_claude(
         fixture=fixture,
@@ -359,28 +198,28 @@ def analyze_fixture(fixture, csv_data=None):
         home_conceded_avg=home_conceded_avg,
         away_conceded_avg=away_conceded_avg,
         h2h_summary=h2h_summary,
-        elo_data=elo_data,
+        elo_data=None,          # ClubElo kapatıldı
         odds_data=odds_data,
         home_standing=home_standing,
         away_standing=away_standing,
         home_venue_stats=home_venue_stats,
         away_venue_stats=away_venue_stats,
-        home_shot_stats=home_shot_stats,
-        away_shot_stats=away_shot_stats,
-        home_ht_stats=home_ht_stats,
-        away_ht_stats=away_ht_stats,
-        home_btts_stats=home_btts_stats,
-        away_btts_stats=away_btts_stats,
-        btts_mathematical=btts_mathematical,
+        home_shot_stats=None,   # football-data.co.uk kapatıldı
+        away_shot_stats=None,
+        home_ht_stats=None,     # CSV'den geliyor artık
+        away_ht_stats=None,
+        home_btts_stats=None,   # CSV'den geliyor artık
+        away_btts_stats=None,
+        btts_mathematical=None,
         home_goals_trend=home_goals_trend,
         away_goals_trend=away_goals_trend,
-        csv_data=csv_data,       # ← YENİ: CSV verileri direkt geçiyor
+        csv_data=csv_data,
     )
 
 
 def run_selected_analysis(fixture_ids=[], manual_matches=[]):
     today = datetime.now().strftime('%Y-%m-%d')
-    logger.info('Starting selected analysis: ' + str(len(fixture_ids)) + ' fixtures, ' + str(len(manual_matches)) + ' manual')
+    logger.info(f'Starting selected analysis: {len(fixture_ids)} fixtures, {len(manual_matches)} manual')
 
     try:
         if fixture_ids:
@@ -400,7 +239,6 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                     time.sleep(1)
                 except Exception as e:
                     logger.error('Error analyzing fixture: ' + str(e))
-                    continue
 
         for m in manual_matches:
             try:
@@ -420,9 +258,7 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                     'goals': {'home': None, 'away': None}
                 }
 
-                # CSV'den gelen ek veriler — app.js'de parse edilip manual_matches içine ekleniyor
                 csv_data = m.get('csv_data') or None
-
                 analysis = analyze_fixture(manual_fixture, csv_data=csv_data)
                 if analysis:
                     save_analysis(analysis)
@@ -430,7 +266,6 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                 time.sleep(1)
             except Exception as e:
                 logger.error('Error analyzing manual match: ' + str(e))
-                continue
 
         log_run(today, 'success', len(fixture_ids) + len(manual_matches), analyzed)
         logger.info('Done. Analyzed ' + str(analyzed) + ' matches.')
