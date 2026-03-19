@@ -1,6 +1,7 @@
 import psycopg2
 import psycopg2.extras
 import os
+import json
 from datetime import datetime, timedelta
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
@@ -91,14 +92,26 @@ def init_db():
         )
     ''')
 
-    # Mevcut tablolara eksik kolonları ekle
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS coupons (
+            id SERIAL PRIMARY KEY,
+            coupon_date TEXT NOT NULL,
+            items TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            won INTEGER DEFAULT 0,
+            total_items INTEGER DEFAULT 0,
+            correct_items INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    ''')
+
     for sql in [
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER',
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_away_score INTEGER',
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_correct INTEGER DEFAULT 0',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS home_goals_trend TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT',
-        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS value_bets TEXT',  # ← YENİ
+        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS value_bets TEXT',
     ]:
         try:
             cur.execute(sql)
@@ -114,7 +127,6 @@ def init_db():
 # ── Pending Matches ───────────────────────────────────────────────────────────
 
 def save_pending_matches(matches: list):
-    import json
     today = datetime.now().strftime('%Y-%m-%d')
     conn = get_conn()
     cur = conn.cursor()
@@ -135,13 +147,9 @@ def save_pending_matches(matches: list):
 
 def get_pending_matches():
     today = datetime.now().strftime('%Y-%m-%d')
-    import json
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute(
-        'SELECT * FROM pending_matches WHERE added_date = %s ORDER BY id ASC',
-        (today,)
-    )
+    cur.execute('SELECT * FROM pending_matches WHERE added_date = %s ORDER BY id ASC', (today,))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -176,6 +184,132 @@ def clear_old_pending_matches():
     conn.close()
 
 
+# ── Coupons ───────────────────────────────────────────────────────────────────
+
+def save_coupon(items: list):
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('SELECT id FROM coupons WHERE coupon_date = %s', (today,))
+    existing = cur.fetchone()
+    if existing:
+        cur.execute('''
+            UPDATE coupons SET items=%s, status='pending', won=0, total_items=%s, correct_items=0
+            WHERE coupon_date=%s
+        ''', (json.dumps(items, ensure_ascii=False), len(items), today))
+    else:
+        cur.execute('''
+            INSERT INTO coupons (coupon_date, items, status, total_items)
+            VALUES (%s, %s, 'pending', %s)
+        ''', (today, json.dumps(items, ensure_ascii=False), len(items)))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_coupons(limit=30):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT * FROM coupons ORDER BY coupon_date DESC LIMIT %s', (limit,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    result = []
+    for r in rows:
+        row = dict(r)
+        try:
+            row['items'] = json.loads(row['items'])
+        except:
+            row['items'] = []
+        result.append(row)
+    return result
+
+
+def get_coupon_by_date(date_str):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT * FROM coupons WHERE coupon_date = %s', (date_str,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not row:
+        return None
+    result = dict(row)
+    try:
+        result['items'] = json.loads(result['items'])
+    except:
+        result['items'] = []
+    return result
+
+
+def update_coupon_results(date_str):
+    coupon = get_coupon_by_date(date_str)
+    if not coupon:
+        return
+
+    items = coupon['items']
+    if not items:
+        return
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    correct = 0
+    updated_items = []
+
+    for item in items:
+        analysis_id = item.get('analysis_id')
+        pred_type = item.get('prediction_type')
+        item_result = None
+
+        if analysis_id:
+            cur.execute('''
+                SELECT r.*, a.prediction_1x2
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE r.analysis_id = %s
+            ''', (analysis_id,))
+            row = cur.fetchone()
+            if row:
+                row = dict(row)
+                if pred_type == '1X2':
+                    item_result = bool(row.get('pred_1x2_correct'))
+                elif pred_type == '2.5 Üst':
+                    item_result = bool(row.get('over25_correct'))
+                elif pred_type == '2.5 Alt':
+                    item_result = not bool(row.get('actual_over25'))
+                elif pred_type == 'KG Var':
+                    item_result = bool(row.get('btts_correct'))
+                elif pred_type == 'KG Yok':
+                    item_result = not bool(row.get('actual_btts'))
+                elif pred_type == 'İY 0.5 Üst':
+                    item_result = bool(row.get('ht_correct'))
+                elif pred_type == 'Over 1.5':
+                    item_result = (row.get('total_goals') or 0) > 1
+                elif pred_type == 'Over 3.5':
+                    item_result = (row.get('total_goals') or 0) > 3
+
+        item['result'] = item_result
+        if item_result is True:
+            correct += 1
+        updated_items.append(item)
+
+    total = len(updated_items)
+    all_resolved = all(i.get('result') is not None for i in updated_items)
+    all_correct = (correct == total) and all_resolved
+    status = 'completed' if all_resolved else 'pending'
+    won = 1 if all_correct else 0
+
+    cur.execute('''
+        UPDATE coupons SET items=%s, correct_items=%s, won=%s, status=%s
+        WHERE coupon_date=%s
+    ''', (json.dumps(updated_items, ensure_ascii=False), correct, won, status, date_str))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
 # ── Analyses ──────────────────────────────────────────────────────────────────
 
 def save_analysis(data: dict):
@@ -201,7 +335,7 @@ def save_analysis(data: dict):
         data.get('home_form', ''), data.get('away_form', ''),
         data.get('home_goals_avg', 0), data.get('away_goals_avg', 0),
         data.get('home_goals_trend'), data.get('away_goals_trend'),
-        data.get('value_bets'),  # ← YENİ
+        data.get('value_bets'),
     ))
     conn.commit()
     cur.close()
