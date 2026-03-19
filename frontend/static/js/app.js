@@ -337,9 +337,7 @@ async function generateCoupon() {
             alert(data.message || 'Kupon oluşturulamadı.');
             btn.disabled = false; btn.textContent = '🎫 Kupon Oluştur'; return;
         }
-        // DB'ye kaydet
         await saveCoupon(data.coupon);
-        // Canvas çiz ve önizle
         drawCouponCanvas(data.coupon);
     } catch(e) {
         alert('Hata: ' + e.message);
@@ -692,11 +690,11 @@ function createMatchCard(match) {
             ${timeStr?`<span class="match-time">${timeStr}</span>`:''}
         </div>
         <div class="teams">
-            <div class="team home-team">${homeLogo}<span class="team-name">${match.home_team}</span><span class="team-form">${match.home_form||'N/A'}</span></div>
+            <div class="team home-team">${homeLogo}<span class="team-name">${match.home_team}</span><span class="team-form">${match.home_form||''}</span></div>
             <div class="vs-badge prediction-${prediction.toLowerCase()}">
                 <img src="/static/img/logo.png" alt="GL" onerror="this.parentElement.innerHTML='${prediction}'">
             </div>
-            <div class="team away-team">${awayLogo}<span class="team-name">${match.away_team}</span><span class="team-form">${match.away_form||'N/A'}</span></div>
+            <div class="team away-team">${awayLogo}<span class="team-name">${match.away_team}</span><span class="team-form">${match.away_form||''}</span></div>
         </div>
         <div class="stats-grid">
             <div class="stat-box"><span class="stat-label">🎯 2.5 GOL ÜSTÜ</span><span class="stat-value ${pctClass(over25)}">${over25}%</span><div class="stat-bar"><div class="stat-fill ${barClass(over25)}" style="width:${over25}%"></div></div></div>
