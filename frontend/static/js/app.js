@@ -188,6 +188,10 @@ let selectedFixtures = {};
 let manualMatches = [];
 let couponCanvas = null;
 
+// ─── Logo Sistemi ─────────────────────────────────────────────────────────────
+// Önce football-data.org ID tablosuna bak, bulamazsa TheSportsDB'den çek ve cache'le
+const _logoCache = {};
+
 const TEAM_IDS = {
     'Bayern': 5, 'Dortmund': 4, 'Leverkusen': 3, 'Leipzig': 721,
     'Frankfurt': 19, 'Stuttgart': 10, 'Freiburg': 17, 'Hoffenheim': 2,
@@ -225,7 +229,7 @@ const TEAM_IDS = {
     'Lens': 546, 'Rennes': 529, 'Nantes': 543,
 };
 
-function getTeamLogoUrl(teamName) {
+function getFootballDataLogoUrl(teamName) {
     if (TEAM_IDS[teamName]) return `https://crests.football-data.org/${TEAM_IDS[teamName]}.png`;
     const lower = teamName.toLowerCase();
     for (const [key, id] of Object.entries(TEAM_IDS)) {
@@ -235,10 +239,40 @@ function getTeamLogoUrl(teamName) {
     return null;
 }
 
-function teamLogoHtml(teamName) {
-    const url = getTeamLogoUrl(teamName);
-    if (!url) return '';
-    return `<img src="${url}" alt="${teamName}" style="width:24px;height:24px;object-fit:contain;border-radius:4px;margin-bottom:4px;" onerror="this.style.display='none'">`;
+async function fetchLogoFromSportsDB(teamName) {
+    if (_logoCache[teamName] !== undefined) return _logoCache[teamName];
+    try {
+        const encoded = encodeURIComponent(teamName);
+        const resp = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encoded}`);
+        const data = await resp.json();
+        const teams = data.teams;
+        if (teams && teams.length > 0) {
+            const url = teams[0].strBadge || null;
+            _logoCache[teamName] = url;
+            return url;
+        }
+    } catch(e) {}
+    _logoCache[teamName] = null;
+    return null;
+}
+
+function teamLogoHtml(teamName, asyncLoad = true) {
+    // Önce football-data'dan dene
+    const fdUrl = getFootballDataLogoUrl(teamName);
+    if (fdUrl) {
+        return `<img src="${fdUrl}" alt="${teamName}" style="width:24px;height:24px;object-fit:contain;border-radius:4px;margin-bottom:4px;" onerror="this.style.display='none'">`;
+    }
+    // Bulunamazsa TheSportsDB'den async çek
+    const safeId = 'logo_' + teamName.replace(/[^a-zA-Z0-9]/g, '_');
+    if (asyncLoad) {
+        fetchLogoFromSportsDB(teamName).then(url => {
+            if (url) {
+                const el = document.getElementById(safeId);
+                if (el) { el.src = url; el.style.display = ''; }
+            }
+        });
+    }
+    return `<img id="${safeId}" src="" alt="${teamName}" style="width:24px;height:24px;object-fit:contain;border-radius:4px;margin-bottom:4px;display:none;" onerror="this.style.display='none'">`;
 }
 
 function getWinnerLabel(prediction, homeTeam, awayTeam) {
