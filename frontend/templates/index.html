@@ -7,6 +7,35 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        .nav-links {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .nav-link {
+            padding: 7px 14px;
+            border-radius: 8px;
+            border: 1px solid #2a1a4e;
+            background: transparent;
+            color: #a78bfa;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .nav-link:hover {
+            background: #2a1a4e;
+            color: #fff;
+        }
+        .nav-link.active {
+            background: #7c3aed;
+            border-color: #7c3aed;
+            color: #fff;
+        }
+    </style>
 </head>
 <body>
     <div class="app-container">
@@ -17,6 +46,12 @@
                     <span class="logo-text">BetIQ</span>
                     <span class="logo-sub">ANALYZER</span>
                 </div>
+                <nav class="nav-links">
+                    <a href="/" class="nav-link active">🏠 Ana Sayfa</a>
+                    <a href="/gecmis" class="nav-link">📅 Geçmiş</a>
+                    <a href="/istatistik" class="nav-link">📊 İstatistik</a>
+                    <a href="/kuponlar" class="nav-link">🎫 Kuponlar</a>
+                </nav>
             </div>
         </header>
         <main class="main-content">
