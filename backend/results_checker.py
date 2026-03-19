@@ -117,20 +117,20 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
         actual_1x2 = '2'
     pred_1x2_correct = (analysis.get('prediction_1x2') == actual_1x2)
 
-    # 2.5 Üst/Alt — yüzde eşiğine göre tahmin yönü belirlenir
+    # 2.5 Üst/Alt — %65 eşiğine göre tahmin yönü belirlenir
     over25_pct = int(analysis.get('over25_pct', 0))
     actual_over25 = total_goals > 2.5
-    if over25_pct >= 50:
+    if over25_pct >= 65:
         # Tahmin: 2.5 ÜST → gol 3+ olursa doğru
         over25_correct = actual_over25
     else:
         # Tahmin: 2.5 ALT → gol 2 veya az olursa doğru
         over25_correct = not actual_over25
 
-    # KG Var/Yok — yüzde eşiğine göre tahmin yönü belirlenir
+    # KG Var/Yok — %65 eşiğine göre tahmin yönü belirlenir
     btts_pct = int(analysis.get('btts_pct', 0))
     actual_btts = home_score > 0 and away_score > 0
-    if btts_pct >= 50:
+    if btts_pct >= 65:
         # Tahmin: KG VAR → her iki takım da gol atarsa doğru
         btts_correct = actual_btts
     else:
@@ -145,12 +145,12 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
     except:
         score_correct = False
 
-    # İY 0.5 üst — yüzde eşiğine göre tahmin yönü belirlenir
+    # İY 0.5 üst — %65 eşiğine göre tahmin yönü belirlenir
     ht_correct = False
     if ht_home_score is not None and ht_away_score is not None:
         ht_pct = int(analysis.get('ht2g_pct', 0))
         actual_ht_goal = (ht_home_score + ht_away_score) >= 1
-        if ht_pct >= 50:
+        if ht_pct >= 65:
             # Tahmin: İY gol olur
             ht_correct = actual_ht_goal
         else:
@@ -194,18 +194,16 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
     over25_pct = int(analysis.get('over25_pct', 0))
     btts_pct = int(analysis.get('btts_pct', 0))
 
-    # 2.5 için tahmin yönünü göster
-    over25_label = f"2.5 Üst (%{over25_pct})" if over25_pct >= 50 else f"2.5 Alt (%{100 - over25_pct})"
+    over25_label = f"2.5 Üst (%{over25_pct})" if over25_pct >= 65 else f"2.5 Alt (%{100 - over25_pct})"
     over25_result = f"{'Üstü ✓' if outcomes['actual_over25'] else 'Altı ✗'}"
 
-    # KG için tahmin yönünü göster
-    btts_label = f"KG Var (%{btts_pct})" if btts_pct >= 50 else f"KG Yok (%{100 - btts_pct})"
+    btts_label = f"KG Var (%{btts_pct})" if btts_pct >= 65 else f"KG Yok (%{100 - btts_pct})"
     btts_result = f"{'Var ✓' if outcomes['actual_btts'] else 'Yok ✗'}"
 
     ht_line = ''
     if ht_home_score is not None and ht_away_score is not None:
         ht_pct = int(analysis.get('ht2g_pct', 0))
-        ht_label = f"İY 0.5 Üst (%{ht_pct})" if ht_pct >= 50 else f"İY 0.5 Alt (%{100 - ht_pct})"
+        ht_label = f"İY 0.5 Üst (%{ht_pct})" if ht_pct >= 65 else f"İY 0.5 Alt (%{100 - ht_pct})"
         ht_result = f"İY {ht_home_score}-{ht_away_score} ({'Var ✓' if (ht_home_score + ht_away_score) >= 1 else 'Yok ✗'})"
         ht_line = f"\n{tick(outcomes['ht_correct'])} {ht_label} → <b>{ht_result}</b>"
 
