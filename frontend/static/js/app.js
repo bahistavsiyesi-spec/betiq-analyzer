@@ -92,7 +92,6 @@ function initCsvUpload() {
                         if (/^\d+$/.test(raw)) {
                             matchDate = new Date(parseInt(raw)*1000).toISOString();
                         } else {
-                            // "Mar 18 2026 - 5:30pm" formatını parse et
                             const m = raw.match(/^(\w+)\s+(\d+)\s+(\d+)\s*-\s*(\d+):(\d+)(am|pm)$/i);
                             if (m) {
                                 const months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
@@ -104,7 +103,6 @@ function initCsvUpload() {
                                 const ampm = m[6].toLowerCase();
                                 if (ampm === 'pm' && hr !== 12) hr += 12;
                                 if (ampm === 'am' && hr === 12) hr = 0;
-                                // UTC olarak oluştur
                                 matchDate = new Date(Date.UTC(yr, mon, day, hr, min)).toISOString();
                             } else {
                                 matchDate = new Date(raw).toISOString();
@@ -269,13 +267,11 @@ async function downloadCard(matchId, homeTeam, awayTeam) {
     if(btn){btn.textContent='📸';btn.disabled=false;}
 }
 
-
 // ─── Value Bet HTML ──────────────────────────────────────────────────────────
 function buildValueBetsHtml(match) {
     let valueBets = null;
     try { valueBets = match.value_bets ? JSON.parse(match.value_bets) : null; } catch(e) {}
     if (!valueBets || valueBets.length === 0) return '';
-
     const items = valueBets.map(v => {
         const diffColor = v.diff >= 15 ? '#22c55e' : v.diff >= 10 ? '#f59e0b' : '#a78bfa';
         return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#0d0d1a;border-radius:8px;border:1px solid #1e1e3a;margin-bottom:4px;">
@@ -290,26 +286,23 @@ function buildValueBetsHtml(match) {
             </div>
         </div>`;
     }).join('');
-
     return `<div style="margin-top:10px;padding:10px 12px;background:#12121f;border-radius:10px;border:1px solid #2a1a4e;">
         <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">💎 VALUE BET FIRSATLARI</div>
         ${items}
     </div>`;
 }
 
-// ─── Gol Trendi — sade beyaz daireler ────────────────────────────────────────
+// ─── Gol Trendi ───────────────────────────────────────────────────────────────
 function buildTrendHtml(match) {
     let homeTrend=null, awayTrend=null;
     try{homeTrend=match.home_goals_trend?JSON.parse(match.home_goals_trend):null;}catch(e){}
     try{awayTrend=match.away_goals_trend?JSON.parse(match.away_goals_trend):null;}catch(e){}
     if(!homeTrend&&!awayTrend) return '';
-
     function goalDot(goals) {
         return goals.map(g =>
             `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #3a3a5a;background:#12121f;color:#ccc;font-size:11px;font-weight:700;">${g}</span>`
         ).join('');
     }
-
     function trendRow(icon, goals) {
         const avg = goals.length ? (goals.reduce((a,b)=>a+b,0)/goals.length).toFixed(1) : '0';
         return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
@@ -318,7 +311,6 @@ function buildTrendHtml(match) {
             <span style="font-size:10px;color:#444;margin-left:2px;">ort. ${avg}</span>
         </div>`;
     }
-
     function teamBlock(name, trend, borderTop) {
         return `<div style="${borderTop?'border-top:1px solid #1e1e3a;padding-top:8px;margin-top:8px':''}">
             <div style="font-size:11px;color:#666;font-weight:600;margin-bottom:6px;">${name}</div>
@@ -326,7 +318,6 @@ function buildTrendHtml(match) {
             ${trendRow('🥅', trend.conceded)}
         </div>`;
     }
-
     return `<div style="margin-top:12px;padding:10px 12px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
         <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">📈 GOL TRENDİ (Son 5 Maç)</div>
         ${homeTrend ? teamBlock(match.home_team, homeTrend, false) : ''}
@@ -335,14 +326,37 @@ function buildTrendHtml(match) {
     </div>`;
 }
 
+// ─── Kupon ────────────────────────────────────────────────────────────────────
 async function generateCoupon() {
-    const btn=document.getElementById('couponBtn');
-    btn.disabled=true; btn.textContent='⏳ Oluşturuluyor...';
+    const btn = document.getElementById('couponBtn');
+    btn.disabled = true; btn.textContent = '⏳ Oluşturuluyor...';
     try {
-        const resp=await fetch('/api/coupon/today'); const data=await resp.json();
-        if(data.status!=='success'){alert(data.message||'Kupon oluşturulamadı.');btn.disabled=false;btn.textContent='🎫 Kupon Oluştur';return;}
+        const resp = await fetch('/api/coupon/today');
+        const data = await resp.json();
+        if (data.status !== 'success') {
+            alert(data.message || 'Kupon oluşturulamadı.');
+            btn.disabled = false; btn.textContent = '🎫 Kupon Oluştur'; return;
+        }
+        // DB'ye kaydet
+        await saveCoupon(data.coupon);
+        // Canvas çiz ve önizle
         drawCouponCanvas(data.coupon);
-    } catch(e){alert('Hata: '+e.message);btn.disabled=false;btn.textContent='🎫 Kupon Oluştur';}
+    } catch(e) {
+        alert('Hata: ' + e.message);
+        btn.disabled = false; btn.textContent = '🎫 Kupon Oluştur';
+    }
+}
+
+async function saveCoupon(coupon) {
+    try {
+        await fetch('/api/coupon/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: coupon })
+        });
+    } catch(e) {
+        console.error('Kupon kaydetme hatası:', e);
+    }
 }
 
 function drawCouponCanvas(coupon) {
@@ -389,12 +403,12 @@ function drawCouponCanvas(coupon) {
     logo.onload=drawContent; logo.onerror=drawContent;
 }
 
-function showCouponPreview(canvas,today) {
+function showCouponPreview(canvas, today) {
     document.getElementById('couponModal')?.remove();
-    const modal=document.createElement('div'); modal.id='couponModal';
-    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-    const imgSrc=canvas.toDataURL('image/png');
-    modal.innerHTML=`<div style="background:#0d0d1a;border:1px solid #2a1a4e;border-radius:16px;padding:20px;max-width:520px;width:100%;">
+    const modal = document.createElement('div'); modal.id = 'couponModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    const imgSrc = canvas.toDataURL('image/png');
+    modal.innerHTML = `<div style="background:#0d0d1a;border:1px solid #2a1a4e;border-radius:16px;padding:20px;max-width:520px;width:100%;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
             <span style="color:#fff;font-weight:700;font-size:14px;">🎫 Kupon Önizleme</span>
             <button onclick="document.getElementById('couponModal').remove()" style="background:transparent;border:none;color:#666;font-size:20px;cursor:pointer;">✕</button>
@@ -404,23 +418,24 @@ function showCouponPreview(canvas,today) {
         </div>
         <div style="display:flex;gap:10px;justify-content:flex-end;">
             <button onclick="document.getElementById('couponModal').remove()" style="padding:10px 20px;border-radius:10px;border:1px solid #333;background:transparent;color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;">İptal</button>
+            <a href="/kuponlar" style="padding:10px 20px;border-radius:10px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;">📋 Kuponlarım</a>
             <button onclick="downloadCoupon('${today}')" style="padding:10px 20px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⬇️ PNG İndir</button>
         </div>
     </div>`;
-    modal.addEventListener('click',(e)=>{if(e.target===modal)modal.remove();});
+    modal.addEventListener('click', (e) => { if(e.target===modal) modal.remove(); });
     document.body.appendChild(modal);
 }
 
 function downloadCoupon(today) {
     if(!couponCanvas) return;
-    const link=document.createElement('a');
-    link.download=`betiq_kupon_${today.replace(/\./g,'-')}.png`;
-    link.href=couponCanvas.toDataURL('image/png'); link.click();
+    const link = document.createElement('a');
+    link.download = `betiq_kupon_${today.replace(/\./g,'-')}.png`;
+    link.href = couponCanvas.toDataURL('image/png'); link.click();
     document.getElementById('couponModal')?.remove();
 }
 
 function getBadgeColor(type) {
-    const map={
+    const map = {
         '1X2':{bg:'rgba(124,58,237,0.15)',border:'rgba(124,58,237,0.6)',text:'#a78bfa'},
         '2.5 Üst':{bg:'rgba(34,197,94,0.12)',border:'rgba(34,197,94,0.5)',text:'#4ade80'},
         '2.5 Alt':{bg:'rgba(59,130,246,0.12)',border:'rgba(59,130,246,0.5)',text:'#60a5fa'},
@@ -428,7 +443,7 @@ function getBadgeColor(type) {
         'KG Yok':{bg:'rgba(239,68,68,0.12)',border:'rgba(239,68,68,0.5)',text:'#f87171'},
         'İY 0.5 Üst':{bg:'rgba(168,85,247,0.12)',border:'rgba(168,85,247,0.5)',text:'#c084fc'},
     };
-    return map[type]||map['1X2'];
+    return map[type] || map['1X2'];
 }
 
 function roundRect(ctx,x,y,w,h,r){
