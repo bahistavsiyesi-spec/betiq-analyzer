@@ -380,7 +380,6 @@ def api_manual_result():
         send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_hs, ht_as)
         mark_telegram_sent(analysis_id)
 
-        # Kuponu güncelle
         try:
             analysis_date = analysis.get('analysis_date', datetime.now().strftime('%Y-%m-%d'))
             update_coupon_results(analysis_date)
@@ -584,6 +583,34 @@ def api_clear_matches():
         delete_today_analyses()
         return jsonify({"status": "success"})
     except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ─── Admin ────────────────────────────────────────────────────────────────────
+
+@app.route('/api/admin/clear-before/<date_str>', methods=['DELETE'])
+def api_clear_before_date(date_str):
+    try:
+        import psycopg2
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        cur = conn.cursor()
+        cur.execute('''
+            DELETE FROM match_results WHERE analysis_id IN (
+                SELECT id FROM analyses WHERE analysis_date < %s
+            )
+        ''', (date_str,))
+        deleted_results = cur.rowcount
+        cur.execute('DELETE FROM analyses WHERE analysis_date < %s', (date_str,))
+        deleted_analyses = cur.rowcount
+        conn.commit()
+        cur.close(); conn.close()
+        logger.info(f"Admin clear: {deleted_analyses} analiz, {deleted_results} sonuç silindi ({date_str} öncesi)")
+        return jsonify({
+            "status": "success",
+            "message": f"{date_str} öncesi {deleted_analyses} analiz ve {deleted_results} sonuç silindi"
+        })
+    except Exception as e:
+        logger.error(f"Admin clear error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
