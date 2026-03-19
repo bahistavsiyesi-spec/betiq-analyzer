@@ -8,7 +8,8 @@ from backend.analyzer import run_selected_analysis
 from backend.database import (
     init_db, get_today_matches, get_analyses_by_date,
     get_available_dates, save_pending_matches, get_pending_matches,
-    clear_pending_matches, clear_old_pending_matches
+    clear_pending_matches, clear_old_pending_matches,
+    save_coupon, get_coupons, update_coupon_results
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static', static_url_path='/static')
@@ -24,7 +25,6 @@ def scheduled_result_check():
         logger.error(f"Scheduled result check failed: {e}")
 
 def midnight_reset():
-    """Gece 24:00: eski pending maçları sil."""
     try:
         clear_old_pending_matches()
         logger.info("Gece sıfırlama: eski pending maçlar silindi.")
@@ -48,12 +48,15 @@ def gecmis():
 def istatistik():
     return render_template('istatistik.html')
 
+@app.route('/kuponlar')
+def kuponlar():
+    return render_template('kuponlar.html')
 
-# ─── Fixtures: artık pending_matches tablosundan geliyor ─────────────────────
+
+# ─── Fixtures ────────────────────────────────────────────────────────────────
 
 @app.route('/api/fixtures/today')
 def api_today_fixtures():
-    """Bugünün bekleyen maçlarını döndür (CSV'den yüklenenler)."""
     pending = get_pending_matches()
     result = []
     for p in pending:
@@ -63,39 +66,24 @@ def api_today_fixtures():
             'league': p.get('league', ''),
             'home_team': p['home_team'],
             'away_team': p['away_team'],
-            'csv_data': p.get('csv_data'),  # frontend'e taşı
+            'csv_data': p.get('csv_data'),
         })
     return jsonify(result)
 
 
-# ─── CSV Upload: maçları DB'ye kaydet ────────────────────────────────────────
+# ─── CSV Upload ───────────────────────────────────────────────────────────────
 
 @app.route('/api/csv/upload', methods=['POST'])
 def api_csv_upload():
-    """
-    Frontend'den JSON olarak maç listesi gelir.
-    Her maç: { home_team, away_team, league, date, csv_data }
-    Önce eski pending maçları sil, sonra yenilerini kaydet.
-    """
     try:
         data = request.get_json()
         matches = data.get('matches', [])
-
         if not matches:
             return jsonify({"status": "error", "message": "Maç listesi boş"}), 400
-
-        # Yeni CSV yüklenince eskiler silinir
         clear_pending_matches()
-
-        # DB'ye kaydet
         save_pending_matches(matches)
-
-        logger.info(f"CSV upload: {len(matches)} maç pending_matches tablosuna kaydedildi")
-        return jsonify({
-            "status": "success",
-            "message": f"{len(matches)} maç yüklendi!",
-            "total": len(matches)
-        })
+        logger.info(f"CSV upload: {len(matches)} maç kaydedildi")
+        return jsonify({"status": "success", "message": f"{len(matches)} maç yüklendi!", "total": len(matches)})
     except Exception as e:
         logger.error(f"CSV upload error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -122,13 +110,12 @@ def api_available_dates():
     return jsonify(dates)
 
 
-# ─── İstatistik Endpoints ─────────────────────────────────────────────────────
+# ─── İstatistik ───────────────────────────────────────────────────────────────
 
 @app.route('/api/stats/overview')
 def api_stats_overview():
     try:
-        import psycopg2
-        import psycopg2.extras
+        import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
@@ -158,8 +145,7 @@ def api_stats_overview():
 @app.route('/api/stats/daily')
 def api_stats_daily():
     try:
-        import psycopg2
-        import psycopg2.extras
+        import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
@@ -190,8 +176,7 @@ def api_stats_daily():
 @app.route('/api/stats/by-category')
 def api_stats_by_category():
     try:
-        import psycopg2
-        import psycopg2.extras
+        import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
@@ -221,8 +206,7 @@ def api_stats_by_category():
 @app.route('/api/stats/by-league')
 def api_stats_by_league():
     try:
-        import psycopg2
-        import psycopg2.extras
+        import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
@@ -252,8 +236,7 @@ def api_stats_by_league():
 @app.route('/api/stats/by-confidence')
 def api_stats_by_confidence():
     try:
-        import psycopg2
-        import psycopg2.extras
+        import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
@@ -285,8 +268,7 @@ def api_stats_by_confidence():
 @app.route('/api/stats/best-worst-days')
 def api_stats_best_worst_days():
     try:
-        import psycopg2
-        import psycopg2.extras
+        import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
@@ -313,8 +295,6 @@ def api_analyze_selected():
     selected_ids = data.get('fixture_ids', [])
     manual_matches = data.get('manual_matches', [])
 
-    # fixture_ids artık pending_matches ID'leri
-    # Bu ID'lere ait csv_data'yı DB'den çek ve manual_matches'e dönüştür
     if selected_ids:
         pending = get_pending_matches()
         pending_map = {p['id']: p for p in pending}
@@ -399,6 +379,17 @@ def api_manual_result():
                           ht_home_score=ht_hs, ht_away_score=ht_as, source='manual', **outcomes)
         send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_hs, ht_as)
         mark_telegram_sent(analysis_id)
+
+        # Kuponu güncelle
+        try:
+            analysis_date = analysis.get('analysis_date', datetime.now().strftime('%Y-%m-%d'))
+            update_coupon_results(analysis_date)
+            today = datetime.now().strftime('%Y-%m-%d')
+            if analysis_date != today:
+                update_coupon_results(today)
+        except Exception as e:
+            logger.warning(f"Coupon update after result: {e}")
+
         return jsonify({"status": "success"})
     except Exception as e:
         logger.error(f"Manual result error: {e}")
@@ -451,6 +442,9 @@ def api_daily_report():
         logger.error(f"Daily report error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
+# ─── Kupon ────────────────────────────────────────────────────────────────────
+
 @app.route('/api/coupon/today')
 def api_coupon_today():
     try:
@@ -467,7 +461,7 @@ def api_coupon_today():
             ht2g_pct = float(m.get('ht2g_pct') or 0)
             conf_score = 4 if m.get('confidence') == 'Çok Yüksek' else 3
             options = []
-            pred = m.get('prediction_1x2','?')
+            pred = m.get('prediction_1x2', '?')
             pred_text = {'1': f"{m['home_team']} Kazanır", 'X': 'Beraberlik', '2': f"{m['away_team']} Kazanır"}.get(pred, pred)
             options.append({'type': '1X2', 'label': pred_text, 'pct': conf_score*20, 'conf_score': conf_score, 'match': m})
             if over25_pct >= MIN_PCT:
@@ -488,14 +482,56 @@ def api_coupon_today():
         coupon = []
         for c in candidates[:5]:
             m = c['match']
-            coupon.append({'home_team': m['home_team'], 'away_team': m['away_team'],
-                           'league': m.get('league',''), 'match_time': m.get('match_time',''),
-                           'prediction_type': c['type'], 'prediction_label': c['label'],
-                           'pct': round(c['pct']), 'confidence': m.get('confidence','Orta')})
+            coupon.append({
+                'home_team': m['home_team'],
+                'away_team': m['away_team'],
+                'league': m.get('league', ''),
+                'match_time': m.get('match_time', ''),
+                'prediction_type': c['type'],
+                'prediction_label': c['label'],
+                'pct': round(c['pct']),
+                'confidence': m.get('confidence', 'Orta'),
+                'analysis_id': m.get('id'),
+            })
         return jsonify({"status": "success", "coupon": coupon})
     except Exception as e:
         logger.error(f"Coupon error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/coupon/save', methods=['POST'])
+def api_coupon_save():
+    try:
+        data = request.get_json()
+        items = data.get('items', [])
+        if not items:
+            return jsonify({"status": "error", "message": "Kupon boş"}), 400
+        save_coupon(items)
+        logger.info(f"Kupon kaydedildi: {len(items)} maç")
+        return jsonify({"status": "success", "message": "Kupon kaydedildi!"})
+    except Exception as e:
+        logger.error(f"Coupon save error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/coupon/list')
+def api_coupon_list():
+    try:
+        coupons = get_coupons(30)
+        return jsonify(coupons)
+    except Exception as e:
+        logger.error(f"Coupon list error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/coupon/update/<date_str>', methods=['POST'])
+def api_coupon_update(date_str):
+    try:
+        update_coupon_results(date_str)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Coupon update error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ─── Parse Image ──────────────────────────────────────────────────────────────
 
 @app.route('/api/parse/image', methods=['POST'])
 def api_parse_image():
@@ -549,6 +585,7 @@ def api_clear_matches():
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # ─── Debug ────────────────────────────────────────────────────────────────────
 
