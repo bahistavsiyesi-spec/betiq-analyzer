@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetIQ — Kuponlarım</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { background:#0a0a14; color:#fff; font-family:'Syne',sans-serif; min-height:100vh; margin:0; }
+        .page-header { padding:24px 20px 0; display:flex; align-items:center; gap:16px; max-width:640px; margin:0 auto; }
+        .back-btn { color:#7c3aed; text-decoration:none; font-size:13px; font-weight:600; }
+        .page-header h1 { font-size:20px; font-weight:800; margin:0; }
+        .summary-bar { display:flex; gap:12px; padding:16px 20px; max-width:640px; margin:0 auto; }
+        .summary-box { flex:1; background:#12121f; border:1px solid #1e1e3a; border-radius:12px; padding:12px; text-align:center; }
+        .summary-box .val { font-size:22px; font-weight:800; }
+        .summary-box .lbl { font-size:10px; color:#555; margin-top:2px; }
+        .val-won { color:#22c55e; }
+        .val-lost { color:#ef4444; }
+        .val-pending { color:#f59e0b; }
+        .coupons-list { padding:0 20px 40px; display:flex; flex-direction:column; gap:16px; max-width:640px; margin:0 auto; }
+        .coupon-card { background:#12121f; border:1px solid #1e1e3a; border-radius:16px; overflow:hidden; }
+        .coupon-card.won { border-color:#22c55e55; }
+        .coupon-card.lost { border-color:#ef444455; }
+        .coupon-header { padding:14px 16px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e1e3a; }
+        .coupon-date { font-size:13px; color:#888; font-weight:600; }
+        .coupon-status { font-size:11px; font-weight:800; padding:4px 12px; border-radius:20px; }
+        .status-won { background:#22c55e22; color:#22c55e; }
+        .status-lost { background:#ef444422; color:#ef4444; }
+        .status-pending { background:#f59e0b22; color:#f59e0b; }
+        .coupon-items { padding:12px 16px; display:flex; flex-direction:column; gap:8px; }
+        .coupon-item { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#0d0d1a; border-radius:10px; border:1px solid #1e1e3a; }
+        .coupon-item.item-won { border-color:#22c55e44; background:#22c55e08; }
+        .coupon-item.item-lost { border-color:#ef444444; background:#ef444408; }
+        .item-left { display:flex; flex-direction:column; gap:2px; }
+        .item-teams { font-size:12px; font-weight:700; color:#fff; }
+        .item-league { font-size:10px; color:#444; }
+        .item-right { display:flex; align-items:center; gap:8px; }
+        .item-pred { font-size:11px; font-weight:700; color:#a78bfa; background:#2a1a4e; padding:3px 8px; border-radius:6px; white-space:nowrap; }
+        .item-result { font-size:18px; }
+        .coupon-footer { padding:12px 16px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid #1e1e3a; }
+        .coupon-score { font-size:12px; color:#555; }
+        .download-btn { padding:8px 16px; border-radius:8px; border:none; background:#7c3aed; color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .download-btn:hover { background:#6d28d9; }
+        .no-coupons { text-align:center; padding:60px 20px; color:#444; font-size:14px; }
+        .no-coupons a { color:#7c3aed; text-decoration:none; font-weight:600; }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <a href="/" class="back-btn">← Ana Sayfa</a>
+        <h1>🎫 Kuponlarım</h1>
+    </div>
+    <div class="summary-bar" id="summaryBar"></div>
+    <div class="coupons-list" id="couponsList">
+        <div style="text-align:center;padding:40px;color:#444">Yükleniyor...</div>
+    </div>
+
+    <script>
+    async function loadCoupons() {
+        try {
+            const resp = await fetch('/api/coupon/list');
+            const coupons = await resp.json();
+
+            const won = coupons.filter(c => c.won === 1).length;
+            const lost = coupons.filter(c => c.status === 'completed' && c.won === 0).length;
+            const pending = coupons.filter(c => c.status === 'pending').length;
+
+            document.getElementById('summaryBar').innerHTML = `
+                <div class="summary-box"><div class="val val-won">${won}</div><div class="lbl">Kazandı ✅</div></div>
+                <div class="summary-box"><div class="val val-lost">${lost}</div><div class="lbl">Kaybetti ❌</div></div>
+                <div class="summary-box"><div class="val val-pending">${pending}</div><div class="lbl">Bekliyor ⏳</div></div>
+            `;
+
+            if (!coupons.length) {
+                document.getElementById('couponsList').innerHTML = `
+                    <div class="no-coupons">🎫<br><br>Henüz kaydedilmiş kupon yok.<br><br>
+                    <a href="/">Ana sayfadan kupon oluştur</a></div>`;
+                return;
+            }
+
+            document.getElementById('couponsList').innerHTML = coupons.map(c => buildCouponCard(c)).join('');
+        } catch(e) {
+            document.getElementById('couponsList').innerHTML = `<div class="no-coupons">❌ Yükleme hatası: ${e.message}</div>`;
+        }
+    }
+
+    function buildCouponCard(c) {
+        const isWon = c.won === 1;
+        const isCompleted = c.status === 'completed';
+        const cardClass = isWon ? 'won' : isCompleted ? 'lost' : '';
+        const statusHtml = isWon
+            ? '<span class="coupon-status status-won">🎉 KAZANDI</span>'
+            : isCompleted
+            ? '<span class="coupon-status status-lost">❌ KAYBETTİ</span>'
+            : '<span class="coupon-status status-pending">⏳ Bekliyor</span>';
+
+        const items = (c.items || []).map(item => {
+            const res = item.result;
+            const itemClass = res === true ? 'item-won' : res === false ? 'item-lost' : '';
+            const icon = res === true ? '✅' : res === false ? '❌' : '⏳';
+            return `<div class="coupon-item ${itemClass}">
+                <div class="item-left">
+                    <div class="item-teams">${item.home_team} vs ${item.away_team}</div>
+                    <div class="item-league">${item.league || ''}</div>
+                </div>
+                <div class="item-right">
+                    <span class="item-pred">${item.prediction_label}</span>
+                    <span class="item-result">${icon}</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        const scoreText = isCompleted || c.correct_items > 0
+            ? `${c.correct_items}/${c.total_items} tahmin tuttu`
+            : `${c.total_items} tahmin`;
+
+        return `<div class="coupon-card ${cardClass}" id="coupon-${c.id}">
+            <div class="coupon-header">
+                <span class="coupon-date">📅 ${c.coupon_date}</span>
+                ${statusHtml}
+            </div>
+            <div class="coupon-items">${items}</div>
+            <div class="coupon-footer">
+                <span class="coupon-score">${scoreText}</span>
+                <button class="download-btn" onclick="downloadCouponCard(${c.id}, '${c.coupon_date}')">📸 PNG İndir</button>
+            </div>
+        </div>`;
+    }
+
+    async function downloadCouponCard(id, date) {
+        const card = document.getElementById(`coupon-${id}`);
+        if (!card) return;
+        const btn = card.querySelector('.download-btn');
+        if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+        try {
+            const canvas = await html2canvas(card, { scale: 3, backgroundColor: '#12121f', useCORS: true, logging: false });
+            const link = document.createElement('a');
+            link.download = `betiq_kupon_${date}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch(e) { alert('Hata: ' + e.message); }
+        if (btn) { btn.textContent = '📸 PNG İndir'; btn.disabled = false; }
+    }
+
+    loadCoupons();
+    </script>
+</body>
+</html>
