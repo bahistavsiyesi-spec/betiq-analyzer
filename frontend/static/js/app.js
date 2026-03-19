@@ -706,7 +706,7 @@ function createMatchCard(match) {
         </div>
         <div class="prediction-row">
             <div class="predicted-score"><span class="score-label">${winner.icon} KAZANAN TAHMİNİ</span><span class="score-value">${winner.label}</span></div>
-            <span class="confidence-badge ${confidenceClass}">Analiz Güveni: ${confidence}</span>
+            <span class="confidence-badge ${confidenceClass}">Taraf Güveni: ${confidence}</span>
         </div>
         ${valueBetsHtml}
         ${trendHtml}
