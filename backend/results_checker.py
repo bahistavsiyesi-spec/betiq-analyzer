@@ -1,6 +1,7 @@
 import logging
 import requests
 import os
+import json
 from datetime import datetime, timedelta, timezone
 from backend.database import get_pending_result_checks, save_match_result, mark_telegram_sent
 
@@ -105,10 +106,58 @@ def get_fixture_result(fixture_id, home_team='', away_team='', match_time=''):
     return None
 
 
+def calculate_value_bet_results(analysis, outcomes):
+    """
+    Analizdeki value_bets listesini al, her birinin tutup tutmadığını hesapla.
+    Döner: [{"label": "Over 2.5", "correct": True, "odds": 1.65, "diff": 20}, ...]
+    """
+    value_bets_raw = analysis.get('value_bets')
+    if not value_bets_raw:
+        return None
+    try:
+        value_bets = json.loads(value_bets_raw)
+    except:
+        return None
+    if not value_bets:
+        return None
+
+    results = []
+    for vb in value_bets:
+        label = vb.get('label', '')
+        correct = None
+
+        if label == 'Over 2.5':
+            correct = bool(outcomes.get('actual_over25'))
+        elif label == 'Under 2.5':
+            correct = not bool(outcomes.get('actual_over25'))
+        elif label == 'KG Var':
+            correct = bool(outcomes.get('actual_btts'))
+        elif label == 'KG Yok':
+            correct = not bool(outcomes.get('actual_btts'))
+        elif label == 'İY 0.5 Üst':
+            correct = bool(outcomes.get('ht_correct'))
+        elif label in ('1X2 (Ev)', '1X2 (Deplasman)', '1X2 (Beraberlik)'):
+            correct = bool(outcomes.get('pred_1x2_correct'))
+        elif label == 'Over 1.5':
+            correct = (outcomes.get('total_goals', 0) or 0) > 1
+        elif label == 'Over 3.5':
+            correct = (outcomes.get('total_goals', 0) or 0) > 3
+
+        results.append({
+            'label': label,
+            'correct': correct,
+            'odds': vb.get('odds'),
+            'diff': vb.get('diff'),
+            'our_pct': vb.get('our_pct'),
+            'implied_pct': vb.get('implied_pct'),
+        })
+
+    return results if results else None
+
+
 def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_away_score=None):
     total_goals = home_score + away_score
 
-    # 1X2
     if home_score > away_score:
         actual_1x2 = '1'
     elif home_score == away_score:
@@ -117,27 +166,20 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
         actual_1x2 = '2'
     pred_1x2_correct = (analysis.get('prediction_1x2') == actual_1x2)
 
-    # 2.5 Üst/Alt — %65 eşiğine göre tahmin yönü belirlenir
     over25_pct = int(analysis.get('over25_pct', 0))
     actual_over25 = total_goals > 2.5
     if over25_pct >= 65:
-        # Tahmin: 2.5 ÜST → gol 3+ olursa doğru
         over25_correct = actual_over25
     else:
-        # Tahmin: 2.5 ALT → gol 2 veya az olursa doğru
         over25_correct = not actual_over25
 
-    # KG Var/Yok — %65 eşiğine göre tahmin yönü belirlenir
     btts_pct = int(analysis.get('btts_pct', 0))
     actual_btts = home_score > 0 and away_score > 0
     if btts_pct >= 65:
-        # Tahmin: KG VAR → her iki takım da gol atarsa doğru
         btts_correct = actual_btts
     else:
-        # Tahmin: KG YOK → en az bir takım gol atmazsa doğru
         btts_correct = not actual_btts
 
-    # Skor tahmini
     predicted = analysis.get('predicted_score', '?-?')
     try:
         ph, pa = predicted.split('-')
@@ -145,16 +187,13 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
     except:
         score_correct = False
 
-    # İY 0.5 üst — %65 eşiğine göre tahmin yönü belirlenir
     ht_correct = False
     if ht_home_score is not None and ht_away_score is not None:
         ht_pct = int(analysis.get('ht2g_pct', 0))
         actual_ht_goal = (ht_home_score + ht_away_score) >= 1
         if ht_pct >= 65:
-            # Tahmin: İY gol olur
             ht_correct = actual_ht_goal
         else:
-            # Tahmin: İY gol olmaz
             ht_correct = not actual_ht_goal
 
     return {
@@ -264,12 +303,16 @@ def check_and_send_results():
             outcomes['score_correct'] = int(outcomes['score_correct'])
             outcomes['ht_correct'] = int(outcomes['ht_correct'])
 
+            # Value bet sonuçlarını hesapla
+            vb_results = calculate_value_bet_results(analysis, outcomes)
+
             save_match_result(
                 analysis_id=analysis['id'],
                 fixture_id=analysis['fixture_id'],
                 home_score=result['home_score'],
                 away_score=result['away_score'],
                 source='auto',
+                value_bet_results=vb_results,
                 **outcomes
             )
             send_result_to_telegram(analysis, result['home_score'], result['away_score'], outcomes)
