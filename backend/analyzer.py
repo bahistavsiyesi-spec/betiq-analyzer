@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 def extract_form_from_fixtures(matches, team_name):
     form = []
-    # reversed → yeni→eski sırası (Sofascore ile uyumlu)
     for m in reversed(matches[-5:]):
         try:
             home_name = m['teams']['home']['name']
@@ -55,7 +54,6 @@ def extract_goals_avg(matches, team_name):
 
 def extract_goals_trend(matches, team_name):
     scored, conceded = [], []
-    # reversed → yeni→eski sırası (form ile uyumlu)
     for m in reversed(matches[-5:]):
         try:
             home_name = m['teams']['home']['name']
@@ -118,7 +116,7 @@ def _get_country_code(fixture):
     return country_map.get(league, None)
 
 
-def analyze_fixture(fixture, csv_data=None):
+def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     from backend.ai_analyzer import analyze_with_claude
 
     home_name = fixture['teams']['home']['name']
@@ -213,12 +211,13 @@ def analyze_fixture(fixture, csv_data=None):
         home_goals_trend=home_goals_trend,
         away_goals_trend=away_goals_trend,
         csv_data=csv_data,
+        ai_provider=ai_provider,
     )
 
 
-def run_selected_analysis(fixture_ids=[], manual_matches=[]):
+def run_selected_analysis(fixture_ids=[], manual_matches=[], ai_provider='claude'):
     today = datetime.now().strftime('%Y-%m-%d')
-    logger.info(f'Starting selected analysis: {len(fixture_ids)} fixtures, {len(manual_matches)} manual')
+    logger.info(f'Starting selected analysis: {len(fixture_ids)} fixtures, {len(manual_matches)} manual, AI: {ai_provider}')
 
     try:
         if fixture_ids:
@@ -231,7 +230,7 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
             selected = [f for f in all_fixtures if f['fixture']['id'] in fixture_ids]
             for fixture in selected:
                 try:
-                    analysis = analyze_fixture(fixture)
+                    analysis = analyze_fixture(fixture, ai_provider=ai_provider)
                     if analysis:
                         save_analysis(analysis)
                         analyzed += 1
@@ -258,7 +257,7 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                 }
 
                 csv_data = m.get('csv_data') or None
-                analysis = analyze_fixture(manual_fixture, csv_data=csv_data)
+                analysis = analyze_fixture(manual_fixture, csv_data=csv_data, ai_provider=ai_provider)
                 if analysis:
                     save_analysis(analysis)
                     analyzed += 1
