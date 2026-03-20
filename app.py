@@ -9,7 +9,8 @@ from backend.database import (
     init_db, get_today_matches, get_analyses_by_date,
     get_available_dates, save_pending_matches, get_pending_matches,
     clear_pending_matches, clear_old_pending_matches,
-    save_coupon, get_coupons, update_coupon_results
+    save_coupon, get_coupons, update_coupon_results,
+    get_value_bet_stats
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static', static_url_path='/static')
@@ -286,6 +287,15 @@ def api_stats_best_worst_days():
         logger.error(f"Stats best/worst error: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/stats/value-bets')
+def api_stats_value_bets():
+    try:
+        data = get_value_bet_stats()
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Stats value bets error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 # ─── Analiz ──────────────────────────────────────────────────────────────────
 
@@ -365,7 +375,7 @@ def api_manual_result():
         if analysis_id is None or home_score is None or away_score is None:
             return jsonify({"status": "error", "message": "Eksik veri"}), 400
         from backend.database import get_analysis_by_id, save_match_result, mark_telegram_sent
-        from backend.results_checker import send_result_to_telegram, calculate_outcomes
+        from backend.results_checker import send_result_to_telegram, calculate_outcomes, calculate_value_bet_results
         analysis = get_analysis_by_id(analysis_id)
         if not analysis:
             return jsonify({"status": "error", "message": "Analiz bulunamadı"}), 404
@@ -374,9 +384,14 @@ def api_manual_result():
         outcomes = calculate_outcomes(analysis, home_score, away_score, ht_hs, ht_as)
         for k in ['pred_1x2_correct','actual_over25','over25_correct','actual_btts','btts_correct','score_correct','ht_correct']:
             outcomes[k] = int(outcomes[k])
+
+        # Value bet sonuçlarını hesapla
+        vb_results = calculate_value_bet_results(analysis, outcomes)
+
         save_match_result(analysis_id=analysis_id, fixture_id=analysis.get('fixture_id'),
                           home_score=home_score, away_score=away_score,
-                          ht_home_score=ht_hs, ht_away_score=ht_as, source='manual', **outcomes)
+                          ht_home_score=ht_hs, ht_away_score=ht_as, source='manual',
+                          value_bet_results=vb_results, **outcomes)
         send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_hs, ht_as)
         mark_telegram_sent(analysis_id)
 
