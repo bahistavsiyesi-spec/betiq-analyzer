@@ -304,6 +304,7 @@ def api_analyze_selected():
     data = request.get_json()
     selected_ids = data.get('fixture_ids', [])
     manual_matches = data.get('manual_matches', [])
+    ai_provider = data.get('ai_provider', 'claude')  # varsayılan: claude
 
     if selected_ids:
         pending = get_pending_matches()
@@ -324,7 +325,7 @@ def api_analyze_selected():
 
     def run_analysis():
         try:
-            run_selected_analysis([], manual_matches)
+            run_selected_analysis([], manual_matches, ai_provider=ai_provider)
         except Exception as e:
             logger.error(f"Analysis error: {e}")
 
@@ -385,7 +386,6 @@ def api_manual_result():
         for k in ['pred_1x2_correct','actual_over25','over25_correct','actual_btts','btts_correct','score_correct','ht_correct']:
             outcomes[k] = int(outcomes[k])
 
-        # Value bet sonuçlarını hesapla
         vb_results = calculate_value_bet_results(analysis, outcomes)
 
         save_match_result(analysis_id=analysis_id, fixture_id=analysis.get('fixture_id'),
