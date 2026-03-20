@@ -10,9 +10,8 @@ logger = logging.getLogger(__name__)
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
-ANALYSIS_MODE = os.environ.get('ANALYSIS_MODE', 'claude')
 
-VALUE_THRESHOLD = 5.0  # Minimum value farkı (%)
+VALUE_THRESHOLD = 5.0
 
 
 def detect_match_importance(league):
@@ -27,27 +26,19 @@ def detect_match_importance(league):
 
 
 def calculate_value_bets(result, csv_data, home_team, away_team):
-    """
-    Claude'un tahminleri ile bahisçi oranlarını karşılaştırır.
-    VALUE_THRESHOLD üzerinde fark varsa value bet olarak işaretler.
-    
-    Döner: [{'label': 'Over 2.5', 'our_pct': 81, 'implied_pct': 61, 'diff': 20, 'odds': 1.65}, ...]
-    """
     if not csv_data or not result:
         return []
 
     value_bets = []
 
     checks = [
-        # (label, our_pct_key, odds_key)
         ('Over 2.5',    'over25_pct',  'odds_over25'),
         ('KG Var',      'btts_pct',    'odds_btts_yes'),
         ('İY 0.5 Üst',  'ht2g_pct',   'odds_ht_over05'),
-        ('Over 1.5',    None,          'odds_over15'),   # over15 pct yok, skip
+        ('Over 1.5',    None,          'odds_over15'),
         ('Over 3.5',    None,          'odds_over35'),
     ]
 
-    # 1X2 için özel hesap
     pred = result.get('prediction_1x2')
     pred_map = {
         '1': ('1X2 (Ev)', 'odds_home'),
@@ -60,7 +51,6 @@ def calculate_value_bets(result, csv_data, home_team, away_team):
         if odds:
             try:
                 implied = round(1 / float(odds) * 100, 1)
-                # 1X2 için confidence'ı pct'ye çevir
                 conf_map = {'Çok Yüksek': 85, 'Yüksek': 75, 'Orta': 60, 'Düşük': 45}
                 our_pct = conf_map.get(result.get('confidence', 'Orta'), 60)
                 diff = round(our_pct - implied, 1)
@@ -72,7 +62,6 @@ def calculate_value_bets(result, csv_data, home_team, away_team):
             except:
                 pass
 
-    # Diğer bahisler
     for label, our_key, odds_key in checks:
         if our_key is None:
             continue
@@ -91,9 +80,8 @@ def calculate_value_bets(result, csv_data, home_team, away_team):
         except:
             continue
 
-    # En yüksek value'ya göre sırala
     value_bets.sort(key=lambda x: x['diff'], reverse=True)
-    return value_bets[:3]  # Max 3 value bet göster
+    return value_bets[:3]
 
 
 def build_csv_section(home_team, away_team, csv_data):
@@ -434,7 +422,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_btts_stats=None, away_btts_stats=None,
                         btts_mathematical=None,
                         home_goals_trend=None, away_goals_trend=None,
-                        csv_data=None):
+                        csv_data=None,
+                        ai_provider='claude'):   # ← YENİ PARAMETRE
 
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
@@ -503,63 +492,63 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     )
 
     result = None
-    mode = ANALYSIS_MODE
 
-    if mode == 'claude':
-        if ANTHROPIC_API_KEY:
-            try:
-                raw = call_anthropic(prompt)
-                result = parse_result(raw)
-                logger.info('Claude OK: ' + home_team + ' vs ' + away_team)
-            except Exception as e:
-                logger.error('Claude failed: ' + str(e))
-        if not result and GEMINI_API_KEY:
-            try:
-                raw = call_gemini(prompt)
-                result = parse_result(raw)
-                logger.info('Gemini (yedek) OK: ' + home_team + ' vs ' + away_team)
-            except Exception as e:
-                logger.error('Gemini fallback failed: ' + str(e))
-
-    elif mode == 'gemini':
-        if GEMINI_API_KEY:
-            try:
-                raw = call_gemini(prompt)
-                result = parse_result(raw)
-                logger.info('Gemini OK: ' + home_team + ' vs ' + away_team)
-            except Exception as e:
-                logger.error('Gemini failed: ' + str(e))
-        if not result and ANTHROPIC_API_KEY:
-            try:
-                raw = call_anthropic(prompt)
-                result = parse_result(raw)
-                logger.info('Claude (yedek) OK: ' + home_team + ' vs ' + away_team)
-            except Exception as e:
-                logger.error('Claude fallback failed: ' + str(e))
-
-    elif mode == 'both':
-        r_claude = r_gemini = None
-        if ANTHROPIC_API_KEY:
-            try: r_claude = parse_result(call_anthropic(prompt)); logger.info('Claude OK: ' + home_team)
-            except Exception as e: logger.error('Claude failed: ' + str(e))
-        if GEMINI_API_KEY:
-            try: r_gemini = parse_result(call_gemini(prompt)); logger.info('Gemini OK: ' + home_team)
-            except Exception as e: logger.error('Gemini failed: ' + str(e))
-        result = merge_results(r_claude, r_gemini) if r_claude and r_gemini else (r_claude or r_gemini)
-
-    elif mode == 'groq':
+    # ── AI Seçimi: claude (varsayılan), grok, gemini ──
+    if ai_provider == 'grok':
         if GROQ_API_KEY:
             try:
                 raw = call_groq(prompt)
                 result = parse_result(raw)
-                logger.info('Groq OK: ' + home_team + ' vs ' + away_team)
+                logger.info(f'Grok OK: {home_team} vs {away_team}')
             except Exception as e:
-                logger.error('Groq failed: ' + str(e))
+                logger.error(f'Grok failed: {e}')
+        # Grok başarısız → Claude'a düş
+        if not result and ANTHROPIC_API_KEY:
+            try:
+                raw = call_anthropic(prompt)
+                result = parse_result(raw)
+                logger.info(f'Claude (Grok yedek) OK: {home_team} vs {away_team}')
+            except Exception as e:
+                logger.error(f'Claude fallback failed: {e}')
+
+    elif ai_provider == 'gemini':
+        if GEMINI_API_KEY:
+            try:
+                raw = call_gemini(prompt)
+                result = parse_result(raw)
+                logger.info(f'Gemini OK: {home_team} vs {away_team}')
+            except Exception as e:
+                logger.error(f'Gemini failed: {e}')
+        # Gemini başarısız → Claude'a düş
+        if not result and ANTHROPIC_API_KEY:
+            try:
+                raw = call_anthropic(prompt)
+                result = parse_result(raw)
+                logger.info(f'Claude (Gemini yedek) OK: {home_team} vs {away_team}')
+            except Exception as e:
+                logger.error(f'Claude fallback failed: {e}')
+
+    else:
+        # Varsayılan: Claude
+        if ANTHROPIC_API_KEY:
+            try:
+                raw = call_anthropic(prompt)
+                result = parse_result(raw)
+                logger.info(f'Claude OK: {home_team} vs {away_team}')
+            except Exception as e:
+                logger.error(f'Claude failed: {e}')
+        # Claude başarısız → Gemini'ye düş
+        if not result and GEMINI_API_KEY:
+            try:
+                raw = call_gemini(prompt)
+                result = parse_result(raw)
+                logger.info(f'Gemini (Claude yedek) OK: {home_team} vs {away_team}')
+            except Exception as e:
+                logger.error(f'Gemini fallback failed: {e}')
 
     if not result:
         return mock_analysis(fixture, home_form, away_form, home_goals_avg, away_goals_avg)
 
-    # ── Value bet hesapla ──
     value_bets = calculate_value_bets(result, csv_data, home_team, away_team)
     if value_bets:
         logger.info(f'Value bets {home_team} vs {away_team}: {[v["label"] + " +" + str(v["diff"]) + "%" for v in value_bets]}')
