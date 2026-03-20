@@ -187,9 +187,9 @@ const API_BASE = '';
 let selectedFixtures = {};
 let manualMatches = [];
 let couponCanvas = null;
+let selectedAiProvider = 'claude'; // varsayılan: claude
 
 // ─── Logo Sistemi ─────────────────────────────────────────────────────────────
-// Önce football-data.org ID tablosuna bak, bulamazsa TheSportsDB'den çek ve cache'le
 const _logoCache = {};
 
 const TEAM_IDS = {
@@ -257,12 +257,10 @@ async function fetchLogoFromSportsDB(teamName) {
 }
 
 function teamLogoHtml(teamName, asyncLoad = true) {
-    // Önce football-data'dan dene
     const fdUrl = getFootballDataLogoUrl(teamName);
     if (fdUrl) {
         return `<img src="${fdUrl}" alt="${teamName}" style="width:24px;height:24px;object-fit:contain;border-radius:4px;margin-bottom:4px;" onerror="this.style.display='none'">`;
     }
-    // Bulunamazsa TheSportsDB'den async çek
     const safeId = 'logo_' + teamName.replace(/[^a-zA-Z0-9]/g, '_');
     if (asyncLoad) {
         fetchLogoFromSportsDB(teamName).then(url => {
@@ -550,6 +548,23 @@ function updateSelectedCount() {
     document.getElementById('analyzeBtn').disabled = total === 0;
 }
 
+// ─── AI Seçici ────────────────────────────────────────────────────────────────
+function selectAiProvider(provider) {
+    selectedAiProvider = provider;
+    document.querySelectorAll('.ai-btn').forEach(btn => {
+        btn.style.background = 'transparent';
+        btn.style.color = '#666';
+        btn.style.borderColor = '#2a2a3a';
+    });
+    const active = document.getElementById(`ai-btn-${provider}`);
+    if (active) {
+        const colors = { grok: '#10b981', gemini: '#3b82f6' };
+        active.style.background = (colors[provider] || '#7c3aed') + '22';
+        active.style.color = colors[provider] || '#a78bfa';
+        active.style.borderColor = colors[provider] || '#7c3aed';
+    }
+}
+
 // ===== IMAGE UPLOAD =====
 function initImageUpload() {
     const btn=document.getElementById('imageUploadBtn');
@@ -619,11 +634,12 @@ async function runAnalysis() {
     const statusDiv=document.getElementById('analysisStatus');
     const fixtureIds = Object.keys(selectedFixtures).map(Number);
     const total = fixtureIds.length + manualMatches.length;
+    const aiLabel = selectedAiProvider === 'grok' ? 'Grok' : selectedAiProvider === 'gemini' ? 'Gemini' : 'Claude';
     btn.disabled=true; btn.innerHTML='⏳ Analiz başlatılıyor...';
     statusDiv.style.display='block';
     statusDiv.innerHTML=`<div class="status-box"><div class="status-spinner"></div><div class="status-text">
-        <strong>🔍 ${total} maç analiz ediliyor...</strong>
-        <span>Claude AI çalışıyor, yaklaşık ${total*10} saniye sürer.</span>
+        <strong>🔍 ${total} maç analiz ediliyor... (${aiLabel})</strong>
+        <span>${aiLabel} AI çalışıyor, yaklaşık ${total*10} saniye sürer.</span>
         <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div>
         <small id="progressText">Başlatılıyor...</small>
     </div></div>`;
@@ -632,12 +648,12 @@ async function runAnalysis() {
         setTimeout(()=>{
             const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
             if(bar)bar.style.width=pct+'%';
-            if(txt)txt.textContent=`🤖 Analiz yapılıyor... (${Math.ceil(i*total/7)}/${total})`;
+            if(txt)txt.textContent=`🤖 ${aiLabel} analiz yapıyor... (${Math.ceil(i*total/7)}/${total})`;
         },(duration/7)*i);
     });
     try {
         const resp=await fetch('/api/analyze/selected',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fixture_ids: fixtureIds, manual_matches: manualMatches})});
+            body:JSON.stringify({fixture_ids: fixtureIds, manual_matches: manualMatches, ai_provider: selectedAiProvider})});
         const data=await resp.json();
         if(data.status==='success'){
             selectedFixtures={};
