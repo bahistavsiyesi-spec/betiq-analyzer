@@ -73,6 +73,7 @@ def init_db():
             total_goals INTEGER DEFAULT 0,
             source TEXT DEFAULT 'auto',
             telegram_sent INTEGER DEFAULT 0,
+            value_bet_results TEXT,
             updated_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
             FOREIGN KEY (analysis_id) REFERENCES analyses(id)
@@ -112,6 +113,7 @@ def init_db():
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS home_goals_trend TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS value_bets TEXT',
+        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS value_bet_results TEXT',
     ]:
         try:
             cur.execute(sql)
@@ -310,6 +312,57 @@ def update_coupon_results(date_str):
     conn.close()
 
 
+# ── Value Bet İstatistikleri ──────────────────────────────────────────────────
+
+def get_value_bet_stats():
+    """
+    Tüm value bet sonuçlarını çek ve kategori bazlı istatistik döndür.
+    value_bet_results: [{"label": "Over 2.5", "correct": true/false, "odds": 1.65, "diff": 20}, ...]
+    """
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('''
+        SELECT value_bet_results FROM match_results
+        WHERE value_bet_results IS NOT NULL
+    ''')
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    stats = {}
+    for row in rows:
+        try:
+            bets = json.loads(row['value_bet_results'])
+            for b in bets:
+                label = b.get('label', 'Diğer')
+                correct = b.get('correct')
+                if correct is None:
+                    continue
+                if label not in stats:
+                    stats[label] = {'total': 0, 'correct': 0, 'total_diff': 0}
+                stats[label]['total'] += 1
+                if correct:
+                    stats[label]['correct'] += 1
+                stats[label]['total_diff'] += b.get('diff', 0)
+        except:
+            continue
+
+    result = []
+    for label, s in stats.items():
+        t = s['total']
+        c = s['correct']
+        result.append({
+            'label': label,
+            'total': t,
+            'correct': c,
+            'pct': round(c / t * 100) if t else 0,
+            'avg_diff': round(s['total_diff'] / t, 1) if t else 0,
+        })
+
+    result.sort(key=lambda x: x['total'], reverse=True)
+    return result
+
+
 # ── Analyses ──────────────────────────────────────────────────────────────────
 
 def save_analysis(data: dict):
@@ -394,7 +447,8 @@ def get_analyses_by_date_with_results(date_str):
             r.actual_1x2, r.pred_1x2_correct,
             r.actual_over25, r.over25_correct,
             r.actual_btts, r.btts_correct,
-            r.score_correct, r.ht_correct, r.total_goals
+            r.score_correct, r.ht_correct, r.total_goals,
+            r.value_bet_results
         FROM analyses a
         LEFT JOIN match_results r ON a.id = r.analysis_id
         WHERE a.analysis_date = %s
@@ -450,7 +504,8 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                       actual_over25, over25_correct,
                       actual_btts, btts_correct,
                       score_correct, total_goals, source='auto',
-                      ht_home_score=None, ht_away_score=None, ht_correct=0):
+                      ht_home_score=None, ht_away_score=None, ht_correct=0,
+                      value_bet_results=None):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute('SELECT id FROM match_results WHERE analysis_id = %s', (analysis_id,))
@@ -464,12 +519,15 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                 actual_over25=%s, over25_correct=%s,
                 actual_btts=%s, btts_correct=%s,
                 score_correct=%s, ht_correct=%s,
-                total_goals=%s, source=%s
+                total_goals=%s, source=%s,
+                value_bet_results=%s
             WHERE analysis_id=%s
         ''', (home_score, away_score, ht_home_score, ht_away_score,
               actual_1x2, pred_1x2_correct, actual_over25, over25_correct,
               actual_btts, btts_correct, score_correct, ht_correct,
-              total_goals, source, analysis_id))
+              total_goals, source,
+              json.dumps(value_bet_results, ensure_ascii=False) if value_bet_results else None,
+              analysis_id))
     else:
         cur.execute('''
             INSERT INTO match_results (
@@ -479,15 +537,16 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                 actual_over25, over25_correct,
                 actual_btts, btts_correct,
                 score_correct, ht_correct,
-                total_goals, source
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                total_goals, source, value_bet_results
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (analysis_id, fixture_id, home_score, away_score,
               ht_home_score, ht_away_score,
               actual_1x2, pred_1x2_correct,
               actual_over25, over25_correct,
               actual_btts, btts_correct,
               score_correct, ht_correct,
-              total_goals, source))
+              total_goals, source,
+              json.dumps(value_bet_results, ensure_ascii=False) if value_bet_results else None))
     conn.commit()
     cur.close()
     conn.close()
