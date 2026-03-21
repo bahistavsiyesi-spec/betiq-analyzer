@@ -27,6 +27,7 @@ def init_db():
             ht2g_pct REAL,
             btts_pct REAL,
             predicted_score TEXT,
+            predicted_ht_score TEXT,
             confidence TEXT,
             reasoning TEXT,
             h2h_summary TEXT,
@@ -114,6 +115,7 @@ def init_db():
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS value_bets TEXT',
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS value_bet_results TEXT',
+        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS predicted_ht_score TEXT',
     ]:
         try:
             cur.execute(sql)
@@ -126,7 +128,7 @@ def init_db():
     conn.close()
 
 
-# ── Pending Matches ───────────────────────────────────────────────────────────
+# Pending Matches
 
 def save_pending_matches(matches: list):
     today = datetime.now().strftime('%Y-%m-%d')
@@ -186,7 +188,7 @@ def clear_old_pending_matches():
     conn.close()
 
 
-# ── Coupons ───────────────────────────────────────────────────────────────────
+# Coupons
 
 def save_coupon(items: list):
     today = datetime.now().strftime('%Y-%m-%d')
@@ -248,22 +250,17 @@ def update_coupon_results(date_str):
     coupon = get_coupon_by_date(date_str)
     if not coupon:
         return
-
     items = coupon['items']
     if not items:
         return
-
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
     correct = 0
     updated_items = []
-
     for item in items:
         analysis_id = item.get('analysis_id')
         pred_type = item.get('prediction_type')
         item_result = None
-
         if analysis_id:
             cur.execute('''
                 SELECT r.*, a.prediction_1x2
@@ -276,49 +273,41 @@ def update_coupon_results(date_str):
                 row = dict(row)
                 if pred_type == '1X2':
                     item_result = bool(row.get('pred_1x2_correct'))
-                elif pred_type == '2.5 Üst':
+                elif pred_type in ('2.5 Ust', '2.5 Üst'):
                     item_result = bool(row.get('over25_correct'))
-                elif pred_type == '2.5 Alt':
+                elif pred_type in ('2.5 Alt',):
                     item_result = not bool(row.get('actual_over25'))
                 elif pred_type == 'KG Var':
                     item_result = bool(row.get('btts_correct'))
                 elif pred_type == 'KG Yok':
                     item_result = not bool(row.get('actual_btts'))
-                elif pred_type == 'İY 0.5 Üst':
+                elif pred_type in ('IY 0.5 Ust', 'İY 0.5 Üst'):
                     item_result = bool(row.get('ht_correct'))
                 elif pred_type == 'Over 1.5':
                     item_result = (row.get('total_goals') or 0) > 1
                 elif pred_type == 'Over 3.5':
                     item_result = (row.get('total_goals') or 0) > 3
-
         item['result'] = item_result
         if item_result is True:
             correct += 1
         updated_items.append(item)
-
     total = len(updated_items)
     all_resolved = all(i.get('result') is not None for i in updated_items)
     all_correct = (correct == total) and all_resolved
     status = 'completed' if all_resolved else 'pending'
     won = 1 if all_correct else 0
-
     cur.execute('''
         UPDATE coupons SET items=%s, correct_items=%s, won=%s, status=%s
         WHERE coupon_date=%s
     ''', (json.dumps(updated_items, ensure_ascii=False), correct, won, status, date_str))
-
     conn.commit()
     cur.close()
     conn.close()
 
 
-# ── Value Bet İstatistikleri ──────────────────────────────────────────────────
+# Value Bet Istatistikleri
 
 def get_value_bet_stats():
-    """
-    Tüm value bet sonuçlarını çek ve kategori bazlı istatistik döndür.
-    value_bet_results: [{"label": "Over 2.5", "correct": true/false, "odds": 1.65, "diff": 20}, ...]
-    """
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute('''
@@ -328,13 +317,12 @@ def get_value_bet_stats():
     rows = cur.fetchall()
     cur.close()
     conn.close()
-
     stats = {}
     for row in rows:
         try:
             bets = json.loads(row['value_bet_results'])
             for b in bets:
-                label = b.get('label', 'Diğer')
+                label = b.get('label', 'Diger')
                 correct = b.get('correct')
                 if correct is None:
                     continue
@@ -346,24 +334,20 @@ def get_value_bet_stats():
                 stats[label]['total_diff'] += b.get('diff', 0)
         except:
             continue
-
     result = []
     for label, s in stats.items():
         t = s['total']
         c = s['correct']
         result.append({
-            'label': label,
-            'total': t,
-            'correct': c,
+            'label': label, 'total': t, 'correct': c,
             'pct': round(c / t * 100) if t else 0,
             'avg_diff': round(s['total_diff'] / t, 1) if t else 0,
         })
-
     result.sort(key=lambda x: x['total'], reverse=True)
     return result
 
 
-# ── Analyses ──────────────────────────────────────────────────────────────────
+# Analyses
 
 def save_analysis(data: dict):
     conn = get_conn()
@@ -372,10 +356,10 @@ def save_analysis(data: dict):
         INSERT INTO analyses (
             analysis_date, fixture_id, home_team, away_team, league, match_time,
             prediction_1x2, over25_pct, ht2g_pct, btts_pct, predicted_score,
-            confidence, reasoning, h2h_summary, home_form, away_form,
+            predicted_ht_score, confidence, reasoning, h2h_summary, home_form, away_form,
             home_goals_avg, away_goals_avg, home_goals_trend, away_goals_trend,
             value_bets
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
         data.get('analysis_date', datetime.now().strftime('%Y-%m-%d')),
         data.get('fixture_id'),
@@ -383,7 +367,9 @@ def save_analysis(data: dict):
         data.get('league', ''), data.get('match_time', ''),
         data.get('prediction_1x2', ''), data.get('over25_pct', 0),
         data.get('ht2g_pct', 0), data.get('btts_pct', 0),
-        data.get('predicted_score', ''), data.get('confidence', 'Orta'),
+        data.get('predicted_score', ''),
+        data.get('predicted_ht_score', ''),
+        data.get('confidence', 'Orta'),
         data.get('reasoning', ''), data.get('h2h_summary', ''),
         data.get('home_form', ''), data.get('away_form', ''),
         data.get('home_goals_avg', 0), data.get('away_goals_avg', 0),
