@@ -320,7 +320,9 @@ Mevcut veri durumu:
         '4. Puan durumu motivasyonu: küme düşme baskısı veya şampiyonluk yarışı\n'
         '5. H2H geçmişi varsa dikkate al\n'
         '6. Tüm yanıtlar TÜRKÇE olacak\n'
-        '7. "Elo" kelimesini kullanma, "Güç Puanı" kullan\n\n'
+        '7. "Elo" kelimesini kullanma, "Güç Puanı" kullan\n'
+        '8. predicted_ht_score ilk yarı tahmini, predicted_score maç sonu tahmini — ikisi tutarlı olmalı\n'
+        '   Örnek: İY 1-0 tahmini yapıyorsan maç sonu 1-0, 2-0, 1-1, 2-1 olabilir — 0-1 olamaz\n\n'
         'SADECE şu JSON formatında yanıt ver:\n'
         '{\n'
         '  "prediction_1x2": "1 veya X veya 2",\n'
@@ -328,6 +330,7 @@ Mevcut veri durumu:
         '  "ht2g_pct": 40,\n'
         '  "btts_pct": 45,\n'
         '  "predicted_score": "2-1",\n'
+        '  "predicted_ht_score": "1-0",\n'
         '  "confidence": "Orta",\n'
         '  "reasoning": [\n'
         f'    "{home_team} hakkında değerlendirme",\n'
@@ -604,6 +607,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         'ht2g_pct': round(ht2g_pct),
         'btts_pct': round(btts_pct),
         'predicted_score': result.get('predicted_score', '?-?'),
+        'predicted_ht_score': result.get('predicted_ht_score', '?-?'),
         'confidence': confidence,
         'reasoning': json.dumps(result.get('reasoning', []), ensure_ascii=False),
         'h2h_summary': result.get('h2h_summary', ''),
@@ -624,7 +628,7 @@ def mock_analysis(fixture, home_form='', away_form='', home_goals_avg=0, away_go
         'home_team': home_team, 'away_team': away_team,
         'league': fixture['league']['name'], 'match_time': fixture['fixture']['date'],
         'prediction_1x2': '1', 'over25_pct': 55, 'ht2g_pct': 40, 'btts_pct': 45,
-        'predicted_score': '2-1', 'confidence': 'Orta',
+        'predicted_score': '2-1', 'predicted_ht_score': '1-0', 'confidence': 'Orta',
         'reasoning': json.dumps([home_team + ' ev sahibi avantajına sahip', 'İstatistiksel model tahmini'], ensure_ascii=False),
         'h2h_summary': 'Genel istatistiklere göre tahmin',
         'home_form': home_form, 'away_form': away_form,
