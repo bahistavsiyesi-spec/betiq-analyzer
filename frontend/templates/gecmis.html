@@ -6,142 +6,13 @@
     <title>BetIQ — Geçmiş Analizler</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/tr.js"></script>
     <style>
         .gecmis-container { max-width: 900px; margin: 0 auto; padding: 20px; }
-
-        /* ─── Takvim Picker ─── */
-        .date-picker-wrap {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-        }
-        .date-picker-label {
-            font-size: 13px;
-            color: #666;
-        }
-        .date-picker-input-wrap {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-        }
-        .date-picker-input-wrap .cal-icon {
-            position: absolute;
-            left: 12px;
-            font-size: 16px;
-            pointer-events: none;
-            z-index: 1;
-        }
-        #datePicker {
-            padding: 10px 16px 10px 38px;
-            border-radius: 10px;
-            border: 1px solid #333;
-            background: #1a1a2e;
-            color: #fff;
-            font-family: inherit;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            min-width: 160px;
-            transition: border-color 0.2s;
-            outline: none;
-        }
-        #datePicker:focus, #datePicker:hover {
-            border-color: #7c3aed;
-        }
-        .date-nav-btns {
-            display: flex;
-            gap: 6px;
-        }
-        .date-nav-btn {
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            background: #1a1a2e;
-            color: #aaa;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-        .date-nav-btn:hover {
-            border-color: #7c3aed;
-            color: #fff;
-        }
-        .date-nav-btn:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-        .current-date-badge {
-            background: #7c3aed22;
-            border: 1px solid #7c3aed55;
-            color: #a78bfa;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        /* Flatpickr dark tema override */
-        .flatpickr-calendar {
-            background: #1a1a2e !important;
-            border: 1px solid #333 !important;
-            border-radius: 12px !important;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
-        }
-        .flatpickr-month, .flatpickr-weekdays, .flatpickr-day {
-            color: #fff !important;
-        }
-        .flatpickr-day {
-            color: #aaa !important;
-            border-radius: 8px !important;
-        }
-        .flatpickr-day:hover {
-            background: #7c3aed33 !important;
-            color: #fff !important;
-            border-color: transparent !important;
-        }
-        .flatpickr-day.selected, .flatpickr-day.selected:hover {
-            background: #7c3aed !important;
-            border-color: #7c3aed !important;
-            color: #fff !important;
-        }
-        .flatpickr-day.flatpickr-disabled {
-            color: #333 !important;
-        }
-        .flatpickr-months .flatpickr-month {
-            background: #1a1a2e !important;
-            color: #fff !important;
-        }
-        .flatpickr-current-month, .flatpickr-current-month .numInputWrapper input {
-            color: #fff !important;
-        }
-        .flatpickr-weekday {
-            color: #7c3aed !important;
-            background: #1a1a2e !important;
-        }
-        .flatpickr-prev-month svg, .flatpickr-next-month svg {
-            fill: #aaa !important;
-        }
-        .flatpickr-prev-month:hover svg, .flatpickr-next-month:hover svg {
-            fill: #7c3aed !important;
-        }
-        /* Analizi olan günleri işaretle */
-        .flatpickr-day.has-data {
-            background: #7c3aed22 !important;
-            border: 1px solid #7c3aed55 !important;
-            color: #fff !important;
-            font-weight: 700 !important;
-        }
-        .flatpickr-day.has-data.selected {
-            background: #7c3aed !important;
-        }
-
+        .date-selector { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
+        .date-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid #333; background: #1a1a2e; color: #aaa; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.2s; }
+        .date-btn:hover { border-color: #7c3aed; color: #fff; }
+        .date-btn.active { background: #7c3aed; border-color: #7c3aed; color: #fff; }
         .summary-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; padding: 16px; background: #1a1a2e; border-radius: 12px; border: 1px solid #333; }
         .summary-item { text-align: center; }
         .summary-item .s-value { font-size: 22px; font-weight: 800; color: #7c3aed; }
@@ -176,38 +47,102 @@
         .save-msg { font-size: 12px; color: #22c55e; margin-left: 8px; }
         .btn-report { padding: 10px 20px; border-radius: 10px; border: none; background: #7c3aed; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.2s; margin-bottom: 20px; }
         .btn-report:hover { background: #a855f7; }
+        .ht-divider { width: 100%; font-size: 11px; color: #555; margin: 6px 0 2px 0; }
         .btn-share { padding: 5px 12px; border-radius: 8px; border: 1px solid #7c3aed; background: transparent; color: #7c3aed; font-size: 11px; cursor: pointer; font-family: inherit; margin-top: 10px; margin-left: 8px; transition: all 0.2s; }
         .btn-share:hover { background: #7c3aed; color: #fff; }
 
-        /* ─── Paylaşım Kartı ─── */
+        /* ─── Paylaşım Kartı (Instagram 1:1) ─────────────────────────── */
         .share-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; }
         .share-overlay.active { display: flex; }
         .share-modal { background: #0d0d1a; border-radius: 16px; padding: 24px; max-width: 500px; width: 90%; }
         .share-modal h3 { color: #fff; margin-bottom: 16px; font-size: 15px; }
         .share-card-wrap { display: flex; justify-content: center; margin-bottom: 16px; }
-        .share-card { width: 400px; height: 400px; background: linear-gradient(135deg, #0d0d1a 0%, #1a0a2e 100%); border-radius: 16px; padding: 28px; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Syne', sans-serif; position: relative; overflow: hidden; border: 1px solid #2a1a4e; }
-        .share-card::before { content: ''; position: absolute; top: -60px; right: -60px; width: 180px; height: 180px; background: radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%); }
+
+        /* Kare kart - 1:1 */
+        .share-card {
+            width: 400px;
+            height: 400px;
+            background: linear-gradient(135deg, #0d0d1a 0%, #1a0a2e 100%);
+            border-radius: 16px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-family: 'Syne', sans-serif;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #2a1a4e;
+        }
+        .share-card::before {
+            content: '';
+            position: absolute;
+            top: -60px; right: -60px;
+            width: 180px; height: 180px;
+            background: radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%);
+        }
         .share-card-header { display: flex; justify-content: space-between; align-items: center; }
         .share-card-logo { font-size: 13px; font-weight: 800; color: #7c3aed; letter-spacing: 1px; }
         .share-card-league { font-size: 11px; color: #666; background: #1a1a2e; padding: 4px 10px; border-radius: 20px; }
-        .share-card-teams { text-align: center; padding: 8px 0; }
-        .share-card-teams .teams-row { display: flex; align-items: center; justify-content: center; gap: 12px; }
+        .share-card-teams {
+            text-align: center;
+            padding: 8px 0;
+        }
+        .share-card-teams .teams-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
         .share-team-name { font-size: 18px; font-weight: 800; color: #fff; flex: 1; }
         .share-team-name.home { text-align: right; }
         .share-team-name.away { text-align: left; }
         .share-vs { font-size: 13px; color: #555; font-weight: 600; flex-shrink: 0; }
-        .share-result-score { font-size: 36px; font-weight: 800; color: #7c3aed; text-align: center; margin: 4px 0; letter-spacing: 2px; }
+        .share-result-score {
+            font-size: 36px; font-weight: 800;
+            color: #7c3aed;
+            text-align: center;
+            margin: 4px 0;
+            letter-spacing: 2px;
+        }
         .share-ht-score { font-size: 12px; color: #555; text-align: center; }
-        .share-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .share-stat { background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2); border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
+        .share-card-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .share-stat {
+            background: rgba(124,58,237,0.1);
+            border: 1px solid rgba(124,58,237,0.2);
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
         .share-stat-tick { font-size: 16px; line-height: 1; }
         .share-stat-info { flex: 1; }
         .share-stat-label { font-size: 10px; color: #666; }
         .share-stat-value { font-size: 13px; font-weight: 700; color: #fff; }
-        .share-card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #2a2a3e; padding-top: 10px; }
+        .share-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #2a2a3e;
+            padding-top: 10px;
+        }
         .share-footer-pred { font-size: 11px; color: #888; }
         .share-footer-pred span { color: #7c3aed; font-weight: 700; }
-        .share-pending-badge { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #f59e0b; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; text-align: center; }
+        .share-footer-watermark { font-size: 11px; color: #444; font-weight: 600; }
+        .share-pending-badge {
+            background: rgba(245,158,11,0.15);
+            border: 1px solid rgba(245,158,11,0.3);
+            color: #f59e0b;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+        }
         .share-modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
         .btn-download { padding: 10px 20px; border-radius: 10px; border: none; background: #7c3aed; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
         .btn-close-share { padding: 10px 20px; border-radius: 10px; border: 1px solid #333; background: transparent; color: #aaa; font-size: 13px; cursor: pointer; font-family: inherit; }
@@ -229,18 +164,8 @@
                 <a href="/" class="back-btn">← Ana Sayfa</a>
                 <h2 style="color:#fff; margin-bottom:20px;">📅 Geçmiş Analizler</h2>
 
-                <!-- Takvim Picker -->
-                <div class="date-picker-wrap">
-                    <span class="date-picker-label">Tarih seç:</span>
-                    <div class="date-picker-input-wrap">
-                        <span class="cal-icon">📅</span>
-                        <input type="text" id="datePicker" placeholder="Tarih seç..." readonly>
-                    </div>
-                    <div class="date-nav-btns">
-                        <button class="date-nav-btn" id="prevDayBtn" onclick="navigateDay(-1)" title="Önceki gün">◀</button>
-                        <button class="date-nav-btn" id="nextDayBtn" onclick="navigateDay(1)" title="Sonraki gün">▶</button>
-                    </div>
-                    <span class="current-date-badge" id="currentDateBadge" style="display:none;"></span>
+                <div class="date-selector" id="dateSelector">
+                    <span style="color:#666; font-size:13px;">Tarih yükleniyor...</span>
                 </div>
 
                 <div id="summaryBar" style="display:none;" class="summary-bar">
@@ -282,91 +207,26 @@
         let currentDate = null;
         let currentMatches = [];
         let shareMatchData = null;
-        let availableDates = [];
-        let calendarInstance = null;
 
         async function loadDates() {
             const resp = await fetch('/api/dates');
-            availableDates = await resp.json();
-
-            if (!availableDates.length) {
-                document.getElementById('datePicker').placeholder = 'Henüz analiz yok';
-                return;
-            }
-
-            // Flatpickr başlat
-            calendarInstance = flatpickr('#datePicker', {
-                locale: 'tr',
-                dateFormat: 'd/m/Y',
-                disableMobile: true,
-                onDayCreate: function(dObj, dStr, fp, dayElem) {
-                    // Analizi olan günleri işaretle
-                    const d = dayElem.dateObj;
-                    const dateStr = d.getFullYear() + '-' +
-                        String(d.getMonth()+1).padStart(2,'0') + '-' +
-                        String(d.getDate()).padStart(2,'0');
-                    if (availableDates.includes(dateStr)) {
-                        dayElem.classList.add('has-data');
-                    }
-                },
-                onChange: function(selectedDates, dateStr, instance) {
-                    if (selectedDates.length > 0) {
-                        const d = selectedDates[0];
-                        const isoDate = d.getFullYear() + '-' +
-                            String(d.getMonth()+1).padStart(2,'0') + '-' +
-                            String(d.getDate()).padStart(2,'0');
-                        loadDate(isoDate);
-                    }
-                }
-            });
-
-            // En son tarihi otomatik seç
-            loadDate(availableDates[0]);
-            const parts = availableDates[0].split('-');
-            calendarInstance.setDate(`${parts[2]}/${parts[1]}/${parts[0]}`);
-        }
-
-        function navigateDay(direction) {
-            if (!currentDate || !availableDates.length) return;
-            const idx = availableDates.indexOf(currentDate);
-            const newIdx = idx - direction; // dates newest-first
-            if (newIdx >= 0 && newIdx < availableDates.length) {
-                const newDate = availableDates[newIdx];
-                const parts = newDate.split('-');
-                calendarInstance.setDate(`${parts[2]}/${parts[1]}/${parts[0]}`);
-                loadDate(newDate);
-            }
-            updateNavBtns();
-        }
-
-        function updateNavBtns() {
-            if (!currentDate || !availableDates.length) return;
-            const idx = availableDates.indexOf(currentDate);
-            document.getElementById('prevDayBtn').disabled = (idx >= availableDates.length - 1);
-            document.getElementById('nextDayBtn').disabled = (idx <= 0);
+            const dates = await resp.json();
+            const selector = document.getElementById('dateSelector');
+            if (!dates.length) { selector.innerHTML = '<span style="color:#666;">Henüz analiz yapılmadı.</span>'; return; }
+            selector.innerHTML = dates.map(d => `<button class="date-btn" onclick="loadDate('${d}')">${formatDate(d)}</button>`).join('');
+            loadDate(dates[0]);
         }
 
         async function loadDate(date) {
             currentDate = date;
-            updateNavBtns();
-
-            // Badge güncelle
-            const badge = document.getElementById('currentDateBadge');
-            badge.textContent = formatDate(date);
-            badge.style.display = 'inline-block';
-
+            document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === formatDate(date)));
             document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Yükleniyor...</div>';
             document.getElementById('summaryBar').style.display = 'none';
             document.getElementById('reportBtnWrapper').style.display = 'none';
-
             const resp = await fetch(`/api/matches/date/${date}`);
             const matches = await resp.json();
             currentMatches = matches;
-
-            if (!matches.length) {
-                document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Bu tarihte analiz bulunamadı.</div>';
-                return;
-            }
+            if (!matches.length) { document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Bu tarihte analiz bulunamadı.</div>'; return; }
             renderSummary(matches);
             renderMatches(matches);
             document.getElementById('reportBtnWrapper').style.display = 'block';
@@ -441,6 +301,7 @@
                     <div class="pred-item"><span class="tick">${m.btts_correct?'✅':'❌'}</span><span class="pred-label">KG Var:</span><span class="pred-value">%${Math.round(m.btts_pct)} → ${m.actual_btts?'Var':'Yok'}</span></div>
                     ${htPredHtml}
                     <div class="pred-item"><span class="tick">${m.score_correct?'✅':'❌'}</span><span class="pred-label">Skor:</span><span class="pred-value">${m.predicted_score||'?-?'}</span></div>
+                    <div class="pred-item"><span class="tick">—</span><span class="pred-label">Tahmini İY:</span><span class="pred-value">${m.predicted_ht_score||'?-?'}</span></div>
                 </div>${scoreFormHtml}` : `
                 <div class="result-preds">
                     <div class="pred-item"><span class="pred-label">1X2:</span><span class="pred-value">${predText}</span></div>
@@ -448,6 +309,7 @@
                     <div class="pred-item"><span class="pred-label">KG Var:</span><span class="pred-value">%${Math.round(m.btts_pct||0)}</span></div>
                     <div class="pred-item"><span class="pred-label">İY 0.5 Üst:</span><span class="pred-value">%${Math.round(m.ht2g_pct||0)}</span></div>
                     <div class="pred-item"><span class="pred-label">Tahmini Skor:</span><span class="pred-value">${m.predicted_score||'?-?'}</span></div>
+                    <div class="pred-item"><span class="pred-label">Tahmini İY:</span><span class="pred-value">${m.predicted_ht_score||'?-?'}</span></div>
                 </div>${scoreFormHtml}`;
 
             return `
@@ -463,7 +325,7 @@
                 </div>`;
         }
 
-        // ─── Paylaşım Kartı ───────────────────────────────────────────
+        // ─── Paylaşım Kartı ────────────────────────────────────────────
         function openShare(matchId) {
             const m = currentMatches.find(x => x.id === matchId);
             if (!m) return;
@@ -480,17 +342,61 @@
 
             const stats = hasResult ? `
                 <div class="share-card-stats">
-                    <div class="share-stat"><span class="share-stat-tick">${m.pred_1x2_correct ? '✅' : '❌'}</span><div class="share-stat-info"><div class="share-stat-label">1X2 TAHMİN</div><div class="share-stat-value">${predText} → ${m.actual_1x2 || '?'}</div></div></div>
-                    <div class="share-stat"><span class="share-stat-tick">${m.over25_correct ? '✅' : '❌'}</span><div class="share-stat-info"><div class="share-stat-label">2.5 GOL ÜSTÜ</div><div class="share-stat-value">%${Math.round(m.over25_pct||0)} → ${m.actual_over25 ? 'Üstü' : 'Altı'}</div></div></div>
-                    <div class="share-stat"><span class="share-stat-tick">${m.btts_correct ? '✅' : '❌'}</span><div class="share-stat-info"><div class="share-stat-label">KG VAR (BTTS)</div><div class="share-stat-value">%${Math.round(m.btts_pct||0)} → ${m.actual_btts ? 'Var' : 'Yok'}</div></div></div>
-                    <div class="share-stat"><span class="share-stat-tick">${hasHt ? (m.ht_correct ? '✅' : '❌') : '—'}</span><div class="share-stat-info"><div class="share-stat-label">İY 0.5 ÜST</div><div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}${hasHt ? ' → İY ' + m.ht_home_score + '-' + m.ht_away_score : ''}</div></div></div>
+                    <div class="share-stat">
+                        <span class="share-stat-tick">${m.pred_1x2_correct ? '✅' : '❌'}</span>
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">1X2 TAHMİN</div>
+                            <div class="share-stat-value">${predText} → ${m.actual_1x2 || '?'}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <span class="share-stat-tick">${m.over25_correct ? '✅' : '❌'}</span>
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">2.5 GOL ÜSTÜ</div>
+                            <div class="share-stat-value">%${Math.round(m.over25_pct||0)} → ${m.actual_over25 ? 'Üstü' : 'Altı'}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <span class="share-stat-tick">${m.btts_correct ? '✅' : '❌'}</span>
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">KG VAR (BTTS)</div>
+                            <div class="share-stat-value">%${Math.round(m.btts_pct||0)} → ${m.actual_btts ? 'Var' : 'Yok'}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <span class="share-stat-tick">${hasHt ? (m.ht_correct ? '✅' : '❌') : '—'}</span>
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">İY 0.5 ÜST</div>
+                            <div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}${hasHt ? ' → İY ' + m.ht_home_score + '-' + m.ht_away_score : ''}</div>
+                        </div>
+                    </div>
                 </div>` : `
                 <div class="share-pending-badge">⏳ Sonuç Henüz Girilmedi</div>
                 <div class="share-card-stats" style="margin-top:8px;">
-                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">1X2 TAHMİN</div><div class="share-stat-value">${predText}</div></div></div>
-                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">2.5 GOL</div><div class="share-stat-value">%${Math.round(m.over25_pct||0)}</div></div></div>
-                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">KG VAR</div><div class="share-stat-value">%${Math.round(m.btts_pct||0)}</div></div></div>
-                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">İY 0.5 ÜST</div><div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}</div></div></div>
+                    <div class="share-stat">
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">1X2 TAHMİN</div>
+                            <div class="share-stat-value">${predText}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">2.5 GOL</div>
+                            <div class="share-stat-value">%${Math.round(m.over25_pct||0)}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">KG VAR</div>
+                            <div class="share-stat-value">%${Math.round(m.btts_pct||0)}</div>
+                        </div>
+                    </div>
+                    <div class="share-stat">
+                        <div class="share-stat-info">
+                            <div class="share-stat-label">İY 0.5 ÜST</div>
+                            <div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}</div>
+                        </div>
+                    </div>
                 </div>`;
 
             document.getElementById('shareCard').innerHTML = `
@@ -504,34 +410,53 @@
                         <div class="share-vs">VS</div>
                         <div class="share-team-name away">${m.away_team}</div>
                     </div>
-                    ${hasResult ? `<div class="share-result-score">${m.home_score} — ${m.away_score}</div>${hasHt ? `<div class="share-ht-score">İY: ${m.ht_home_score}-${m.ht_away_score}</div>` : ''}` : ''}
+                    ${hasResult ? `
+                        <div class="share-result-score">${m.home_score} — ${m.away_score}</div>
+                        ${hasHt ? `<div class="share-ht-score">İY: ${m.ht_home_score}-${m.ht_away_score}</div>` : ''}
+                    ` : ''}
                 </div>
                 ${stats}
                 <div class="share-card-footer">
                     <div class="share-footer-pred">Tahmin: <span>${predText}</span> &nbsp;|&nbsp; Güven: <span>${m.confidence || 'Orta'}</span></div>
+
                 </div>`;
         }
 
-        function closeShare(e) { if (e.target === document.getElementById('shareOverlay')) closeShareModal(); }
-        function closeShareModal() { document.getElementById('shareOverlay').classList.remove('active'); }
+        function closeShare(e) {
+            if (e.target === document.getElementById('shareOverlay')) closeShareModal();
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareOverlay').classList.remove('active');
+        }
 
         async function downloadShareCard() {
             const card = document.getElementById('shareCard');
             const btn = document.querySelector('.btn-download');
             btn.textContent = '⏳ Hazırlanıyor...';
             btn.disabled = true;
+
             try {
-                const canvas = await html2canvas(card, { scale: 2, backgroundColor: null, useCORS: true, logging: false });
+                const canvas = await html2canvas(card, {
+                    scale: 2,
+                    backgroundColor: null,
+                    useCORS: true,
+                    logging: false,
+                });
                 const link = document.createElement('a');
                 const name = shareMatchData ? `${shareMatchData.home_team}_vs_${shareMatchData.away_team}.png`.replace(/\s+/g, '_') : 'betiq_kart.png';
                 link.download = name;
                 link.href = canvas.toDataURL('image/png');
                 link.click();
-            } catch(e) { alert('PNG oluşturulamadı: ' + e.message); }
+            } catch(e) {
+                alert('PNG oluşturulamadı: ' + e.message);
+            }
+
             btn.textContent = '⬇️ PNG İndir';
             btn.disabled = false;
         }
 
+        // ─── Diğer fonksiyonlar ────────────────────────────────────────
         function toggleScoreForm(id) {
             const form = document.getElementById(`scoreForm-${id}`);
             form.style.display = form.style.display === 'none' ? 'block' : 'none';
