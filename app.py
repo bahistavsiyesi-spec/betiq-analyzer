@@ -28,7 +28,7 @@ def scheduled_result_check():
 def midnight_reset():
     try:
         clear_old_pending_matches()
-        logger.info("Gece sıfırlama: eski pending maçlar silindi.")
+        logger.info("Gece sifirlama: eski pending maclar silindi.")
     except Exception as e:
         logger.error(f"Midnight reset failed: {e}")
 
@@ -54,8 +54,7 @@ def kuponlar():
     return render_template('kuponlar.html')
 
 
-# ─── Fixtures ────────────────────────────────────────────────────────────────
-
+# Fixtures
 @app.route('/api/fixtures/today')
 def api_today_fixtures():
     pending = get_pending_matches()
@@ -72,19 +71,18 @@ def api_today_fixtures():
     return jsonify(result)
 
 
-# ─── CSV Upload ───────────────────────────────────────────────────────────────
-
+# CSV Upload
 @app.route('/api/csv/upload', methods=['POST'])
 def api_csv_upload():
     try:
         data = request.get_json()
         matches = data.get('matches', [])
         if not matches:
-            return jsonify({"status": "error", "message": "Maç listesi boş"}), 400
+            return jsonify({"status": "error", "message": "Mac listesi bos"}), 400
         clear_pending_matches()
         save_pending_matches(matches)
-        logger.info(f"CSV upload: {len(matches)} maç kaydedildi")
-        return jsonify({"status": "success", "message": f"{len(matches)} maç yüklendi!", "total": len(matches)})
+        logger.info(f"CSV upload: {len(matches)} mac kaydedildi")
+        return jsonify({"status": "success", "message": f"{len(matches)} mac yuklendi!", "total": len(matches)})
     except Exception as e:
         logger.error(f"CSV upload error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -111,8 +109,7 @@ def api_available_dates():
     return jsonify(dates)
 
 
-# ─── İstatistik ───────────────────────────────────────────────────────────────
-
+# Istatistik
 @app.route('/api/stats/overview')
 def api_stats_overview():
     try:
@@ -193,10 +190,10 @@ def api_stats_by_category():
         total_ht = row['total_ht'] or 0
         categories = [
             {'name': '1X2', 'correct': row['c1x2'] or 0, 'total': total, 'pct': round((row['c1x2'] or 0)/total*100) if total else 0},
-            {'name': '2.5 Üst/Alt', 'correct': row['cover25'] or 0, 'total': total, 'pct': round((row['cover25'] or 0)/total*100) if total else 0},
+            {'name': '2.5 Ust/Alt', 'correct': row['cover25'] or 0, 'total': total, 'pct': round((row['cover25'] or 0)/total*100) if total else 0},
             {'name': 'KG Var/Yok', 'correct': row['cbtts'] or 0, 'total': total, 'pct': round((row['cbtts'] or 0)/total*100) if total else 0},
             {'name': 'Skor', 'correct': row['cscore'] or 0, 'total': total, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
-            {'name': 'İY 0.5 Üst', 'correct': row['cht'] or 0, 'total': total_ht, 'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
+            {'name': 'IY 0.5 Ust', 'correct': row['cht'] or 0, 'total': total_ht, 'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
         ]
         cur.close(); conn.close()
         return jsonify(categories)
@@ -249,7 +246,7 @@ def api_stats_by_confidence():
             GROUP BY a.confidence ORDER BY COUNT(*) DESC
         ''')
         rows = [dict(r) for r in cur.fetchall()]
-        order = ['Çok Yüksek', 'Yüksek', 'Orta', 'Düşük']
+        order = ['Cok Yuksek', 'Yuksek', 'Orta', 'Dusuk']
         rows.sort(key=lambda x: order.index(x['confidence']) if x['confidence'] in order else 99)
         result = []
         for r in rows:
@@ -297,14 +294,13 @@ def api_stats_value_bets():
         return jsonify({"error": str(e)}), 500
 
 
-# ─── Analiz ──────────────────────────────────────────────────────────────────
-
+# Analiz
 @app.route('/api/analyze/selected', methods=['POST'])
 def api_analyze_selected():
     data = request.get_json()
     selected_ids = data.get('fixture_ids', [])
     manual_matches = data.get('manual_matches', [])
-    ai_provider = data.get('ai_provider', 'claude')  # varsayılan: claude
+    ai_provider = data.get('ai_provider', 'claude')
 
     if selected_ids:
         pending = get_pending_matches()
@@ -321,7 +317,7 @@ def api_analyze_selected():
                 })
 
     if not manual_matches:
-        return jsonify({"status": "error", "message": "Hiç maç seçilmedi!"}), 400
+        return jsonify({"status": "error", "message": "Hic mac secilmedi!"}), 400
 
     def run_analysis():
         try:
@@ -333,20 +329,19 @@ def api_analyze_selected():
     thread.daemon = False
     thread.start()
     total = len(manual_matches)
-    return jsonify({"status": "success", "message": f"{total} maç analiz ediliyor...", "total": total})
+    return jsonify({"status": "success", "message": f"{total} mac analiz ediliyor...", "total": total})
 
 
-# ─── Diğer Endpointler ────────────────────────────────────────────────────────
-
+# Diger Endpointler
 @app.route('/api/telegram/send', methods=['POST'])
 def api_telegram_send():
     try:
         from backend.telegram_sender import send_daily_analysis
         matches = get_today_matches()
         if not matches:
-            return jsonify({"status": "error", "message": "Gönderilecek analiz yok"}), 400
+            return jsonify({"status": "error", "message": "Gonderilecek analiz yok"}), 400
         send_daily_analysis(matches)
-        return jsonify({"status": "success", "message": f"{len(matches)} maç Telegram'a gönderildi!"})
+        return jsonify({"status": "success", "message": f"{len(matches)} mac Telegram'a gonderildi!"})
     except Exception as e:
         logger.error(f"Telegram send error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -362,7 +357,7 @@ def api_check_results():
     thread = threading.Thread(target=check)
     thread.daemon = False
     thread.start()
-    return jsonify({"status": "success", "message": "Sonuçlar kontrol ediliyor..."})
+    return jsonify({"status": "success", "message": "Sonuclar kontrol ediliyor..."})
 
 @app.route('/api/results/manual', methods=['POST'])
 def api_manual_result():
@@ -379,22 +374,19 @@ def api_manual_result():
         from backend.results_checker import send_result_to_telegram, calculate_outcomes, calculate_value_bet_results
         analysis = get_analysis_by_id(analysis_id)
         if not analysis:
-            return jsonify({"status": "error", "message": "Analiz bulunamadı"}), 404
+            return jsonify({"status": "error", "message": "Analiz bulunamadi"}), 404
         ht_hs = int(ht_home_score) if ht_home_score not in (None, '') else None
         ht_as = int(ht_away_score) if ht_away_score not in (None, '') else None
         outcomes = calculate_outcomes(analysis, home_score, away_score, ht_hs, ht_as)
         for k in ['pred_1x2_correct','actual_over25','over25_correct','actual_btts','btts_correct','score_correct','ht_correct']:
             outcomes[k] = int(outcomes[k])
-
         vb_results = calculate_value_bet_results(analysis, outcomes)
-
         save_match_result(analysis_id=analysis_id, fixture_id=analysis.get('fixture_id'),
                           home_score=home_score, away_score=away_score,
                           ht_home_score=ht_hs, ht_away_score=ht_as, source='manual',
                           value_bet_results=vb_results, **outcomes)
         send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_hs, ht_as)
         mark_telegram_sent(analysis_id)
-
         try:
             analysis_date = analysis.get('analysis_date', datetime.now().strftime('%Y-%m-%d'))
             update_coupon_results(analysis_date)
@@ -403,7 +395,6 @@ def api_manual_result():
                 update_coupon_results(today)
         except Exception as e:
             logger.warning(f"Coupon update after result: {e}")
-
         return jsonify({"status": "success"})
     except Exception as e:
         logger.error(f"Manual result error: {e}")
@@ -434,22 +425,22 @@ def api_daily_report():
             pct_over25 = round(c_over25/total_results*100)
             pct_btts = round(c_btts/total_results*100)
             with_ht = [m for m in with_results if m.get('ht_home_score') is not None]
-            ht_line = f"\n⚽ İY 0.5 Üst: <b>{c_ht}/{len(with_ht)}</b>" if with_ht else ''
+            ht_line = f"\nIY 0.5 Ust: {c_ht}/{len(with_ht)}" if with_ht else ''
             details = ''
             for m in with_results:
                 pred = m.get('prediction_1x2','?')
-                tick_1x2 = '✅' if m.get('pred_1x2_correct') else '❌'
-                tick_over = '✅' if m.get('over25_correct') else '❌'
-                tick_btts = '✅' if m.get('btts_correct') else '❌'
-                tick_score = '✅' if m.get('score_correct') else '❌'
+                tick_1x2 = 'OK' if m.get('pred_1x2_correct') else 'X'
+                tick_over = 'OK' if m.get('over25_correct') else 'X'
+                tick_btts = 'OK' if m.get('btts_correct') else 'X'
+                tick_score = 'OK' if m.get('score_correct') else 'X'
                 tick_ht = ''
                 if m.get('ht_home_score') is not None:
-                    tick_ht = f"  {'✅' if m.get('ht_correct') else '❌'} İY {m['ht_home_score']}-{m['ht_away_score']}"
-                details += f"\n⚽ <b>{m['home_team']} {m['home_score']}-{m['away_score']} {m['away_team']}</b>\n"
+                    tick_ht = f"  {'OK' if m.get('ht_correct') else 'X'} IY {m['ht_home_score']}-{m['ht_away_score']}"
+                details += f"\n{m['home_team']} {m['home_score']}-{m['away_score']} {m['away_team']}\n"
                 details += f"   {tick_1x2} 1X2: {pred}  {tick_over} 2.5 Gol  {tick_btts} KG Var  {tick_score} Skor{tick_ht}\n"
-            msg = f"<b>{'─'*28}</b>\n📊 <b>GÜNLÜK RAPOR — {date_str}</b>\n<b>{'─'*28}</b>\n\n📋 Toplam: <b>{total}</b> | Sonuçlu: <b>{total_results}</b>\n🎯 1X2: <b>{c1x2}/{total_results} (%{pct_1x2})</b>\n⚽ 2.5 Üst: <b>{c_over25}/{total_results} (%{pct_over25})</b>\n🔁 KG Var: <b>{c_btts}/{total_results} (%{pct_btts})</b>\n🏆 Skor: <b>{c_score}/{total_results}</b>{ht_line}\n{details}\n<b>{'─'*28}</b>"
+            msg = f"GUNLUK RAPOR - {date_str}\nToplam: {total} | Sonuclu: {total_results}\n1X2: {c1x2}/{total_results} (%{pct_1x2})\n2.5 Ust: {c_over25}/{total_results} (%{pct_over25})\nKG Var: {c_btts}/{total_results} (%{pct_btts})\nSkor: {c_score}/{total_results}{ht_line}\n{details}"
         else:
-            msg = f"<b>{'─'*28}</b>\n📊 <b>GÜNLÜK RAPOR — {date_str}</b>\n<b>{'─'*28}</b>\n\n📋 Toplam: <b>{total}</b>\n⏳ Henüz sonuç girilmemiş.\n<b>{'─'*28}</b>"
+            msg = f"GUNLUK RAPOR - {date_str}\nToplam: {total}\nHenuz sonuc girilmemis."
         send_message(msg)
         return jsonify({"status": "success"})
     except Exception as e:
@@ -457,44 +448,88 @@ def api_daily_report():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# ─── Kupon ────────────────────────────────────────────────────────────────────
-
+# Kupon
 @app.route('/api/coupon/today')
 def api_coupon_today():
     try:
         matches = get_today_matches()
         if not matches:
-            return jsonify({"status": "error", "message": "Analiz bulunamadı"}), 404
+            return jsonify({"status": "error", "message": "Analiz bulunamadi"}), 404
+
+        # Min/max parametreleri: ?min=3&max=5
+        min_count = int(request.args.get('min', 3))
+        max_count = int(request.args.get('max', 5))
+        min_count = max(2, min(min_count, 8))
+        max_count = max(min_count, min(max_count, 8))
+
         MIN_PCT = 65
-        candidates = []
+
+        # Tur oncelik sirasi: IY 0.5 Ust > 2.5 Ust > KG Var > 1X2 > 2.5 Alt > KG Yok
+        TYPE_PRIORITY = {
+            'IY 0.5 Ust': 6, '2.5 Ust': 5, 'KG Var': 4,
+            '1X2': 3, '2.5 Alt': 2, 'KG Yok': 1,
+        }
+        MAX_PER_TYPE = 2  # Ayni turden max 2 tahmin
+
+        all_candidates = []
         for m in matches:
-            if m.get('confidence') not in ['Yüksek', 'Çok Yüksek']:
+            confidence = m.get('confidence', '')
+            # Turkce karakter sorunu icin her iki versiyonu da kontrol et
+            if confidence not in ('Yuksek', 'Cok Yuksek', 'Y\u00fcksek', '\u00c7ok Y\u00fcksek'):
                 continue
             over25_pct = float(m.get('over25_pct') or 0)
             btts_pct = float(m.get('btts_pct') or 0)
             ht2g_pct = float(m.get('ht2g_pct') or 0)
-            conf_score = 4 if m.get('confidence') == 'Çok Yüksek' else 3
-            options = []
+            conf_score = 4 if confidence in ('Cok Yuksek', '\u00c7ok Y\u00fcksek') else 3
             pred = m.get('prediction_1x2', '?')
-            pred_text = {'1': f"{m['home_team']} Kazanır", 'X': 'Beraberlik', '2': f"{m['away_team']} Kazanır"}.get(pred, pred)
-            options.append({'type': '1X2', 'label': pred_text, 'pct': conf_score*20, 'conf_score': conf_score, 'match': m})
-            if over25_pct >= MIN_PCT:
-                options.append({'type': '2.5 Üst', 'label': '2.5 Gol Üstü', 'pct': over25_pct, 'conf_score': conf_score, 'match': m})
-            elif (100-over25_pct) >= MIN_PCT:
-                options.append({'type': '2.5 Alt', 'label': '2.5 Gol Altı', 'pct': 100-over25_pct, 'conf_score': conf_score, 'match': m})
-            if btts_pct >= MIN_PCT:
-                options.append({'type': 'KG Var', 'label': 'KG Var', 'pct': btts_pct, 'conf_score': conf_score, 'match': m})
-            elif (100-btts_pct) >= MIN_PCT:
-                options.append({'type': 'KG Yok', 'label': 'KG Yok', 'pct': 100-btts_pct, 'conf_score': conf_score, 'match': m})
+            pred_text = {
+                '1': f"{m['home_team']} Kazanir",
+                'X': 'Beraberlik',
+                '2': f"{m['away_team']} Kazanir"
+            }.get(pred, pred)
+            has_good = False
+
             if ht2g_pct >= MIN_PCT:
-                options.append({'type': 'İY 0.5 Üst', 'label': 'İY 0.5 Üstü', 'pct': ht2g_pct, 'conf_score': conf_score, 'match': m})
-            if options:
-                candidates.append(max(options, key=lambda x: x['pct']))
-        if not candidates:
-            return jsonify({"status": "error", "message": "Kriterlere uyan tahmin bulunamadı"}), 404
-        candidates.sort(key=lambda x: (x['conf_score'], x['pct']), reverse=True)
+                all_candidates.append({'type': 'IY 0.5 Ust', 'label': 'IY 0.5 Ustu', 'pct': ht2g_pct, 'conf_score': conf_score, 'match': m})
+                has_good = True
+            if over25_pct >= MIN_PCT:
+                all_candidates.append({'type': '2.5 Ust', 'label': '2.5 Gol Ustu', 'pct': over25_pct, 'conf_score': conf_score, 'match': m})
+                has_good = True
+            elif (100 - over25_pct) >= MIN_PCT:
+                all_candidates.append({'type': '2.5 Alt', 'label': '2.5 Gol Alti', 'pct': 100-over25_pct, 'conf_score': conf_score, 'match': m})
+                has_good = True
+            if btts_pct >= MIN_PCT:
+                all_candidates.append({'type': 'KG Var', 'label': 'KG Var', 'pct': btts_pct, 'conf_score': conf_score, 'match': m})
+                has_good = True
+            elif (100 - btts_pct) >= MIN_PCT:
+                all_candidates.append({'type': 'KG Yok', 'label': 'KG Yok', 'pct': 100-btts_pct, 'conf_score': conf_score, 'match': m})
+                has_good = True
+            if not has_good:
+                all_candidates.append({'type': '1X2', 'label': pred_text, 'pct': conf_score*20, 'conf_score': conf_score, 'match': m})
+
+        if not all_candidates:
+            return jsonify({"status": "error", "message": "Kriterlere uyan tahmin bulunamadi"}), 404
+
+        # Sirala: guven > tur onceligi > yuzde
+        all_candidates.sort(key=lambda x: (x['conf_score'], TYPE_PRIORITY.get(x['type'], 0), x['pct']), reverse=True)
+
+        # Cesitlilik filtresi
         coupon = []
-        for c in candidates[:5]:
+        type_counts = {}
+        used_combos = set()
+
+        for c in all_candidates:
+            if len(coupon) >= max_count:
+                break
+            t = c['type']
+            match_id = c['match'].get('id')
+            combo = f"{match_id}_{t}"
+            if combo in used_combos:
+                continue
+            if type_counts.get(t, 0) >= MAX_PER_TYPE:
+                continue
+            type_counts[t] = type_counts.get(t, 0) + 1
+            used_combos.add(combo)
             m = c['match']
             coupon.append({
                 'home_team': m['home_team'],
@@ -507,6 +542,14 @@ def api_coupon_today():
                 'confidence': m.get('confidence', 'Orta'),
                 'analysis_id': m.get('id'),
             })
+
+        if len(coupon) < min_count:
+            return jsonify({
+                "status": "error",
+                "message": f"Yeterli tahmin bulunamadi (min {min_count}, bulunan {len(coupon)})"
+            }), 404
+
+        logger.info(f"Kupon: {len(coupon)} tahmin, turler: {type_counts}")
         return jsonify({"status": "success", "coupon": coupon})
     except Exception as e:
         logger.error(f"Coupon error: {e}")
@@ -518,9 +561,9 @@ def api_coupon_save():
         data = request.get_json()
         items = data.get('items', [])
         if not items:
-            return jsonify({"status": "error", "message": "Kupon boş"}), 400
+            return jsonify({"status": "error", "message": "Kupon bos"}), 400
         save_coupon(items)
-        logger.info(f"Kupon kaydedildi: {len(items)} maç")
+        logger.info(f"Kupon kaydedildi: {len(items)} mac")
         return jsonify({"status": "success", "message": "Kupon kaydedildi!"})
     except Exception as e:
         logger.error(f"Coupon save error: {e}")
@@ -545,8 +588,7 @@ def api_coupon_update(date_str):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# ─── Parse Image ──────────────────────────────────────────────────────────────
-
+# Parse Image
 @app.route('/api/parse/image', methods=['POST'])
 def api_parse_image():
     try:
@@ -555,14 +597,14 @@ def api_parse_image():
         image_data = data.get('image')
         media_type = data.get('media_type', 'image/jpeg')
         if not image_data:
-            return jsonify({"status": "error", "message": "Görsel eksik"}), 400
+            return jsonify({"status": "error", "message": "Gorsel eksik"}), 400
         client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
         today = datetime.now().strftime('%Y-%m-%d')
         message = client.messages.create(
             model="claude-opus-4-5", max_tokens=1024,
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_data}},
-                {"type": "text", "text": f"Bu görseldeki maç programını analiz et. Bugün: {today}.\nTÜM maçları JSON array olarak döndür:\n[{{\"home_team\": \"...\", \"away_team\": \"...\", \"league\": \"...\", \"time\": \"HH:MM\"}}]\nSadece JSON döndür."}
+                {"type": "text", "text": f"Bu gorseldeki mac programini analiz et. Bugun: {today}.\nTUM maclari JSON array olarak dondur:\n[{{\"home_team\": \"...\", \"away_team\": \"...\", \"league\": \"...\", \"time\": \"HH:MM\"}}]\nSadece JSON dondur."}
             ]}]
         )
         raw = message.content[0].text.strip().replace('```json','').replace('```','').strip()
@@ -601,8 +643,7 @@ def api_clear_matches():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# ─── Admin ────────────────────────────────────────────────────────────────────
-
+# Admin
 @app.route('/api/admin/clear-before/<date_str>', methods=['DELETE'])
 def api_clear_before_date(date_str):
     try:
@@ -619,18 +660,13 @@ def api_clear_before_date(date_str):
         deleted_analyses = cur.rowcount
         conn.commit()
         cur.close(); conn.close()
-        logger.info(f"Admin clear: {deleted_analyses} analiz, {deleted_results} sonuç silindi ({date_str} öncesi)")
-        return jsonify({
-            "status": "success",
-            "message": f"{date_str} öncesi {deleted_analyses} analiz ve {deleted_results} sonuç silindi"
-        })
+        return jsonify({"status": "success", "message": f"{date_str} oncesi {deleted_analyses} analiz ve {deleted_results} sonuc silindi"})
     except Exception as e:
         logger.error(f"Admin clear error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# ─── Debug ────────────────────────────────────────────────────────────────────
-
+# Debug
 @app.route('/api/debug/footballdata/<league_code>')
 def debug_footballdata(league_code):
     try:
