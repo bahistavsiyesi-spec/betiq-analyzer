@@ -28,17 +28,14 @@ def detect_match_importance(league):
 def calculate_value_bets(result, csv_data, home_team, away_team):
     if not csv_data or not result:
         return []
-
     value_bets = []
-
     checks = [
-        ('Over 2.5',    'over25_pct',  'odds_over25'),
-        ('KG Var',      'btts_pct',    'odds_btts_yes'),
-        ('İY 0.5 Üst',  'ht2g_pct',   'odds_ht_over05'),
-        ('Over 1.5',    None,          'odds_over15'),
-        ('Over 3.5',    None,          'odds_over35'),
+        ('Over 2.5',   'over25_pct', 'odds_over25'),
+        ('KG Var',     'btts_pct',   'odds_btts_yes'),
+        ('İY 0.5 Üst', 'ht2g_pct',  'odds_ht_over05'),
+        ('Over 1.5',   None,         'odds_over15'),
+        ('Over 3.5',   None,         'odds_over35'),
     ]
-
     pred = result.get('prediction_1x2')
     pred_map = {
         '1': ('1X2 (Ev)', 'odds_home'),
@@ -55,31 +52,19 @@ def calculate_value_bets(result, csv_data, home_team, away_team):
                 our_pct = conf_map.get(result.get('confidence', 'Orta'), 60)
                 diff = round(our_pct - implied, 1)
                 if diff >= VALUE_THRESHOLD:
-                    value_bets.append({
-                        'label': label, 'our_pct': our_pct,
-                        'implied_pct': implied, 'diff': diff, 'odds': float(odds)
-                    })
-            except:
-                pass
-
+                    value_bets.append({'label': label, 'our_pct': our_pct, 'implied_pct': implied, 'diff': diff, 'odds': float(odds)})
+            except: pass
     for label, our_key, odds_key in checks:
-        if our_key is None:
-            continue
+        if our_key is None: continue
         our_pct = result.get(our_key)
         odds = csv_data.get(odds_key)
-        if our_pct is None or odds is None:
-            continue
+        if our_pct is None or odds is None: continue
         try:
             implied = round(1 / float(odds) * 100, 1)
             diff = round(float(our_pct) - implied, 1)
             if diff >= VALUE_THRESHOLD:
-                value_bets.append({
-                    'label': label, 'our_pct': round(float(our_pct)),
-                    'implied_pct': implied, 'diff': diff, 'odds': float(odds)
-                })
-        except:
-            continue
-
+                value_bets.append({'label': label, 'our_pct': round(float(our_pct)), 'implied_pct': implied, 'diff': diff, 'odds': float(odds)})
+        except: continue
     value_bets.sort(key=lambda x: x['diff'], reverse=True)
     return value_bets[:3]
 
@@ -87,9 +72,7 @@ def calculate_value_bets(result, csv_data, home_team, away_team):
 def build_csv_section(home_team, away_team, csv_data):
     if not csv_data:
         return ''
-
     lines = ['\n── FootyStats CSV Verileri ──']
-
     hxg = csv_data.get('home_xg')
     axg = csv_data.get('away_xg')
     if hxg is not None or axg is not None:
@@ -100,23 +83,14 @@ def build_csv_section(home_team, away_team, csv_data):
             diff = round(float(hxg) - float(axg), 2)
             dominant = home_team if diff > 0 else away_team
             lines.append(f'  - xG farkı: {abs(diff)} ({dominant} üstün)')
-
     hppg = csv_data.get('home_ppg')
     appg = csv_data.get('away_ppg')
     if hppg is not None or appg is not None:
         lines.append('Puan/Maç Ortalaması (pre-match):')
         if hppg is not None: lines.append(f'  - {home_team}: {hppg} puan/maç')
         if appg is not None: lines.append(f'  - {away_team}: {appg} puan/maç')
-
     gol_lines = []
-    for key, label in [
-        ('avg_goals',   'Ort. gol/maç'),
-        ('over05_avg',  'Over 0.5 %'),
-        ('over15_avg',  'Over 1.5 %'),
-        ('over25_avg',  'Over 2.5 %'),
-        ('over35_avg',  'Over 3.5 %'),
-        ('over45_avg',  'Over 4.5 %'),
-    ]:
+    for key, label in [('avg_goals','Ort. gol/maç'),('over05_avg','Over 0.5 %'),('over15_avg','Over 1.5 %'),('over25_avg','Over 2.5 %'),('over35_avg','Over 3.5 %'),('over45_avg','Over 4.5 %')]:
         v = csv_data.get(key)
         if v is not None:
             suffix = '%' if 'avg' in key and key != 'avg_goals' else ''
@@ -124,65 +98,36 @@ def build_csv_section(home_team, away_team, csv_data):
     if gol_lines:
         lines.append('Gol İstatistikleri (CSV):')
         lines.extend(gol_lines)
-
-    btts_lines = []
     btts = csv_data.get('btts_avg')
     btts1h = csv_data.get('btts_1h_avg')
-    if btts is not None: btts_lines.append(f'  - KG VAR (maç geneli): %{btts}')
-    if btts1h is not None: btts_lines.append(f'  - KG VAR (ilk yarı): %{btts1h}')
-    if btts_lines:
+    if btts is not None or btts1h is not None:
         lines.append('BTTS İstatistikleri (CSV):')
-        lines.extend(btts_lines)
-
-    ht_lines = []
+        if btts is not None: lines.append(f'  - KG VAR (maç geneli): %{btts}')
+        if btts1h is not None: lines.append(f'  - KG VAR (ilk yarı): %{btts1h}')
     ht05 = csv_data.get('ht_over05_avg')
     ht15 = csv_data.get('ht_over15_avg')
-    if ht05 is not None: ht_lines.append(f'  - İlk yarı Over 0.5 (gol olan maç %): %{ht05}')
-    if ht15 is not None: ht_lines.append(f'  - İlk yarı Over 1.5 %: %{ht15}')
-    if ht_lines:
+    if ht05 is not None or ht15 is not None:
         lines.append('İlk Yarı İstatistikleri (CSV):')
-        lines.extend(ht_lines)
-
+        if ht05 is not None: lines.append(f'  - İlk yarı Over 0.5 (gol olan maç %): %{ht05}')
+        if ht15 is not None: lines.append(f'  - İlk yarı Over 1.5 %: %{ht15}')
     corn_lines = []
-    for key, label in [
-        ('avg_corners',    'Ort. korner/maç'),
-        ('avg_corners_85', 'Over 8.5 korner %'),
-        ('avg_corners_95', 'Over 9.5 korner %'),
-        ('avg_corners_105','Over 10.5 korner %'),
-    ]:
+    for key, label in [('avg_corners','Ort. korner/maç'),('avg_corners_85','Over 8.5 korner %'),('avg_corners_95','Over 9.5 korner %'),('avg_corners_105','Over 10.5 korner %')]:
         v = csv_data.get(key)
         if v is not None: corn_lines.append(f'  - {label}: {v}')
     if corn_lines:
         lines.append('Korner İstatistikleri (CSV):')
         lines.extend(corn_lines)
-
     cards = csv_data.get('avg_cards')
     if cards is not None:
         lines.append(f'Ortalama Kart/Maç: {cards}')
-
     odds_lines = []
     for key, label in [
-        ('odds_home',        f'{home_team} kazanır (1)'),
-        ('odds_draw',        'Beraberlik (X)'),
-        ('odds_away',        f'{away_team} kazanır (2)'),
-        ('odds_over15',      'Over 1.5'),
-        ('odds_over25',      'Over 2.5'),
-        ('odds_over35',      'Over 3.5'),
-        ('odds_over45',      'Over 4.5'),
-        ('odds_under25',     'Under 2.5'),
-        ('odds_btts_yes',    'KG VAR'),
-        ('odds_btts_no',     'KG YOK'),
-        ('odds_ht_over05',   'İY Over 0.5'),
-        ('odds_ht_over15',   'İY Over 1.5'),
-        ('odds_ht_over25',   'İY Over 2.5'),
-        ('odds_dc_1x',       'Çifte Şans 1X'),
-        ('odds_dc_12',       'Çifte Şans 12'),
-        ('odds_dc_x2',       'Çifte Şans X2'),
-        ('odds_dnb_1',       f'Beraberlik Yok {home_team}'),
-        ('odds_dnb_2',       f'Beraberlik Yok {away_team}'),
-        ('odds_corners_85',  'Korner Over 8.5'),
-        ('odds_corners_95',  'Korner Over 9.5'),
-        ('odds_corners_105', 'Korner Over 10.5'),
+        ('odds_home', f'{home_team} kazanır (1)'), ('odds_draw', 'Beraberlik (X)'), ('odds_away', f'{away_team} kazanır (2)'),
+        ('odds_over15','Over 1.5'), ('odds_over25','Over 2.5'), ('odds_over35','Over 3.5'), ('odds_over45','Over 4.5'), ('odds_under25','Under 2.5'),
+        ('odds_btts_yes','KG VAR'), ('odds_btts_no','KG YOK'), ('odds_ht_over05','İY Over 0.5'), ('odds_ht_over15','İY Over 1.5'), ('odds_ht_over25','İY Over 2.5'),
+        ('odds_dc_1x','Çifte Şans 1X'), ('odds_dc_12','Çifte Şans 12'), ('odds_dc_x2','Çifte Şans X2'),
+        ('odds_dnb_1',f'Beraberlik Yok {home_team}'), ('odds_dnb_2',f'Beraberlik Yok {away_team}'),
+        ('odds_corners_85','Korner Over 8.5'), ('odds_corners_95','Korner Over 9.5'), ('odds_corners_105','Korner Over 10.5'),
     ]:
         v = csv_data.get(key)
         if v is not None:
@@ -194,7 +139,6 @@ def build_csv_section(home_team, away_team, csv_data):
     if odds_lines:
         lines.append('Bahis Oranları (CSV):')
         lines.extend(odds_lines)
-
     lines.append('── CSV Verisi Sonu ──')
     return '\n'.join(lines)
 
@@ -273,6 +217,7 @@ def build_prompt(home_team, away_team, league, match_time,
 
     csv_text = build_csv_section(home_team, away_team, csv_data)
 
+    # CSV hint
     csv_hint = ''
     if csv_data:
         hints = []
@@ -289,42 +234,64 @@ def build_prompt(home_team, away_team, league, match_time,
 
     match_importance = detect_match_importance(league)
 
-    # CSV varlığını prompt'a bildir (güven hesabı için)
     has_xg = csv_data and csv_data.get('home_xg') and csv_data.get('away_xg')
     has_form = bool(home_form and away_form)
     has_venue_stats = has_venue
     has_standing = bool(home_standing or away_standing)
 
+    # CSV sapma kuralları — yüzdeler için
+    over25_csv = csv_data.get('over25_avg') if csv_data else None
+    btts_csv = csv_data.get('btts_avg') if csv_data else None
+    ht_csv = csv_data.get('ht_over05_avg') if csv_data else None
+
+    pct_rules = '\n── Yüzde Hesaplama Kuralları (ZORUNLU) ──\n'
+    pct_rules += 'CSV verileri varsa aşağıdaki sapma sınırlarına KESINLIKLE uy:\n\n'
+
+    if over25_csv is not None:
+        pct_rules += f'over25_pct için:\n'
+        pct_rules += f'  - Baz değer: CSV over25_avg = %{over25_csv}\n'
+        pct_rules += f'  - İzin verilen aralık: %{max(0, float(over25_csv)-10)} ile %{min(100, float(over25_csv)+10)} arası\n'
+        pct_rules += f'  - Form trendi her iki takımda da 3+ gol ortalaması → +10\'a kadar artır\n'
+        pct_rules += f'  - Her iki takımda da 1\'den az gol ortalaması → -10\'a kadar düşür\n'
+        pct_rules += f'  - Bu aralığın DIŞINA ÇIKMA\n\n'
+    else:
+        pct_rules += 'over25_pct: CSV yok — form trendi + gol ortalamalarına göre serbest hesapla\n\n'
+
+    if btts_csv is not None:
+        pct_rules += f'btts_pct için:\n'
+        pct_rules += f'  - Baz değer: CSV btts_avg = %{btts_csv}\n'
+        pct_rules += f'  - İzin verilen aralık: %{max(0, float(btts_csv)-8)} ile %{min(100, float(btts_csv)+8)} arası\n'
+        pct_rules += f'  - Her iki takım son 5\'te gol attıysa → +8\'e kadar artır\n'
+        pct_rules += f'  - Bir takım son 5\'te 2\'den az gol attıysa → -8\'e kadar düşür\n'
+        pct_rules += f'  - Bu aralığın DIŞINA ÇIKMA\n\n'
+    else:
+        pct_rules += 'btts_pct: CSV yok — gol ortalamaları + form trendiyle serbest hesapla\n\n'
+
+    if ht_csv is not None:
+        pct_rules += f'ht2g_pct için:\n'
+        pct_rules += f'  - Baz değer: CSV ht_over05_avg = %{ht_csv}\n'
+        pct_rules += f'  - İzin verilen aralık: %{max(0, float(ht_csv)-5)} ile %{min(100, float(ht_csv)+5)} arası\n'
+        pct_rules += f'  - Bu aralığın DIŞINA ÇIKMA — ilk yarı istatistiği en sabit veridir\n\n'
+    else:
+        pct_rules += 'ht2g_pct: CSV yok — form trendi + gol ortalamasıyla serbest hesapla\n\n'
+
+    pct_rules += '── Yüzde Kuralları Sonu ──\n'
+
+    # Güven kuralları
     confidence_rules = '''
 ── Güven Seviyesi Belirleme Kuralları (ZORUNLU) ──
-Aşağıdaki kriterlere göre confidence değerini BELİRLE. Kendi yorumunla değiştirme.
+VERİ KAYNAĞI ÖNCELİĞİ: 1.CSV xG  2.Form trendi  3.Ev/dep istatistik  4.Puan durumu
 
-VERİ KAYNAĞI ÖNCELİĞİ (sırasıyla):
-  1. CSV xG verisi (en güvenilir)
-  2. Form trendi (son 5 maç)
-  3. Ev/deplasman istatistikleri
-  4. Puan durumu / motivasyon
-
-KURAL 1 — CSV xG YOKSA maksimum güven "Orta"dır:
-  - CSV xG verisi sağlanmamışsa, diğer tüm veriler mükemmel olsa bile confidence = "Orta" ver.
-  - Sadece form + puan durumu + ev/dep istatistik varsa → "Orta"
-
-KURAL 2 — CSV xG VARSA güven seviyeleri:
-  - "Çok Yüksek": xG + form trendi + ev/dep istatistik + puan durumu → HEPSI aynı tarafı gösteriyor
-  - "Yüksek"    : xG var + bu 3 kaynaktan en az 2'si aynı tarafı gösteriyor
-  - "Orta"      : xG var ama kaynaklar çelişkili veya sadece 1 kaynak destekliyor
-  - "Düşük"     : xG var ama veriler tamamen çelişkili, sonuç belirsiz
-
-KURAL 3 — Çelişki durumu:
-  - Form iyi ama xG düşükse → xG'ye ağırlık ver, güveni düşür
-  - Ev avantajı var ama form kötüyse → "Orta" ver
-  - Puan durumu kritik (küme düşme/şampiyonluk) ama form çelişkiyorsa → "Orta" ver
-
-KURAL 4 — Kupa/hazırlık maçları:
-  - Kupa ve hazırlık maçlarında maksimum güven "Orta"dır
+KURAL 1 — CSV xG YOKSA maksimum güven "Orta"dır
+KURAL 2 — CSV xG VARSA:
+  "Çok Yüksek": xG + form + ev/dep + puan → HEPSİ aynı tarafı gösteriyor
+  "Yüksek"    : xG var + 3 kaynaktan en az 2'si aynı yönde
+  "Orta"      : xG var ama kaynaklar çelişkili
+  "Düşük"     : veriler tamamen çelişkili
+KURAL 3 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
 
 Mevcut veri durumu:
-''' + f'''  - CSV xG verisi: {"VAR ✓" if has_xg else "YOK ✗ → max güven Orta"}
+''' + f'''  - CSV xG: {"VAR ✓" if has_xg else "YOK ✗ → max güven Orta"}
   - Form trendi: {"VAR ✓" if has_form else "YOK ✗"}
   - Ev/dep istatistik: {"VAR ✓" if has_venue_stats else "YOK ✗"}
   - Puan durumu: {"VAR ✓" if has_standing else "YOK ✗"}
@@ -344,21 +311,16 @@ Mevcut veri durumu:
         + h2h_text + '\n'
         + csv_text + '\n'
         + csv_hint + '\n'
+        + pct_rules + '\n'
         + confidence_rules + '\n'
-        + 'Analiz yaparken şu faktörleri göz önünde bulundur:\n'
+        + 'Genel analiz talimatları:\n'
         '1. CSV xG verisi varsa en güvenilir kaynak olarak kullan\n'
-        '2. CSV Over25/BTTS/IY ortalamaları varsa ilgili yüzdeler için temel referans al\n'
+        '2. Yüzdeler için yukarıdaki sapma kurallarına kesinlikle uy\n'
         '3. Ev sahibi avantajı + ev/deplasman istatistiklerini birlikte değerlendir\n'
         '4. Puan durumu motivasyonu: küme düşme baskısı veya şampiyonluk yarışı\n'
-        '5. Form trendi: son maçlardaki gol paterni over25_pct için referans\n'
-        '6. H2H geçmişi varsa dikkate al\n'
-        '7. ht2g_pct için CSV ilk yarı istatistiklerini kullan (ht_over05_avg)\n'
-        '8. Tüm yanıtlar TÜRKÇE olacak\n'
-        '9. Analizinde kesinlikle "Elo" kelimesini kullanma, "Güç Puanı" kullan\n\n'
-        'Alan açıklamaları:\n'
-        '- over25_pct: Maç genelinde 2.5 gol üstü olma ihtimali (0-100)\n'
-        '- ht2g_pct: İlk yarıda EN AZ 1 gol olma ihtimali (0-100) — CSV ht_over05_avg baz al\n'
-        '- btts_pct: Her iki takımın da gol atma ihtimali (0-100) — CSV btts_avg baz al\n\n'
+        '5. H2H geçmişi varsa dikkate al\n'
+        '6. Tüm yanıtlar TÜRKÇE olacak\n'
+        '7. "Elo" kelimesini kullanma, "Güç Puanı" kullan\n\n'
         'SADECE şu JSON formatında yanıt ver:\n'
         '{\n'
         '  "prediction_1x2": "1 veya X veya 2",\n'
@@ -591,12 +553,46 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     if value_bets:
         logger.info(f'Value bets {home_team} vs {away_team}: {[v["label"] + " +" + str(v["diff"]) + "%" for v in value_bets]}')
 
-    # CSV yoksa güveni Orta ile sınırla (Python tarafında da garantile)
+    # Python tarafında güven ve yüzde sınırlarını garantile
     confidence = result.get('confidence', 'Orta')
     has_xg = csv_data and csv_data.get('home_xg') and csv_data.get('away_xg')
+
+    # CSV yoksa güveni Orta ile sınırla
     if not has_xg and confidence in ('Yüksek', 'Çok Yüksek'):
         confidence = 'Orta'
         logger.info(f'Confidence capped to Orta (no CSV xG): {home_team} vs {away_team}')
+
+    # CSV varsa yüzdeleri sınırla
+    over25_pct = float(result.get('over25_pct', 50))
+    btts_pct = float(result.get('btts_pct', 40))
+    ht2g_pct = float(result.get('ht2g_pct', 40))
+
+    if csv_data:
+        def clamp(val, base, margin):
+            if base is None: return val
+            return max(float(base) - margin, min(float(base) + margin, val))
+
+        over25_base = csv_data.get('over25_avg')
+        btts_base = csv_data.get('btts_avg')
+        ht_base = csv_data.get('ht_over05_avg')
+
+        if over25_base is not None:
+            clamped = clamp(over25_pct, over25_base, 10)
+            if clamped != over25_pct:
+                logger.info(f'over25_pct clamped {over25_pct}→{clamped} (base={over25_base})')
+                over25_pct = clamped
+
+        if btts_base is not None:
+            clamped = clamp(btts_pct, btts_base, 8)
+            if clamped != btts_pct:
+                logger.info(f'btts_pct clamped {btts_pct}→{clamped} (base={btts_base})')
+                btts_pct = clamped
+
+        if ht_base is not None:
+            clamped = clamp(ht2g_pct, ht_base, 5)
+            if clamped != ht2g_pct:
+                logger.info(f'ht2g_pct clamped {ht2g_pct}→{clamped} (base={ht_base})')
+                ht2g_pct = clamped
 
     return {
         'analysis_date': datetime.now().strftime('%Y-%m-%d'),
@@ -604,9 +600,9 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         'home_team': home_team, 'away_team': away_team,
         'league': league, 'match_time': match_time,
         'prediction_1x2': result.get('prediction_1x2', '?'),
-        'over25_pct': float(result.get('over25_pct', 50)),
-        'ht2g_pct': float(result.get('ht2g_pct', 40)),
-        'btts_pct': float(result.get('btts_pct', 40)),
+        'over25_pct': round(over25_pct),
+        'ht2g_pct': round(ht2g_pct),
+        'btts_pct': round(btts_pct),
         'predicted_score': result.get('predicted_score', '?-?'),
         'confidence': confidence,
         'reasoning': json.dumps(result.get('reasoning', []), ensure_ascii=False),
