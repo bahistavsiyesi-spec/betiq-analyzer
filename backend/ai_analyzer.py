@@ -289,6 +289,48 @@ def build_prompt(home_team, away_team, league, match_time,
 
     match_importance = detect_match_importance(league)
 
+    # CSV varlığını prompt'a bildir (güven hesabı için)
+    has_xg = csv_data and csv_data.get('home_xg') and csv_data.get('away_xg')
+    has_form = bool(home_form and away_form)
+    has_venue_stats = has_venue
+    has_standing = bool(home_standing or away_standing)
+
+    confidence_rules = '''
+── Güven Seviyesi Belirleme Kuralları (ZORUNLU) ──
+Aşağıdaki kriterlere göre confidence değerini BELİRLE. Kendi yorumunla değiştirme.
+
+VERİ KAYNAĞI ÖNCELİĞİ (sırasıyla):
+  1. CSV xG verisi (en güvenilir)
+  2. Form trendi (son 5 maç)
+  3. Ev/deplasman istatistikleri
+  4. Puan durumu / motivasyon
+
+KURAL 1 — CSV xG YOKSA maksimum güven "Orta"dır:
+  - CSV xG verisi sağlanmamışsa, diğer tüm veriler mükemmel olsa bile confidence = "Orta" ver.
+  - Sadece form + puan durumu + ev/dep istatistik varsa → "Orta"
+
+KURAL 2 — CSV xG VARSA güven seviyeleri:
+  - "Çok Yüksek": xG + form trendi + ev/dep istatistik + puan durumu → HEPSI aynı tarafı gösteriyor
+  - "Yüksek"    : xG var + bu 3 kaynaktan en az 2'si aynı tarafı gösteriyor
+  - "Orta"      : xG var ama kaynaklar çelişkili veya sadece 1 kaynak destekliyor
+  - "Düşük"     : xG var ama veriler tamamen çelişkili, sonuç belirsiz
+
+KURAL 3 — Çelişki durumu:
+  - Form iyi ama xG düşükse → xG'ye ağırlık ver, güveni düşür
+  - Ev avantajı var ama form kötüyse → "Orta" ver
+  - Puan durumu kritik (küme düşme/şampiyonluk) ama form çelişkiyorsa → "Orta" ver
+
+KURAL 4 — Kupa/hazırlık maçları:
+  - Kupa ve hazırlık maçlarında maksimum güven "Orta"dır
+
+Mevcut veri durumu:
+''' + f'''  - CSV xG verisi: {"VAR ✓" if has_xg else "YOK ✗ → max güven Orta"}
+  - Form trendi: {"VAR ✓" if has_form else "YOK ✗"}
+  - Ev/dep istatistik: {"VAR ✓" if has_venue_stats else "YOK ✗"}
+  - Puan durumu: {"VAR ✓" if has_standing else "YOK ✗"}
+── Güven Kuralları Sonu ──
+'''
+
     prompt = (
         'Aşağıdaki futbol maçını analiz et ve SADECE JSON formatında yanıt ver:\n\n'
         f'Maç: {home_team} vs {away_team}\n'
@@ -302,7 +344,8 @@ def build_prompt(home_team, away_team, league, match_time,
         + h2h_text + '\n'
         + csv_text + '\n'
         + csv_hint + '\n'
-        + '\nAnaliz yaparken şu faktörleri göz önünde bulundur:\n'
+        + confidence_rules + '\n'
+        + 'Analiz yaparken şu faktörleri göz önünde bulundur:\n'
         '1. CSV xG verisi varsa en güvenilir kaynak olarak kullan\n'
         '2. CSV Over25/BTTS/IY ortalamaları varsa ilgili yüzdeler için temel referans al\n'
         '3. Ev sahibi avantajı + ev/deplasman istatistiklerini birlikte değerlendir\n'
@@ -395,7 +438,7 @@ def parse_result(raw_text):
 
 
 def merge_results(r1, r2):
-    conf_order = ['Dusuk', 'Orta', 'Yuksek', 'Cok Yuksek']
+    conf_order = ['Düşük', 'Orta', 'Yüksek', 'Çok Yüksek']
     pred = r1.get('prediction_1x2') if r1.get('prediction_1x2') == r2.get('prediction_1x2') else r1.get('prediction_1x2')
     over25 = round((float(r1.get('over25_pct', 50)) + float(r2.get('over25_pct', 50))) / 2)
     ht2g = round((float(r1.get('ht2g_pct', 40)) + float(r2.get('ht2g_pct', 40))) / 2)
@@ -423,7 +466,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         btts_mathematical=None,
                         home_goals_trend=None, away_goals_trend=None,
                         csv_data=None,
-                        ai_provider='claude'):   # ← YENİ PARAMETRE
+                        ai_provider='claude'):
 
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
@@ -493,7 +536,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
 
     result = None
 
-    # ── AI Seçimi: claude (varsayılan), grok, gemini ──
     if ai_provider == 'grok':
         if GROQ_API_KEY:
             try:
@@ -502,7 +544,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 logger.info(f'Grok OK: {home_team} vs {away_team}')
             except Exception as e:
                 logger.error(f'Grok failed: {e}')
-        # Grok başarısız → Claude'a düş
         if not result and ANTHROPIC_API_KEY:
             try:
                 raw = call_anthropic(prompt)
@@ -519,7 +560,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 logger.info(f'Gemini OK: {home_team} vs {away_team}')
             except Exception as e:
                 logger.error(f'Gemini failed: {e}')
-        # Gemini başarısız → Claude'a düş
         if not result and ANTHROPIC_API_KEY:
             try:
                 raw = call_anthropic(prompt)
@@ -529,7 +569,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 logger.error(f'Claude fallback failed: {e}')
 
     else:
-        # Varsayılan: Claude
         if ANTHROPIC_API_KEY:
             try:
                 raw = call_anthropic(prompt)
@@ -537,7 +576,6 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 logger.info(f'Claude OK: {home_team} vs {away_team}')
             except Exception as e:
                 logger.error(f'Claude failed: {e}')
-        # Claude başarısız → Gemini'ye düş
         if not result and GEMINI_API_KEY:
             try:
                 raw = call_gemini(prompt)
@@ -553,6 +591,13 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     if value_bets:
         logger.info(f'Value bets {home_team} vs {away_team}: {[v["label"] + " +" + str(v["diff"]) + "%" for v in value_bets]}')
 
+    # CSV yoksa güveni Orta ile sınırla (Python tarafında da garantile)
+    confidence = result.get('confidence', 'Orta')
+    has_xg = csv_data and csv_data.get('home_xg') and csv_data.get('away_xg')
+    if not has_xg and confidence in ('Yüksek', 'Çok Yüksek'):
+        confidence = 'Orta'
+        logger.info(f'Confidence capped to Orta (no CSV xG): {home_team} vs {away_team}')
+
     return {
         'analysis_date': datetime.now().strftime('%Y-%m-%d'),
         'fixture_id': fixture['fixture']['id'],
@@ -563,7 +608,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         'ht2g_pct': float(result.get('ht2g_pct', 40)),
         'btts_pct': float(result.get('btts_pct', 40)),
         'predicted_score': result.get('predicted_score', '?-?'),
-        'confidence': result.get('confidence', 'Orta'),
+        'confidence': confidence,
         'reasoning': json.dumps(result.get('reasoning', []), ensure_ascii=False),
         'h2h_summary': result.get('h2h_summary', ''),
         'home_form': home_form, 'away_form': away_form,
