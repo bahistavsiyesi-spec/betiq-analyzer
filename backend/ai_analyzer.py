@@ -277,6 +277,41 @@ def build_prompt(home_team, away_team, league, match_time,
 
     pct_rules += '── Yüzde Kuralları Sonu ──\n'
 
+    # Taraf tahmini kuralları
+    hxg = csv_data.get('home_xg') if csv_data else None
+    axg = csv_data.get('away_xg') if csv_data else None
+    xg_diff = round(float(hxg) - float(axg), 2) if (hxg and axg) else None
+
+    prediction_rules = '\n── Taraf Tahmini Kuralları (ZORUNLU) ──\n'
+    prediction_rules += 'prediction_1x2 ve güven seviyesi belirlenirken aşağıdaki kurallara KESINLIKLE uy:\n\n'
+
+    if xg_diff is not None:
+        prediction_rules += f'xG Durumu: {home_team}={hxg} xG, {away_team}={axg} xG, fark={abs(xg_diff)} ({home_team if xg_diff > 0 else away_team} üstün)\n\n'
+        prediction_rules += 'xG farkına göre tahmin zorunluluğu:\n'
+        prediction_rules += f'  - xG farkı > 0.8 → güçlü taraf kesin favori, "1" veya "2" ver\n'
+        prediction_rules += f'  - xG farkı 0.4-0.8 → hafif favori, form + puan durumu belirler\n'
+        prediction_rules += f'  - xG farkı < 0.4 → dengeli maç, "X" dahil her seçenek mümkün\n\n'
+        if abs(xg_diff) < 0.4:
+            prediction_rules += f'  ⚠️ Bu maçta xG farkı {abs(xg_diff)} — DÜŞÜK. Beraberlik (X) güçlü bir seçenek!\n'
+            prediction_rules += f'  Form ve puan durumu net üstünlük göstermiyorsa "X" ver\n\n'
+        elif abs(xg_diff) < 0.8:
+            dominant = home_team if xg_diff > 0 else away_team
+            pred_val = "1" if xg_diff > 0 else "2"
+            prediction_rules += f'  ⚠️ Bu maçta xG farkı {abs(xg_diff)} — ORTA. {dominant} hafif favori ({pred_val})\n'
+            prediction_rules += f'  Form veya puan durumu desteklemiyorsa güveni "Orta" tut\n\n'
+        else:
+            dominant = home_team if xg_diff > 0 else away_team
+            pred_val = "1" if xg_diff > 0 else "2"
+            prediction_rules += f'  ✓ Bu maçta xG farkı {abs(xg_diff)} — YÜKSEK. {dominant} net favori ({pred_val})\n\n'
+    else:
+        prediction_rules += 'xG verisi yok — form trendi + ev/dep istatistik + puan durumu belirler\n\n'
+
+    prediction_rules += 'Beraberlik (X) ne zaman verilmeli:\n'
+    prediction_rules += '  - xG farkı < 0.4 VE formlar benzer\n'
+    prediction_rules += '  - Her iki takım da son 5 maçta birbirine yakın performans\n'
+    prediction_rules += '  - Puan durumu kritik değil (küme düşme/şampiyonluk baskısı yok)\n\n'
+    prediction_rules += '── Taraf Kuralları Sonu ──\n'
+
     # Güven kuralları
     confidence_rules = '''
 ── Güven Seviyesi Belirleme Kuralları (ZORUNLU) ──
@@ -312,6 +347,7 @@ Mevcut veri durumu:
         + csv_text + '\n'
         + csv_hint + '\n'
         + pct_rules + '\n'
+        + prediction_rules + '\n'
         + confidence_rules + '\n'
         + 'Genel analiz talimatları:\n'
         '1. CSV xG verisi varsa en güvenilir kaynak olarak kullan\n'
