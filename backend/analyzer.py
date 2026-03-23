@@ -164,7 +164,12 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     home_standing = None
     away_standing = None
     country_code = _get_country_code(fixture)
-    if country_code:
+
+    # U21/U18/rezerv maclar da puan durumu alma — ana takim standings yaniltici olur
+    is_youth_match = any(x in home_name.lower() or x in away_name.lower()
+                         for x in ['u21', 'u18', 'u23', 'u19', 'reserves', 'youth', ' ii'])
+
+    if country_code and not is_youth_match:
         try:
             home_standing = get_team_standing(home_name, country_code)
             away_standing = get_team_standing(away_name, country_code)
@@ -174,6 +179,8 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
                 logger.info(f'Standing {away_name}: {away_standing["position"]}. sira, {away_standing["points"]} puan')
         except Exception as e:
             logger.warning('Standings failed: ' + str(e))
+    elif is_youth_match:
+        logger.info(f'Youth match — standings skipped: {home_name} vs {away_name}')
 
     odds_data = None
     if csv_data and csv_data.get('odds_home') and csv_data.get('odds_away'):
