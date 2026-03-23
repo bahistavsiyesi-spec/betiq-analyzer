@@ -187,9 +187,8 @@ const API_BASE = '';
 let selectedFixtures = {};
 let manualMatches = [];
 let couponCanvas = null;
-let selectedAiProvider = 'claude'; // varsayılan: claude
+let selectedAiProvider = 'claude';
 
-// ─── Logo Sistemi ─────────────────────────────────────────────────────────────
 const _logoCache = {};
 
 const TEAM_IDS = {
@@ -198,8 +197,8 @@ const TEAM_IDS = {
     'Bremen': 12, 'Wolfsburg': 11, 'Gladbach': 18, 'Augsburg': 16,
     'Union Berlin': 28, 'Bochum': 20, 'Mainz': 15, 'St. Pauli': 20,
     'Kiel': 44, 'Heidenheim': 44, 'Hamburg': 7, 'Hannover': 30,
-    'Karlsruhe': 24, 'Schalke': 6, 'Darmstadt': 36, 'Köln': 1,
-    'Hertha': 27, 'Düsseldorf': 45, 'Nürnberg': 7,
+    'Karlsruhe': 24, 'Schalke': 6, 'Darmstadt': 36, 'Koeln': 1,
+    'Hertha': 27, 'Duesseldorf': 45, 'Nuernberg': 7,
     'Arsenal': 57, 'Aston Villa': 58, 'Bournemouth': 1044,
     'Brentford': 402, 'Brighton': 397, 'Chelsea': 61,
     'Crystal Palace': 354, 'Everton': 62, 'Fulham': 63,
@@ -207,17 +206,17 @@ const TEAM_IDS = {
     'Manchester City': 65, 'Man City': 65,
     'Manchester United': 66, 'Man United': 66, 'Man Utd': 66,
     'Newcastle': 67, 'Newcastle United': 67,
-    'Nottingham Forest': 351, "Nott'm Forest": 351,
+    'Nottingham Forest': 351,
     'Southampton': 340, 'Tottenham': 73, 'Spurs': 73,
     'West Ham': 563, 'Wolverhampton': 76, 'Wolves': 76,
     'Burnley': 328, 'Leeds': 341, 'Sunderland': 71, 'Coventry': 1076, 'Middlesbrough': 343,
-    'Barcelona': 81, 'Real Madrid': 86, 'Atlético Madrid': 78, 'Atletico': 78,
+    'Barcelona': 81, 'Real Madrid': 86, 'Atletico Madrid': 78, 'Atletico': 78,
     'Athletic Club': 77, 'Athletic Bilbao': 77, 'Real Sociedad': 92, 'Villarreal': 95,
     'Real Betis': 90, 'Betis': 90, 'Valencia': 94, 'Girona': 298,
     'Celta Vigo': 558, 'Celta': 558, 'Sevilla': 559, 'Osasuna': 79,
     'Getafe': 82, 'Rayo Vallecano': 88, 'Rayo': 88, 'Mallorca': 89,
-    'Alavés': 263, 'Alaves': 263, 'Espanyol': 80,
-    'Las Palmas': 275, 'Leganés': 745, 'Leganes': 745, 'Valladolid': 250,
+    'Alaves': 263, 'Espanyol': 80,
+    'Las Palmas': 275, 'Leganes': 745, 'Valladolid': 250,
     'AC Milan': 98, 'Milan': 98, 'Inter': 108, 'Inter Milan': 108,
     'Juventus': 109, 'Napoli': 113, 'Atalanta': 102,
     'Roma': 100, 'AS Roma': 100, 'Lazio': 110, 'Fiorentina': 99, 'Bologna': 103,
@@ -274,8 +273,8 @@ function teamLogoHtml(teamName, asyncLoad = true) {
 }
 
 function getWinnerLabel(prediction, homeTeam, awayTeam) {
-    if (prediction === '1') return { label: homeTeam + ' Kazanır', icon: '🏆' };
-    if (prediction === '2') return { label: awayTeam + ' Kazanır', icon: '🏆' };
+    if (prediction === '1') return { label: homeTeam + ' Kazanir', icon: '🏆' };
+    if (prediction === '2') return { label: awayTeam + ' Kazanir', icon: '🏆' };
     if (prediction === 'X') return { label: 'Beraberlik', icon: '🤝' };
     return { label: 'Belirsiz', icon: '❓' };
 }
@@ -283,7 +282,7 @@ function getWinnerLabel(prediction, homeTeam, awayTeam) {
 function pctClass(pct) { const v=parseFloat(pct)||0; return v>=70?'pct-high':v>=40?'pct-medium':'pct-low'; }
 function barClass(pct) { const v=parseFloat(pct)||0; return v>=70?'bar-high':v>=40?'bar-medium':'bar-low'; }
 function cardConfidenceClass(c) {
-    return {'Çok Yüksek':'card-confidence-very-high','Yüksek':'card-confidence-high','Orta':'card-confidence-medium','Düşük':'card-confidence-low'}[c]||'card-confidence-medium';
+    return {'Cok Yuksek':'card-confidence-very-high','Yuksek':'card-confidence-high','Orta':'card-confidence-medium','Dusuk':'card-confidence-low'}[c]||'card-confidence-medium';
 }
 
 async function downloadCard(matchId, homeTeam, awayTeam) {
@@ -295,11 +294,10 @@ async function downloadCard(matchId, homeTeam, awayTeam) {
         const link=document.createElement('a');
         link.download=`${homeTeam}_vs_${awayTeam}.png`.replace(/\s+/g,'_');
         link.href=canvas.toDataURL('image/png'); link.click();
-    } catch(e){alert('İndirme hatası: '+e.message);}
+    } catch(e){alert('Indirme hatasi: '+e.message);}
     if(btn){btn.textContent='📸';btn.disabled=false;}
 }
 
-// ─── Value Bet HTML ──────────────────────────────────────────────────────────
 function buildValueBetsHtml(match) {
     let valueBets = null;
     try { valueBets = match.value_bets ? JSON.parse(match.value_bets) : null; } catch(e) {}
@@ -313,7 +311,7 @@ function buildValueBetsHtml(match) {
                 <span style="font-size:10px;color:#555;">@ ${v.odds}</span>
             </div>
             <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-size:10px;color:#555;">Bizim: %${v.our_pct} | Bahisçi: %${v.implied_pct}</span>
+                <span style="font-size:10px;color:#555;">Bizim: %${v.our_pct} | Bahisci: %${v.implied_pct}</span>
                 <span style="font-size:11px;font-weight:800;color:${diffColor};background:${diffColor}22;padding:2px 6px;border-radius:6px;">+${v.diff}%</span>
             </div>
         </div>`;
@@ -324,7 +322,6 @@ function buildValueBetsHtml(match) {
     </div>`;
 }
 
-// ─── Gol Trendi ───────────────────────────────────────────────────────────────
 function buildTrendHtml(match) {
     let homeTrend=null, awayTrend=null;
     try{homeTrend=match.home_goals_trend?JSON.parse(match.home_goals_trend):null;}catch(e){}
@@ -351,7 +348,7 @@ function buildTrendHtml(match) {
         </div>`;
     }
     return `<div style="margin-top:12px;padding:10px 12px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
-        <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">📈 GOL TRENDİ (Son 5 Maç)</div>
+        <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">📈 GOL TRENDİ (Son 5 Mac)</div>
         ${homeTrend ? teamBlock(match.home_team, homeTrend, false) : ''}
         ${awayTrend ? teamBlock(match.away_team, awayTrend, !!homeTrend) : ''}
         <div style="font-size:9px;color:#2a2a3a;margin-top:6px;text-align:right;">← Eski &nbsp; Yeni →</div>
@@ -361,19 +358,19 @@ function buildTrendHtml(match) {
 // ─── Kupon ────────────────────────────────────────────────────────────────────
 async function generateCoupon() {
     const btn = document.getElementById('couponBtn');
-    btn.disabled = true; btn.textContent = '⏳ Oluşturuluyor...';
+    btn.disabled = true; btn.textContent = '⏳ Olusturuluyor...';
     try {
         const resp = await fetch('/api/coupon/today');
         const data = await resp.json();
         if (data.status !== 'success') {
-            alert(data.message || 'Kupon oluşturulamadı.');
-            btn.disabled = false; btn.textContent = '🎫 Kupon Oluştur'; return;
+            alert(data.message || 'Kupon olusturulamadi.');
+            btn.disabled = false; btn.textContent = '🎫 Kupon Olustur'; return;
         }
         await saveCoupon(data.coupon);
         drawCouponCanvas(data.coupon);
     } catch(e) {
         alert('Hata: ' + e.message);
-        btn.disabled = false; btn.textContent = '🎫 Kupon Oluştur';
+        btn.disabled = false; btn.textContent = '🎫 Kupon Olustur';
     }
 }
 
@@ -385,13 +382,13 @@ async function saveCoupon(coupon) {
             body: JSON.stringify({ items: coupon })
         });
     } catch(e) {
-        console.error('Kupon kaydetme hatası:', e);
+        console.error('Kupon kaydetme hatasi:', e);
     }
 }
 
 function drawCouponCanvas(coupon) {
     const today=new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
-    const width=480,headerH=110,rowH=68,footerH=70;
+    const width=480, headerH=110, rowH=72, footerH=90;
     const contentH=headerH+coupon.length*rowH+footerH;
     const height=Math.max(width*1.25,contentH);
     const extraPad=Math.max(0,height-contentH);
@@ -406,17 +403,23 @@ function drawCouponCanvas(coupon) {
     const drawContent=()=>{
         if(logo.naturalWidth) ctx.drawImage(logo,20,20,56,56);
         ctx.fillStyle='#555'; ctx.font='500 11px Syne,sans-serif'; ctx.textAlign='right'; ctx.fillText(today,width-20,32);
-        ctx.fillStyle='#7c3aed'; ctx.font='800 16px Syne,sans-serif'; ctx.fillText('GÜNÜN KUPONU',width-20,54);
+        ctx.fillStyle='#7c3aed'; ctx.font='800 16px Syne,sans-serif'; ctx.fillText('GUNUN KUPONU',width-20,54);
         ctx.strokeStyle='#1e1e3a'; ctx.lineWidth=1;
         ctx.beginPath(); ctx.moveTo(20,headerH-6); ctx.lineTo(width-20,headerH-6); ctx.stroke();
+
         coupon.forEach((item,i)=>{
             const y=headerH+i*rowH;
             if(i%2===0){ctx.fillStyle='rgba(124,58,237,0.04)';ctx.fillRect(0,y,width,rowH);}
             ctx.font='700 12px Syne,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left';
             let mt=`${item.home_team} vs ${item.away_team}`;
-            while(ctx.measureText(mt).width>230&&mt.length>10) mt=mt.slice(0,-4)+'...';
-            ctx.fillText(mt,20,y+26);
-            ctx.fillStyle='#444'; ctx.font='500 10px Syne,sans-serif'; ctx.fillText(item.league,20,y+44);
+            while(ctx.measureText(mt).width>220&&mt.length>10) mt=mt.slice(0,-4)+'...';
+            ctx.fillText(mt,20,y+22);
+            ctx.fillStyle='#444'; ctx.font='500 10px Syne,sans-serif'; ctx.fillText(item.league||'',20,y+38);
+            // Oran goster
+            if(item.odds){
+                ctx.fillStyle='#22c55e'; ctx.font='700 11px Syne,sans-serif';
+                ctx.fillText('@'+parseFloat(item.odds).toFixed(2),20,y+56);
+            }
             const bc=getBadgeColor(item.prediction_type);
             const bW=118,bH=44,bX=width-bW-20,bY=y+(rowH-bH)/2;
             ctx.fillStyle=bc.bg; roundRect(ctx,bX,bY,bW,bH,10); ctx.fill();
@@ -424,11 +427,26 @@ function drawCouponCanvas(coupon) {
             ctx.fillStyle=bc.text; ctx.font='700 13px Syne,sans-serif'; ctx.textAlign='center';
             ctx.fillText(item.prediction_label,bX+bW/2,bY+bH/2+5);
         });
-        const fy=headerH+coupon.length*rowH+extraPad/2;
+
+        // Toplam oran
+        const validOdds = coupon.filter(i=>i.odds).map(i=>parseFloat(i.odds));
+        const totalOdds = validOdds.length > 0 ? validOdds.reduce((a,b)=>a*b,1) : null;
+        const fy = headerH + coupon.length*rowH + extraPad/2;
+
+        if(totalOdds){
+            ctx.strokeStyle='#2a1a4e'; ctx.lineWidth=1;
+            ctx.beginPath(); ctx.moveTo(20,fy+10); ctx.lineTo(width-20,fy+10); ctx.stroke();
+            ctx.fillStyle='#666'; ctx.font='500 11px Syne,sans-serif'; ctx.textAlign='left';
+            ctx.fillText('Toplam Oran',20,fy+28);
+            ctx.fillStyle='#22c55e'; ctx.font='800 15px Syne,sans-serif'; ctx.textAlign='right';
+            ctx.fillText('@'+totalOdds.toFixed(2),width-20,fy+28);
+        }
+
         ctx.fillStyle='#2a2a3a'; ctx.font='400 9px Syne,sans-serif'; ctx.textAlign='center';
-        ctx.fillText('Bu tahminler yapay zeka analizi ile oluşturulmuştur. Sorumluluk kabul edilmez.',width/2,fy+32);
+        ctx.fillText('Bu tahminler yapay zeka analizi ile olusturulmustur. Sorumluluk kabul edilmez.',width/2,fy+(totalOdds?48:32));
+
         couponCanvas=canvas; showCouponPreview(canvas,today);
-        const b=document.getElementById('couponBtn'); if(b){b.disabled=false;b.textContent='🎫 Kupon Oluştur';}
+        const b=document.getElementById('couponBtn'); if(b){b.disabled=false;b.textContent='🎫 Kupon Olustur';}
     };
     logo.onload=drawContent; logo.onerror=drawContent;
 }
@@ -440,16 +458,16 @@ function showCouponPreview(canvas, today) {
     const imgSrc = canvas.toDataURL('image/png');
     modal.innerHTML = `<div style="background:#0d0d1a;border:1px solid #2a1a4e;border-radius:16px;padding:20px;max-width:520px;width:100%;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-            <span style="color:#fff;font-weight:700;font-size:14px;">🎫 Kupon Önizleme</span>
+            <span style="color:#fff;font-weight:700;font-size:14px;">🎫 Kupon Onizleme</span>
             <button onclick="document.getElementById('couponModal').remove()" style="background:transparent;border:none;color:#666;font-size:20px;cursor:pointer;">✕</button>
         </div>
         <div style="display:flex;justify-content:center;margin-bottom:16px;max-height:70vh;overflow-y:auto;">
             <img src="${imgSrc}" style="max-width:100%;border-radius:10px;border:1px solid #2a1a4e;">
         </div>
         <div style="display:flex;gap:10px;justify-content:flex-end;">
-            <button onclick="document.getElementById('couponModal').remove()" style="padding:10px 20px;border-radius:10px;border:1px solid #333;background:transparent;color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;">İptal</button>
-            <a href="/kuponlar" style="padding:10px 20px;border-radius:10px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;">📋 Kuponlarım</a>
-            <button onclick="downloadCoupon('${today}')" style="padding:10px 20px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⬇️ PNG İndir</button>
+            <button onclick="document.getElementById('couponModal').remove()" style="padding:10px 20px;border-radius:10px;border:1px solid #333;background:transparent;color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;">Iptal</button>
+            <a href="/kuponlar" style="padding:10px 20px;border-radius:10px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;">📋 Kuponlarim</a>
+            <button onclick="downloadCoupon('${today}')" style="padding:10px 20px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⬇️ PNG Indir</button>
         </div>
     </div>`;
     modal.addEventListener('click', (e) => { if(e.target===modal) modal.remove(); });
@@ -459,7 +477,7 @@ function showCouponPreview(canvas, today) {
 function downloadCoupon(today) {
     if(!couponCanvas) return;
     const link = document.createElement('a');
-    link.download = `betiq_kupon_${today.replace(/\./g,'-')}.png`;
+    link.download = `gollazim_kupon_${today.replace(/\./g,'-')}.png`;
     link.href = couponCanvas.toDataURL('image/png'); link.click();
     document.getElementById('couponModal')?.remove();
 }
@@ -467,11 +485,11 @@ function downloadCoupon(today) {
 function getBadgeColor(type) {
     const map = {
         '1X2':{bg:'rgba(124,58,237,0.15)',border:'rgba(124,58,237,0.6)',text:'#a78bfa'},
-        '2.5 Üst':{bg:'rgba(34,197,94,0.12)',border:'rgba(34,197,94,0.5)',text:'#4ade80'},
+        'IY 0.5 Ust':{bg:'rgba(168,85,247,0.12)',border:'rgba(168,85,247,0.5)',text:'#c084fc'},
+        '2.5 Ust':{bg:'rgba(34,197,94,0.12)',border:'rgba(34,197,94,0.5)',text:'#4ade80'},
         '2.5 Alt':{bg:'rgba(59,130,246,0.12)',border:'rgba(59,130,246,0.5)',text:'#60a5fa'},
         'KG Var':{bg:'rgba(245,158,11,0.12)',border:'rgba(245,158,11,0.5)',text:'#fbbf24'},
         'KG Yok':{bg:'rgba(239,68,68,0.12)',border:'rgba(239,68,68,0.5)',text:'#f87171'},
-        'İY 0.5 Üst':{bg:'rgba(168,85,247,0.12)',border:'rgba(168,85,247,0.5)',text:'#c084fc'},
     };
     return map[type] || map['1X2'];
 }
@@ -483,19 +501,18 @@ function roundRect(ctx,x,y,w,h,r){
     ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
 }
 
-// ===== FIXTURES =====
 async function loadFixtures() {
     const container = document.getElementById('fixturesList');
-    container.innerHTML = `<div class="loading-fixtures"><div class="spinner"></div><span>Yükleniyor...</span></div>`;
+    container.innerHTML = `<div class="loading-fixtures"><div class="spinner"></div><span>Yukleniyor...</span></div>`;
     try {
         const resp = await fetch('/api/fixtures/today');
         const fixtures = await resp.json();
         if (!fixtures || fixtures.length === 0) {
-            container.innerHTML = `<div class="no-matches"><p>📂 CSV yükle ve maçları seç.</p></div>`;
+            container.innerHTML = `<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
             return;
         }
         const grouped = {};
-        fixtures.forEach(f => { const l=f.league||'Diğer'; if(!grouped[l])grouped[l]=[]; grouped[l].push(f); });
+        fixtures.forEach(f => { const l=f.league||'Diger'; if(!grouped[l])grouped[l]=[]; grouped[l].push(f); });
         let html = '';
         for (const [league, matches] of Object.entries(grouped)) {
             html += `<div class="league-group"><div class="league-title">🏆 ${league}</div>`;
@@ -514,7 +531,7 @@ async function loadFixtures() {
         container.innerHTML = html;
         updateSelectedCount();
     } catch(e) {
-        container.innerHTML = `<div class="no-matches"><p>📂 CSV yükle ve maçları seç.</p></div>`;
+        container.innerHTML = `<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
     }
 }
 
@@ -544,11 +561,10 @@ function selectAll() {
 
 function updateSelectedCount() {
     const total = Object.keys(selectedFixtures).length + manualMatches.length;
-    document.getElementById('selectedCount').textContent = `${total} maç seçildi`;
+    document.getElementById('selectedCount').textContent = `${total} mac secildi`;
     document.getElementById('analyzeBtn').disabled = total === 0;
 }
 
-// ─── AI Seçici ────────────────────────────────────────────────────────────────
 function selectAiProvider(provider) {
     selectedAiProvider = provider;
     document.querySelectorAll('.ai-btn').forEach(btn => {
@@ -565,7 +581,6 @@ function selectAiProvider(provider) {
     }
 }
 
-// ===== IMAGE UPLOAD =====
 function initImageUpload() {
     const btn=document.getElementById('imageUploadBtn');
     const input=document.getElementById('imageUpload');
@@ -576,7 +591,7 @@ function initImageUpload() {
         reader.onload=(ev)=>{document.getElementById('previewImg').src=ev.target.result;document.getElementById('imagePreview').style.display='block';};
         reader.readAsDataURL(file);
         const status=document.getElementById('imageStatus');
-        status.textContent='🔍 Görsel analiz ediliyor...'; status.style.color='#888'; btn.disabled=true;
+        status.textContent='🔍 Gorsel analiz ediliyor...'; status.style.color='#888'; btn.disabled=true;
         try {
             const base64=await fileToBase64(file);
             const resp=await fetch('/api/parse/image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:base64,media_type:file.type})});
@@ -584,8 +599,8 @@ function initImageUpload() {
             if(data.status==='success'&&data.matches.length>0){
                 data.matches.forEach(m=>{if(!manualMatches.some(x=>x.home_team===m.home_team&&x.away_team===m.away_team))manualMatches.push(m);});
                 renderManualList(); updateSelectedCount();
-                status.textContent=`✅ ${data.matches.length} maç eklendi!`; status.style.color='#22c55e';
-            } else {status.textContent='❌ Maç bulunamadı.'; status.style.color='#ef4444';}
+                status.textContent=`✅ ${data.matches.length} mac eklendi!`; status.style.color='#22c55e';
+            } else {status.textContent='❌ Mac bulunamadi.'; status.style.color='#ef4444';}
         } catch(err){status.textContent='❌ Hata: '+err.message; status.style.color='#ef4444';}
         btn.disabled=false; input.value='';
     });
@@ -599,13 +614,12 @@ function fileToBase64(file){
     });
 }
 
-// ===== MANUAL MATCHES =====
 function addManualMatch() {
     const home=document.getElementById('homeTeam').value.trim();
     const away=document.getElementById('awayTeam').value.trim();
-    const league=document.getElementById('leagueName').value.trim()||'Manuel Maç';
+    const league=document.getElementById('leagueName').value.trim()||'Manuel Mac';
     const time=document.getElementById('matchTime').value;
-    if(!home||!away){alert('Ev sahibi ve deplasman takımı gerekli!');return;}
+    if(!home||!away){alert('Ev sahibi ve deplasman takimi gerekli!');return;}
     let matchDate=null;
     if(time){const t=new Date();const[h,m]=time.split(':');t.setHours(parseInt(h),parseInt(m),0,0);matchDate=t.toISOString();}
     manualMatches.push({home_team:home,away_team:away,league,date:matchDate});
@@ -628,27 +642,26 @@ function renderManualList() {
     }).join('');
 }
 
-// ===== ANALYSIS =====
 async function runAnalysis() {
     const btn=document.getElementById('analyzeBtn');
     const statusDiv=document.getElementById('analysisStatus');
     const fixtureIds = Object.keys(selectedFixtures).map(Number);
     const total = fixtureIds.length + manualMatches.length;
     const aiLabel = selectedAiProvider === 'grok' ? 'Grok' : selectedAiProvider === 'gemini' ? 'Gemini' : 'Claude';
-    btn.disabled=true; btn.innerHTML='⏳ Analiz başlatılıyor...';
+    btn.disabled=true; btn.innerHTML='⏳ Analiz baslatiliyor...';
     statusDiv.style.display='block';
     statusDiv.innerHTML=`<div class="status-box"><div class="status-spinner"></div><div class="status-text">
-        <strong>🔍 ${total} maç analiz ediliyor... (${aiLabel})</strong>
-        <span>${aiLabel} AI çalışıyor, yaklaşık ${total*10} saniye sürer.</span>
+        <strong>🔍 ${total} mac analiz ediliyor... (${aiLabel})</strong>
+        <span>${aiLabel} AI calisiyor, yaklasik ${total*10} saniye surer.</span>
         <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div>
-        <small id="progressText">Başlatılıyor...</small>
+        <small id="progressText">Baslatiliyor...</small>
     </div></div>`;
     const duration=total*10000;
     [10,25,40,55,70,85,95].forEach((pct,i)=>{
         setTimeout(()=>{
             const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
             if(bar)bar.style.width=pct+'%';
-            if(txt)txt.textContent=`🤖 ${aiLabel} analiz yapıyor... (${Math.ceil(i*total/7)}/${total})`;
+            if(txt)txt.textContent=`🤖 ${aiLabel} analiz yapiyor... (${Math.ceil(i*total/7)}/${total})`;
         },(duration/7)*i);
     });
     try {
@@ -667,9 +680,9 @@ async function checkAndReload(statusDiv,btn,total) {
         const res=await fetch('/api/matches/today'); const matches=await res.json();
         if(matches&&matches.length>0){
             const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
-            if(bar)bar.style.width='100%'; if(txt)txt.textContent='✅ Analiz tamamlandı!';
-            statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} maç analiz edildi!</span></div>`;
-            renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Seçilenleri Analiz Et'; statusDiv.style.display='none';
+            if(bar)bar.style.width='100%'; if(txt)txt.textContent='✅ Analiz tamamlandi!';
+            statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} mac analiz edildi!</span></div>`;
+            renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et'; statusDiv.style.display='none';
             await loadFixtures();
         } else setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);
     } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);}
@@ -677,15 +690,15 @@ async function checkAndReload(statusDiv,btn,total) {
 
 function showError(statusDiv,btn,message){
     statusDiv.innerHTML=`<div class="status-box error"><span>❌ Hata: ${message}</span></div>`;
-    btn.disabled=false; btn.innerHTML='🔍 Seçilenleri Analiz Et';
+    btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et';
 }
 
 async function sendToTelegram() {
-    const btn=document.getElementById('telegramBtn'); btn.disabled=true; btn.innerHTML='⏳ Gönderiliyor...';
+    const btn=document.getElementById('telegramBtn'); btn.disabled=true; btn.innerHTML='⏳ Gonderiliyor...';
     try {
         const resp=await fetch('/api/telegram/send',{method:'POST'}); const data=await resp.json();
-        if(data.status==='success'){btn.innerHTML='✅ Gönderildi!';btn.style.background='#22c55e';setTimeout(()=>{btn.innerHTML="📨 Telegram'a Gönder";btn.style.background='';btn.disabled=false;},3000);}
-        else{btn.innerHTML='❌ Hata!';btn.style.background='#ef4444';alert('Hata: '+data.message);setTimeout(()=>{btn.innerHTML="📨 Telegram'a Gönder";btn.style.background='';btn.disabled=false;},3000);}
+        if(data.status==='success'){btn.innerHTML='✅ Gonderildi!';btn.style.background='#22c55e';setTimeout(()=>{btn.innerHTML="📨 Telegram'a Gonder";btn.style.background='';btn.disabled=false;},3000);}
+        else{btn.innerHTML='❌ Hata!';btn.style.background='#ef4444';alert('Hata: '+data.message);setTimeout(()=>{btn.innerHTML="📨 Telegram'a Gonder";btn.style.background='';btn.disabled=false;},3000);}
     } catch(e){btn.innerHTML='❌ Hata!';alert('Hata: '+e.message);btn.disabled=false;}
 }
 
@@ -694,22 +707,22 @@ async function loadMatches() {
     try {
         const resp=await fetch('/api/matches/today'); const matches=await resp.json();
         if(!matches||matches.length===0){
-            container.innerHTML=`<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p><p>Sol taraftan maç seçip analiz et.</p></div>`;return;
+            container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p><p>Sol taraftan mac secip analiz et.</p></div>`;return;
         }
         renderMatches(matches);
-    } catch(e){container.innerHTML=`<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;}
+    } catch(e){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;}
 }
 
 function renderMatches(matches) {
     const container=document.getElementById('matchesContainer');
-    if(!matches||matches.length===0){container.innerHTML=`<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;return;}
+    if(!matches||matches.length===0){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;return;}
     container.innerHTML=`
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 4px;">
             <div style="display:flex;gap:8px;">
-                <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">📨 Telegram'a Gönder</button>
-                <button id="couponBtn" onclick="generateCoupon()" style="padding:8px 18px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">🎫 Kupon Oluştur</button>
+                <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">📨 Telegram'a Gonder</button>
+                <button id="couponBtn" onclick="generateCoupon()" style="padding:8px 18px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">🎫 Kupon Olustur</button>
             </div>
-            <button onclick="clearAllMatches()" style="padding:6px 14px;border-radius:8px;border:1px solid #ef4444;background:transparent;color:#ef4444;font-size:12px;cursor:pointer;font-family:inherit;">🗑️ Tümünü Sil</button>
+            <button onclick="clearAllMatches()" style="padding:6px 14px;border-radius:8px;border:1px solid #ef4444;background:transparent;color:#ef4444;font-size:12px;cursor:pointer;font-family:inherit;">🗑️ Tumunu Sil</button>
         </div>
         <div id="matchCardsList">${matches.map(m=>createMatchCard(m)).join('')}</div>`;
 }
@@ -717,7 +730,7 @@ function renderMatches(matches) {
 function createMatchCard(match) {
     const prediction=match.prediction_1x2||'?';
     const confidence=match.confidence||'Orta';
-    const confidenceClass={'Çok Yüksek':'confidence-very-high','Yüksek':'confidence-high','Orta':'confidence-medium','Düşük':'confidence-low'}[confidence]||'confidence-medium';
+    const confidenceClass={'Cok Yuksek':'confidence-very-high','Yuksek':'confidence-high','Orta':'confidence-medium','Dusuk':'confidence-low'}[confidence]||'confidence-medium';
     const cardClass=cardConfidenceClass(confidence);
     const timeStr=formatTime(match.match_time);
     const homeLogo=teamLogoHtml(match.home_team);
@@ -730,7 +743,7 @@ function createMatchCard(match) {
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
             <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${match.home_team.replace(/'/g,"\\'")}','${match.away_team.replace(/'/g,"\\'")}' )"
                 style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
-                onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#555'" title="Kartı İndir">📸</button>
+                onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#555'" title="Karti Indir">📸</button>
             <button onclick="deleteMatch(${match.id})"
                 style="background:transparent;border:none;color:#444;font-size:15px;cursor:pointer;padding:0;line-height:1;"
                 onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#444'" title="Sil">🗑️</button>
@@ -747,14 +760,14 @@ function createMatchCard(match) {
             <div class="team away-team">${awayLogo}<span class="team-name">${match.away_team}</span><span class="team-form">${match.away_form||''}</span></div>
         </div>
         <div class="stats-grid">
-            <div class="stat-box"><span class="stat-label">🎯 2.5 GOL ÜSTÜ</span><span class="stat-value ${pctClass(over25)}">${over25}%</span><div class="stat-bar"><div class="stat-fill ${barClass(over25)}" style="width:${over25}%"></div></div></div>
-            <div class="stat-box"><span class="stat-label">⚽ İY 0.5 ÜST</span><span class="stat-value ${pctClass(ht2g)}">${ht2g}%</span><div class="stat-bar"><div class="stat-fill ${barClass(ht2g)}" style="width:${ht2g}%"></div></div></div>
+            <div class="stat-box"><span class="stat-label">🎯 2.5 GOL USTU</span><span class="stat-value ${pctClass(over25)}">${over25}%</span><div class="stat-bar"><div class="stat-fill ${barClass(over25)}" style="width:${over25}%"></div></div></div>
+            <div class="stat-box"><span class="stat-label">⚽ IY 0.5 UST</span><span class="stat-value ${pctClass(ht2g)}">${ht2g}%</span><div class="stat-bar"><div class="stat-fill ${barClass(ht2g)}" style="width:${ht2g}%"></div></div></div>
             <div class="stat-box"><span class="stat-label">🔁 KG VAR (BTTS)</span><span class="stat-value ${pctClass(btts)}">${btts}%</span><div class="stat-bar"><div class="stat-fill ${barClass(btts)}" style="width:${btts}%"></div></div></div>
             <div class="stat-box"><span class="stat-label">📊 GOL ORT.</span><span class="stat-value">${match.home_goals_avg||0} / ${match.away_goals_avg||0}</span></div>
         </div>
         <div class="prediction-row">
-            <div class="predicted-score"><span class="score-label">${winner.icon} KAZANAN TAHMİNİ</span><span class="score-value">${winner.label}</span></div>
-            <span class="confidence-badge ${confidenceClass}">Taraf Güveni: ${confidence}</span>
+            <div class="predicted-score"><span class="score-label">${winner.icon} KAZANAN TAHMINI</span><span class="score-value">${winner.label}</span></div>
+            <span class="confidence-badge ${confidenceClass}">Taraf Guveni: ${confidence}</span>
         </div>
         ${valueBetsHtml}
         ${trendHtml}
@@ -762,21 +775,21 @@ function createMatchCard(match) {
 }
 
 async function deleteMatch(id) {
-    if(!confirm('Bu analizi silmek istediğine emin misin?')) return;
+    if(!confirm('Bu analizi silmek istedigine emin misin?')) return;
     try {
         await fetch(`/api/matches/delete/${id}`,{method:'DELETE'});
         document.getElementById(`matchcard-${id}`)?.remove();
         if(document.querySelectorAll('.match-card').length===0)
-            document.getElementById('matchesContainer').innerHTML=`<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
-    } catch(e){alert('Silme hatası: '+e.message);}
+            document.getElementById('matchesContainer').innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;
+    } catch(e){alert('Silme hatasi: '+e.message);}
 }
 
 async function clearAllMatches() {
     if(!confirm('Bugünün tüm analizleri silinecek. Emin misin?')) return;
     try {
         await fetch('/api/matches/clear',{method:'DELETE'});
-        document.getElementById('matchesContainer').innerHTML=`<div class="no-matches"><p>📭 Henüz analiz yapılmadı.</p></div>`;
-    } catch(e){alert('Silme hatası: '+e.message);}
+        document.getElementById('matchesContainer').innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;
+    } catch(e){alert('Silme hatasi: '+e.message);}
 }
 
 function formatTime(dateStr) {
@@ -789,7 +802,6 @@ function formatTime(dateStr) {
     } catch{return '';}
 }
 
-// ===== INIT =====
 document.addEventListener('DOMContentLoaded',()=>{
     loadFixtures();
     loadMatches();
