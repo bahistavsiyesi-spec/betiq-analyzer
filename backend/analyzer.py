@@ -1,72 +1,25 @@
 import logging
 import json
 import time
-import requests
 import os
 from datetime import datetime
 from backend.football_api import (
     get_todays_fixtures, get_h2h, get_team_last_matches,
-    get_team_home_away_stats, get_team_standing, get_team_shot_stats
+    get_team_home_away_stats, get_team_standing, teams_match
 )
 from backend.database import save_analysis, delete_analyses_by_fixture_ids, log_run
 
 logger = logging.getLogger(__name__)
 
-ODDS_API_KEY = os.environ.get('ODDS_API_KEY', '')
-
-def get_odds_for_match(home_team, away_team):
-    if not ODDS_API_KEY:
-        return None
-    try:
-        resp = requests.get(
-            'https://api.the-odds-api.com/v4/sports/soccer/odds',
-            params={'apiKey': ODDS_API_KEY, 'regions': 'eu,uk', 'markets': 'h2h', 'oddsFormat': 'decimal'},
-            timeout=10
-        )
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        home_lower = home_team.lower().replace(' ', '')
-        away_lower = away_team.lower().replace(' ', '')
-        for game in data:
-            gh = game.get('home_team', '').lower().replace(' ', '')
-            ga = game.get('away_team', '').lower().replace(' ', '')
-            if (home_lower in gh or gh in home_lower) and (away_lower in ga or ga in away_lower):
-                bookmakers = game.get('bookmakers', [])
-                if not bookmakers:
-                    continue
-                all_home, all_draw, all_away = [], [], []
-                for bm in bookmakers:
-                    for market in bm.get('markets', []):
-                        if market.get('key') != 'h2h':
-                            continue
-                        for outcome in market.get('outcomes', []):
-                            name = outcome.get('name', '').lower().replace(' ', '')
-                            price = outcome.get('price', 0)
-                            if name in gh or gh in name: all_home.append(price)
-                            elif name in ga or ga in name: all_away.append(price)
-                            else: all_draw.append(price)
-                if all_home and all_away:
-                    return {
-                        'home_odds': round(sum(all_home)/len(all_home), 2),
-                        'draw_odds': round(sum(all_draw)/len(all_draw), 2) if all_draw else None,
-                        'away_odds': round(sum(all_away)/len(all_away), 2),
-                        'bookmaker_count': len(bookmakers)
-                    }
-        return None
-    except Exception as e:
-        logger.warning('Odds API failed: ' + str(e))
-        return None
-
 
 def extract_form_from_fixtures(matches, team_name):
     form = []
-    for m in matches[-5:]:
+    for m in reversed(matches[-5:]):
         try:
             home_name = m['teams']['home']['name']
             home_goals = m['goals']['home'] or 0
             away_goals = m['goals']['away'] or 0
-            is_home = team_name.lower() in home_name.lower()
+            is_home = teams_match(team_name, home_name)
             if is_home:
                 if home_goals > away_goals: form.append('W')
                 elif home_goals == away_goals: form.append('D')
@@ -82,23 +35,47 @@ def extract_form_from_fixtures(matches, team_name):
 
 def extract_goals_avg(matches, team_name):
     scored, conceded = [], []
-    for m in matches[-5:]:  # Son 5 maç — daha güncel
+    for m in matches[-5:]:
         try:
             home_name = m['teams']['home']['name']
             home_goals = m['goals']['home'] or 0
             away_goals = m['goals']['away'] or 0
-            is_home = team_name.lower() in home_name.lower()
+            is_home = teams_match(team_name, home_name)
             if is_home:
-                scored.append(home_goals)
-                conceded.append(away_goals)
+                scored.append(home_goals); conceded.append(away_goals)
             else:
-                scored.append(away_goals)
-                conceded.append(home_goals)
+                scored.append(away_goals); conceded.append(home_goals)
         except:
             continue
     avg_scored = round(sum(scored)/len(scored), 1) if scored else 0
     avg_conceded = round(sum(conceded)/len(conceded), 1) if conceded else 0
     return avg_scored, avg_conceded
+
+
+def extract_goals_trend(matches, team_name):
+    scored, conceded = [], []
+    for m in reversed(matches[-5:]):
+        try:
+            home_name = m['teams']['home']['name']
+            hg = m['goals']['home']
+            ag = m['goals']['away']
+            if hg is None or ag is None:
+                continue
+            is_home = teams_match(team_name, home_name)
+            if is_home:
+                scored.append(int(hg)); conceded.append(int(ag))
+            else:
+                scored.append(int(ag)); conceded.append(int(hg))
+        except:
+            continue
+    if not scored:
+        return None
+    return {
+        'scored': scored, 'conceded': conceded,
+        'scored_avg': round(sum(scored)/len(scored), 1),
+        'conceded_avg': round(sum(conceded)/len(conceded), 1),
+        'matches_used': len(scored),
+    }
 
 
 def extract_h2h_summary(h2h_matches, home_team, away_team):
@@ -111,7 +88,7 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
             hg = m['goals']['home'] or 0
             ag = m['goals']['away'] or 0
             total_goals += hg + ag
-            is_our_home = home_team.lower().split()[0] in match_home.lower()
+            is_our_home = teams_match(home_team, match_home)
             if hg > ag:
                 if is_our_home: home_wins += 1
                 else: away_wins += 1
@@ -126,7 +103,7 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
     return {
         'home_wins': home_wins, 'away_wins': away_wins,
         'draws': draws, 'total': total,
-        'avg_goals': round(total_goals / total, 1) if total else 0
+        'avg_goals': round(total_goals/total, 1) if total else 0
     }
 
 
@@ -149,15 +126,14 @@ def _get_country_code(fixture):
     return None
 
 
-def analyze_fixture(fixture):
+def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     from backend.ai_analyzer import analyze_with_claude
-    from backend.clubelo import get_elo_for_match
 
     home_name = fixture['teams']['home']['name']
     away_name = fixture['teams']['away']['name']
 
     if not home_name or not away_name or home_name == '?' or away_name == '?':
-        logger.error('Skipping match with missing team names')
+        logger.error('Skipping match with missing team names: ' + str(home_name) + ' vs ' + str(away_name))
         return None
 
     home_name = str(home_name).strip()
@@ -168,23 +144,23 @@ def analyze_fixture(fixture):
     away_matches = get_team_last_matches(away_name, last=10)
     h2h = get_h2h(home_name, away_name, last=5)
 
-    home_form = extract_form_from_fixtures(home_matches[:5] if home_matches else [], home_name)
-    away_form = extract_form_from_fixtures(away_matches[:5] if away_matches else [], away_name)
+    home_form = extract_form_from_fixtures(home_matches or [], home_name)
+    away_form = extract_form_from_fixtures(away_matches or [], away_name)
     home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
     away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
     h2h_summary = extract_h2h_summary(h2h, home_name, away_name)
 
+    home_goals_trend = extract_goals_trend(home_matches, home_name)
+    away_goals_trend = extract_goals_trend(away_matches, away_name)
+
+    if home_goals_trend:
+        logger.info(f'Trend {home_name}: atti={home_goals_trend["scored"]} yedi={home_goals_trend["conceded"]}')
+    if away_goals_trend:
+        logger.info(f'Trend {away_name}: atti={away_goals_trend["scored"]} yedi={away_goals_trend["conceded"]}')
+
     home_venue_stats = get_team_home_away_stats(home_name, home_matches)
     away_venue_stats = get_team_home_away_stats(away_name, away_matches)
 
-    if home_venue_stats:
-        logger.info('Venue stats ' + home_name + ': ev=' + str(home_venue_stats.get('home_form', '')) +
-                    ' avg=' + str(home_venue_stats.get('home_goals_avg', 0)))
-    if away_venue_stats:
-        logger.info('Venue stats ' + away_name + ': dep=' + str(away_venue_stats.get('away_form', '')) +
-                    ' avg=' + str(away_venue_stats.get('away_goals_avg', 0)))
-
-    # Puan durumu
     home_standing = None
     away_standing = None
     country_code = _get_country_code(fixture)
@@ -193,51 +169,29 @@ def analyze_fixture(fixture):
             home_standing = get_team_standing(home_name, country_code)
             away_standing = get_team_standing(away_name, country_code)
             if home_standing:
-                logger.info('Standing ' + home_name + ': ' + str(home_standing['position']) + '. sira, ' + str(home_standing['points']) + ' puan')
+                logger.info(f'Standing {home_name}: {home_standing["position"]}. sira, {home_standing["points"]} puan')
             if away_standing:
-                logger.info('Standing ' + away_name + ': ' + str(away_standing['position']) + '. sira, ' + str(away_standing['points']) + ' puan')
+                logger.info(f'Standing {away_name}: {away_standing["position"]}. sira, {away_standing["points"]} puan')
         except Exception as e:
             logger.warning('Standings failed: ' + str(e))
 
-    # Şut/Korner istatistikleri (football-data.co.uk)
-    home_shot_stats = None
-    away_shot_stats = None
-    if country_code in ('ENG', 'GER', 'ESP', 'ITA', 'FRA'):
-        try:
-            home_shot_stats = get_team_shot_stats(home_name, country_code, last=5)
-            away_shot_stats = get_team_shot_stats(away_name, country_code, last=5)
-            if home_shot_stats:
-                logger.info('Shot stats ' + home_name + ': ' +
-                            str(home_shot_stats['shots_avg']) + ' şut, ' +
-                            str(home_shot_stats['shots_on_target_avg']) + ' isabet, ' +
-                            str(home_shot_stats['corners_avg']) + ' korner')
-            if away_shot_stats:
-                logger.info('Shot stats ' + away_name + ': ' +
-                            str(away_shot_stats['shots_avg']) + ' şut, ' +
-                            str(away_shot_stats['shots_on_target_avg']) + ' isabet, ' +
-                            str(away_shot_stats['corners_avg']) + ' korner')
-        except Exception as e:
-            logger.warning('Shot stats failed: ' + str(e))
-
-    # ClubElo
-    elo_data = None
-    try:
-        elo_data = get_elo_for_match(home_name, away_name)
-        if elo_data:
-            logger.info('ClubElo: ' + home_name + ' ' + str(elo_data.get('home_elo', '?')) +
-                        ' vs ' + away_name + ' ' + str(elo_data.get('away_elo', '?')))
-    except Exception as e:
-        logger.warning('ClubElo failed: ' + str(e))
-
-    # Bahis oranları
     odds_data = None
-    try:
-        odds_data = get_odds_for_match(home_name, away_name)
-    except Exception as e:
-        logger.warning('Odds failed: ' + str(e))
+    if csv_data and csv_data.get('odds_home') and csv_data.get('odds_away'):
+        odds_data = {
+            'home_odds': csv_data['odds_home'],
+            'draw_odds': csv_data.get('odds_draw'),
+            'away_odds': csv_data['odds_away'],
+            'bookmaker_count': 1,
+            'source': 'CSV',
+        }
+        logger.info(f'Odds (CSV): {home_name} {odds_data["home_odds"]} | Draw {odds_data["draw_odds"]} | {away_name} {odds_data["away_odds"]}')
 
-    logger.info('Stats: ' + home_name + ' form=' + home_form + ' avg=' + str(home_goals_avg) +
-                ', ' + away_name + ' form=' + away_form + ' avg=' + str(away_goals_avg))
+    logger.info(f'Stats: {home_name} form={home_form} avg={home_goals_avg}, {away_name} form={away_form} avg={away_goals_avg}')
+
+    if csv_data:
+        logger.info(f'CSV data: xG={csv_data.get("home_xg")}/{csv_data.get("away_xg")} '
+                    f'BTTS%={csv_data.get("btts_avg")} Over25%={csv_data.get("over25_avg")} '
+                    f'IY05%={csv_data.get("ht_over05_avg")} AvgGoals={csv_data.get("avg_goals")}')
 
     return analyze_with_claude(
         fixture=fixture,
@@ -251,20 +205,29 @@ def analyze_fixture(fixture):
         home_conceded_avg=home_conceded_avg,
         away_conceded_avg=away_conceded_avg,
         h2h_summary=h2h_summary,
-        elo_data=elo_data,
+        elo_data=None,
         odds_data=odds_data,
         home_standing=home_standing,
         away_standing=away_standing,
         home_venue_stats=home_venue_stats,
         away_venue_stats=away_venue_stats,
-        home_shot_stats=home_shot_stats,
-        away_shot_stats=away_shot_stats,
+        home_shot_stats=None,
+        away_shot_stats=None,
+        home_ht_stats=None,
+        away_ht_stats=None,
+        home_btts_stats=None,
+        away_btts_stats=None,
+        btts_mathematical=None,
+        home_goals_trend=home_goals_trend,
+        away_goals_trend=away_goals_trend,
+        csv_data=csv_data,
+        ai_provider=ai_provider,
     )
 
 
-def run_selected_analysis(fixture_ids=[], manual_matches=[]):
+def run_selected_analysis(fixture_ids=[], manual_matches=[], ai_provider='claude'):
     today = datetime.now().strftime('%Y-%m-%d')
-    logger.info('Starting selected analysis: ' + str(len(fixture_ids)) + ' fixtures, ' + str(len(manual_matches)) + ' manual')
+    logger.info(f'Starting selected analysis: {len(fixture_ids)} fixtures, {len(manual_matches)} manual, AI: {ai_provider}')
 
     try:
         if fixture_ids:
@@ -277,21 +240,22 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
             selected = [f for f in all_fixtures if f['fixture']['id'] in fixture_ids]
             for fixture in selected:
                 try:
-                    analysis = analyze_fixture(fixture)
+                    analysis = analyze_fixture(fixture, ai_provider=ai_provider)
                     if analysis:
                         save_analysis(analysis)
                         analyzed += 1
                     time.sleep(1)
                 except Exception as e:
                     logger.error('Error analyzing fixture: ' + str(e))
-                    continue
 
         for m in manual_matches:
             try:
                 home_team = str(m.get('home_team', '') or '').strip()
                 away_team = str(m.get('away_team', '') or '').strip()
                 if not home_team or not away_team:
+                    logger.error('Skipping manual match with missing teams: ' + str(m))
                     continue
+
                 manual_fixture = {
                     'fixture': {'id': 0, 'date': m.get('date', datetime.now().isoformat())},
                     'league': {'id': 0, 'name': m.get('league', 'Manuel Mac')},
@@ -301,14 +265,15 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[]):
                     },
                     'goals': {'home': None, 'away': None}
                 }
-                analysis = analyze_fixture(manual_fixture)
+
+                csv_data = m.get('csv_data') or None
+                analysis = analyze_fixture(manual_fixture, csv_data=csv_data, ai_provider=ai_provider)
                 if analysis:
                     save_analysis(analysis)
                     analyzed += 1
                 time.sleep(1)
             except Exception as e:
                 logger.error('Error analyzing manual match: ' + str(e))
-                continue
 
         log_run(today, 'success', len(fixture_ids) + len(manual_matches), analyzed)
         logger.info('Done. Analyzed ' + str(analyzed) + ' matches.')
