@@ -290,10 +290,13 @@ def build_prompt(home_team, away_team, league, match_time,
         prediction_rules += 'xG farkına göre tahmin zorunluluğu:\n'
         prediction_rules += f'  - xG farkı > 0.8 → güçlü taraf kesin favori, "1" veya "2" ver\n'
         prediction_rules += f'  - xG farkı 0.4-0.8 → hafif favori, form + puan durumu belirler\n'
-        prediction_rules += f'  - xG farkı < 0.4 → dengeli maç, "X" dahil her seçenek mümkün\n\n'
+        prediction_rules += f'  - xG farkı < 0.4 → dengeli maç, ÖNCE forma bak, form belirleyiciyse forma göre tahmin ver\n\n'
         if abs(xg_diff) < 0.4:
-            prediction_rules += f'  ⚠️ Bu maçta xG farkı {abs(xg_diff)} — DÜŞÜK. Beraberlik (X) güçlü bir seçenek!\n'
-            prediction_rules += f'  Form ve puan durumu net üstünlük göstermiyorsa "X" ver\n\n'
+            prediction_rules += f'  ⚠️ Bu maçta xG farkı {abs(xg_diff)} — DÜŞÜK.\n'
+            prediction_rules += f'  Önce forma bak:\n'
+            prediction_rules += f'  - Bir takım 3+ maç farkla daha iyi formdaysa → o takımı seç ("1" veya "2")\n'
+            prediction_rules += f'  - Formlar benzer veya belirsizse → "X" ver\n'
+            prediction_rules += f'  - Ev sahibi belirgin üstünse → "1" ver, beraberliğe kaçma\n\n'
         elif abs(xg_diff) < 0.8:
             dominant = home_team if xg_diff > 0 else away_team
             pred_val = "1" if xg_diff > 0 else "2"
@@ -307,9 +310,10 @@ def build_prompt(home_team, away_team, league, match_time,
         prediction_rules += 'xG verisi yok — form trendi + ev/dep istatistik + puan durumu belirler\n\n'
 
     prediction_rules += 'Beraberlik (X) ne zaman verilmeli:\n'
-    prediction_rules += '  - xG farkı < 0.4 VE formlar benzer\n'
-    prediction_rules += '  - Her iki takım da son 5 maçta birbirine yakın performans\n'
-    prediction_rules += '  - Puan durumu kritik değil (küme düşme/şampiyonluk baskısı yok)\n\n'
+    prediction_rules += '  - xG farkı < 0.4 VE formlar gerçekten benzer (2 maçtan az fark)\n'
+    prediction_rules += '  - Her iki takım da tutarsız form gösteriyorsa\n'
+    prediction_rules += '  - Puan durumu kritik değil VE ev sahibi avantajı belirgin değilse\n'
+    prediction_rules += '  ❌ YANLIŞ: xG eşit diye otomatik X verme — form farkı varsa forma göre tahmin yap!\n\n'
     prediction_rules += '── Taraf Kuralları Sonu ──\n'
 
     # Güven kuralları
