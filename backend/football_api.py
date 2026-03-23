@@ -44,6 +44,7 @@ LEAGUE_CODES = {
 }
 
 # ─── football-data.co.uk lig CSV kodları ─────────────────────────────────────
+# Format: season/league_code.csv → 2425 = 2024-25 sezonu
 FDCO_LEAGUES = {
     'ENG': ('2425', 'E0'),   # Premier League
     'GER': ('2425', 'D1'),   # Bundesliga
@@ -63,21 +64,7 @@ def normalize_name(name):
     }
     for old, new in replacements.items():
         name = name.replace(old, new)
-    for suffix in ('wanderers', 'united', 'city', 'town', 'afc', 'fc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv'):
-        if name.endswith(suffix) and len(name) > len(suffix) + 2:
-            name = name[:-len(suffix)]
-            break
     return name
-
-
-def teams_match(name_a, name_b):
-    a = normalize_name(name_a)
-    b = normalize_name(name_b)
-    if a in b or b in a:
-        return True
-    if len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]:
-        return True
-    return False
 
 
 # ─── Alman Takımları ──────────────────────────────────────────────────────────
@@ -181,38 +168,6 @@ ITALIAN_TEAM_NORMALIZED = {
     'palermo': 576, 'brescia': 580, 'spezia': 3964,
 }
 
-# ─── Fransız Takımları (Ligue 1) ─────────────────────────────────────────────
-FRENCH_TEAM_NORMALIZED = {
-    'psg': 524, 'parissaintgermain': 524, 'paris': 524,
-    'marseille': 516, 'olympiquedemarseille': 516, 'om': 516,
-    'lyon': 523, 'olympiquelyonnais': 523, 'ol': 523,
-    'monaco': 548, 'asmonaco': 548,
-    'lille': 521, 'losc': 521, 'loscliille': 521,
-    'nice': 522, 'ogcnice': 522,
-    'lens': 546, 'rclens': 546,
-    'rennes': 529, 'staderennais': 529,
-    'nantes': 543, 'fcnantes': 543,
-    'strasbourg': 576, 'rcstrasbourg': 576,
-    'montpellier': 527, 'montpellierhsc': 527,
-    'toulouse': 586, 'tfc': 586,
-    'reims': 547, 'staderheims': 547,
-    'brest': 3006, 'sbrest': 3006,
-    'lorient': 525, 'fclorient': 525,
-    'metz': 526, 'fcmetz': 526,
-    'havre': 541, 'lehavre': 541,
-    'clermont': 2816, 'clermontfoot': 2816,
-    'auxerre': 533, 'ajauxerre': 533,
-    'angers': 532, 'scoangers': 532,
-    'saintetienne': 519, 'stetienne': 519,
-    'caen': 539, 'smalec': 539,
-    'guingamp': 545, 'eaguingamp': 545,
-    'grenoble': 3028,
-    'laval': 3032,
-    'rodez': 3030,
-    'dunkerque': 3034,
-    'pau': 3031,
-}
-
 
 def _find_team_id(team_name, table):
     normalized = normalize_name(team_name)
@@ -235,13 +190,11 @@ def is_spanish_team(team_name):
 def is_italian_team(team_name):
     return _find_team_id(team_name, ITALIAN_TEAM_NORMALIZED) is not None
 
-def is_french_team(team_name):
-    return _find_team_id(team_name, FRENCH_TEAM_NORMALIZED) is not None
-
 
 # ─── football-data.co.uk Şut/Korner İstatistikleri ───────────────────────────
 
 def _fetch_fdco_csv(country_code):
+    """football-data.co.uk'dan CSV çek, günlük cache'le."""
     today = date.today()
     if country_code in _shots_cache:
         cached = _shots_cache[country_code]
@@ -269,6 +222,16 @@ def _fetch_fdco_csv(country_code):
 
 
 def get_team_shot_stats(team_name, country_code, last=5):
+    """
+    Takımın son N maçındaki şut/şuta isabet/korner ortalamasını döndür.
+    Döndürür: {
+        'shots_avg': 13.2,        → ortalama şut
+        'shots_on_target_avg': 5.1, → şuta isabet
+        'corners_avg': 5.8,       → korner
+        'shots_conceded_avg': 10.4, → yenilen şut
+        'shot_accuracy': 38.6     → isabet yüzdesi
+    }
+    """
     rows = _fetch_fdco_csv(country_code)
     if not rows:
         return None
@@ -311,6 +274,7 @@ def get_team_shot_stats(team_name, country_code, last=5):
     if not team_matches:
         return None
 
+    # Son N maç
     recent = team_matches[-last:]
     n = len(recent)
 
@@ -357,16 +321,9 @@ def _footballdata_last_matches(team_id, team_name, last=10):
         })
         if not result or not result.get('matches'):
             return []
-
-        sorted_matches = sorted(result['matches'], key=lambda x: x.get('utcDate', ''))
-        last_matches = sorted_matches[-last:]
-
         converted = []
-        for m in last_matches:
+        for m in result['matches'][-last:]:
             try:
-                ht = m.get('score', {}).get('halfTime', {})
-                ht_home = ht.get('home')
-                ht_away = ht.get('away')
                 converted.append({
                     'teams': {
                         'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
@@ -374,9 +331,7 @@ def _footballdata_last_matches(team_id, team_name, last=10):
                     },
                     'goals': {
                         'home': m['score']['fullTime']['home'],
-                        'away': m['score']['fullTime']['away'],
-                        'ht_home': ht_home,
-                        'ht_away': ht_away,
+                        'away': m['score']['fullTime']['away']
                     }
                 })
             except:
@@ -396,22 +351,21 @@ def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
         if not result or not result.get('matches'):
             return []
         h2h = []
+        team2_norm = normalize_name(team2_name)
         for m in result['matches']:
             try:
-                home_name = m['homeTeam']['name']
-                away_name = m['awayTeam']['name']
-                if teams_match(team2_name, home_name) or teams_match(team2_name, away_name):
-                    ht = m.get('score', {}).get('halfTime', {})
+                home_norm = normalize_name(m['homeTeam']['name'])
+                away_norm = normalize_name(m['awayTeam']['name'])
+                if team2_norm in home_norm or home_norm in team2_norm or \
+                   team2_norm in away_norm or away_norm in team2_norm:
                     h2h.append({
                         'teams': {
-                            'home': {'name': home_name, 'id': m['homeTeam']['id']},
-                            'away': {'name': away_name, 'id': m['awayTeam']['id']}
+                            'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
+                            'away': {'name': m['awayTeam']['name'], 'id': m['awayTeam']['id']}
                         },
                         'goals': {
                             'home': m['score']['fullTime']['home'],
-                            'away': m['score']['fullTime']['away'],
-                            'ht_home': ht.get('home'),
-                            'ht_away': ht.get('away'),
+                            'away': m['score']['fullTime']['away']
                         }
                     })
             except:
@@ -468,9 +422,28 @@ def get_team_standing(team_name, country_code):
     standings = get_standings_cached(league_code)
     if not standings:
         return None
+
+    # U21/U18/U23/B/II suffix temizle
+    clean_name = team_name
+    for suffix in [' U21', ' U18', ' U23', ' U19', ' B', ' II', ' Reserves', ' Youth']:
+        if clean_name.endswith(suffix):
+            clean_name = clean_name[:-len(suffix)].strip()
+            break
+
+    # Önce temizlenmiş isimle dene
+    clean_norm = normalize_name(clean_name)
     for s in standings:
-        if teams_match(team_name, s['team']):
+        s_norm = normalize_name(s['team'])
+        if clean_norm in s_norm or s_norm in clean_norm:
             return s
+
+    # Sonra orijinal isimle dene
+    team_norm = normalize_name(team_name)
+    for s in standings:
+        s_norm = normalize_name(s['team'])
+        if team_norm in s_norm or s_norm in team_norm:
+            return s
+
     return None
 
 
@@ -480,19 +453,18 @@ def get_team_home_away_stats(team_name, matches):
     if not matches:
         return None
 
+    team_norm = normalize_name(team_name)
     home_results = []
     away_results = []
 
     for m in matches:
         try:
-            match_home_name = m['teams']['home']['name']
+            home_name_norm = normalize_name(m['teams']['home']['name'])
             hg = m['goals']['home']
             ag = m['goals']['away']
             if hg is None or ag is None:
                 continue
-
-            is_home = teams_match(team_name, match_home_name)
-
+            is_home = team_norm in home_name_norm or home_name_norm in team_norm
             if is_home:
                 home_results.append({'scored': hg, 'conceded': ag,
                                      'result': 'W' if hg > ag else ('D' if hg == ag else 'L')})
@@ -583,11 +555,6 @@ def get_team_last_matches(team_name, last=10):
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
-    if is_french_team(team_name):
-        team_id = _find_team_id(team_name, FRENCH_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_last_matches(team_id, team_name, last)
-        return []
     logger.info('No stats source for ' + team_name + ', using ClubElo only')
     return []
 
@@ -614,12 +581,6 @@ def get_h2h(team1_name, team2_name, last=5):
     if is_italian_team(team1_name) or is_italian_team(team2_name):
         team_id = _find_team_id(team1_name, ITALIAN_TEAM_NORMALIZED) or \
                   _find_team_id(team2_name, ITALIAN_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_h2h(team_id, team1_name, team2_name, last)
-        return []
-    if is_french_team(team1_name) or is_french_team(team2_name):
-        team_id = _find_team_id(team1_name, FRENCH_TEAM_NORMALIZED) or \
-                  _find_team_id(team2_name, FRENCH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
