@@ -367,7 +367,16 @@ Mevcut veri durumu:
         '   - prediction_1x2=1 → ev sahibi skoru deplasmandan yüksek olmalı\n'
         '   - prediction_1x2=2 → deplasman skoru ev sahibinden yüksek olmalı\n'
         '   - prediction_1x2=X → skorlar eşit olmalı (1-1, 2-2, 0-0)\n'
-        '   - Toplam gol MAX 5 olsun, uçuk skorlar verme (5-3, 6-1 gibi)\n\n'
+        '   - Toplam gol MAX 5 olsun, uçuk skorlar verme (5-3, 6-1 gibi)\n'
+        '10. İstatistik tutarlılık kuralları (ZORUNLU):\n'
+        '   - btts_pct > %60 ise over25_pct MINIMUM %45 olmalı\n'
+        '     (Her iki takım gol atıyorsa toplam gol az olamaz)\n'
+        '   - btts_pct < %35 ise over25_pct MAXIMUM %55 olmalı\n'
+        '     (Kimse gol atmıyorsa toplam gol çok olamaz)\n'
+        '   - over25_pct > %70 ise ht2g_pct MINIMUM %60 olmalı\n'
+        '     (Maç golsüz olmayacaksa ilk yarı da golsüz olmaz)\n'
+        '   - over25_pct < %35 ise btts_pct MAXIMUM %45 olmalı\n'
+        '     (Az gol olan maçta her iki takım gol atamaz)\n\n'
         'SADECE şu JSON formatında yanıt ver:\n'
         '{\n'
         '  "prediction_1x2": "1 veya X veya 2",\n'
@@ -641,6 +650,20 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             if clamped != ht2g_pct:
                 logger.info(f'ht2g_pct clamped {ht2g_pct}→{clamped} (base={ht_base})')
                 ht2g_pct = clamped
+
+    # Tutarlılık garantisi — clamp sonrası çelişkileri düzelt
+    if btts_pct > 60 and over25_pct < 45:
+        logger.info(f'Consistency fix: btts={btts_pct}>60 but over25={over25_pct}<45 → over25 set to 45')
+        over25_pct = 45
+    if btts_pct < 35 and over25_pct > 55:
+        logger.info(f'Consistency fix: btts={btts_pct}<35 but over25={over25_pct}>55 → over25 set to 55')
+        over25_pct = 55
+    if over25_pct > 70 and ht2g_pct < 60:
+        logger.info(f'Consistency fix: over25={over25_pct}>70 but ht2g={ht2g_pct}<60 → ht2g set to 60')
+        ht2g_pct = 60
+    if over25_pct < 35 and btts_pct > 45:
+        logger.info(f'Consistency fix: over25={over25_pct}<35 but btts={btts_pct}>45 → btts set to 45')
+        btts_pct = 45
 
     return {
         'analysis_date': datetime.now().strftime('%Y-%m-%d'),
