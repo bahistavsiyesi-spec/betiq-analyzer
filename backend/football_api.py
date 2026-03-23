@@ -64,7 +64,21 @@ def normalize_name(name):
     }
     for old, new in replacements.items():
         name = name.replace(old, new)
+    for suffix in ('wanderers', 'united', 'city', 'town', 'afc', 'fc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv'):
+        if name.endswith(suffix) and len(name) > len(suffix) + 2:
+            name = name[:-len(suffix)]
+            break
     return name
+
+
+def teams_match(name_a, name_b):
+    a = normalize_name(name_a)
+    b = normalize_name(name_b)
+    if a in b or b in a:
+        return True
+    if len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]:
+        return True
+    return False
 
 
 # ─── Alman Takımları ──────────────────────────────────────────────────────────
