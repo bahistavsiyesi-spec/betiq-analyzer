@@ -522,6 +522,7 @@ def api_coupon_today():
         coupon = []
         type_counts = {}
         used_combos = set()
+        used_match_ids = set()  # Ayni mactan sadece 1 tahmin
 
         for c in all_candidates:
             if len(coupon) >= max_count:
@@ -529,13 +530,54 @@ def api_coupon_today():
             t = c['type']
             match_id = c['match'].get('id')
             combo = f"{match_id}_{t}"
+
+            # Ayni mac zaten kuponda var mi?
+            if match_id in used_match_ids:
+                continue
             if combo in used_combos:
                 continue
             if type_counts.get(t, 0) >= MAX_PER_TYPE:
                 continue
             type_counts[t] = type_counts.get(t, 0) + 1
             used_combos.add(combo)
+            used_match_ids.add(match_id)
             m = c['match']
+
+            # Tahmin turune gore odds sec
+            odds_map = {
+                'IY 0.5 Ust': 'odds_ht_over05',
+                '2.5 Ust':    'odds_over25',
+                '2.5 Alt':    'odds_under25',
+                'KG Var':     'odds_btts_yes',
+                'KG Yok':     'odds_btts_no',
+                '1X2':        None,
+            }
+            odds_val = None
+            try:
+                import json as _json
+                vb_raw = m.get('value_bets')
+                vb_list = _json.loads(vb_raw) if vb_raw else []
+                # Value bets'ten odds bul
+                for vb in vb_list:
+                    if vb.get('label','').replace('Over 2.5','2.5 Ust').replace('KG Var','KG Var') in t or t in vb.get('label',''):
+                        odds_val = vb.get('odds')
+                        break
+                # Bulunamazsa odds_map ile dene — pending_matches csv_data'dan
+                if not odds_val:
+                    odds_key = odds_map.get(t)
+                    if odds_key:
+                        import psycopg2, psycopg2.extras, os
+                        conn2 = psycopg2.connect(os.environ.get('DATABASE_URL',''))
+                        cur2 = conn2.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                        cur2.execute('SELECT csv_data FROM pending_matches WHERE home_team=%s AND away_team=%s ORDER BY id DESC LIMIT 1',
+                                     (m['home_team'], m['away_team']))
+                        pm = cur2.fetchone()
+                        cur2.close(); conn2.close()
+                        if pm and pm.get('csv_data'):
+                            pm_csv = _json.loads(pm['csv_data']) if isinstance(pm['csv_data'], str) else pm['csv_data']
+                            odds_val = pm_csv.get(odds_key)
+            except: pass
+
             coupon.append({
                 'home_team': m['home_team'],
                 'away_team': m['away_team'],
@@ -546,6 +588,7 @@ def api_coupon_today():
                 'pct': round(c['pct']),
                 'confidence': m.get('confidence', 'Orta'),
                 'analysis_id': m.get('id'),
+                'odds': round(float(odds_val), 2) if odds_val else None,
             })
 
         if len(coupon) < min_count:
