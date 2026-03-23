@@ -211,7 +211,9 @@ def api_stats_by_league():
             SELECT a.league, COUNT(*) as total,
                 SUM(r.pred_1x2_correct) as c1x2,
                 SUM(r.over25_correct) as cover25,
-                SUM(r.btts_correct) as cbtts
+                SUM(r.btts_correct) as cbtts,
+                COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
+                SUM(r.ht_correct) as cht
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
             GROUP BY a.league HAVING COUNT(*) >= 3 ORDER BY COUNT(*) DESC
         ''')
@@ -219,11 +221,14 @@ def api_stats_by_league():
         leagues = []
         for r in rows:
             t = r['total'] or 0
+            total_ht = r['total_ht'] or 0
             leagues.append({
                 'league': r['league'], 'total': t,
                 'pct_1x2': round((r['c1x2'] or 0)/t*100) if t else 0,
                 'pct_over25': round((r['cover25'] or 0)/t*100) if t else 0,
                 'pct_btts': round((r['cbtts'] or 0)/t*100) if t else 0,
+                'pct_ht': round((r['cht'] or 0)/total_ht*100) if total_ht else 0,
+                'total_ht': total_ht,
             })
         cur.close(); conn.close()
         return jsonify(leagues)
