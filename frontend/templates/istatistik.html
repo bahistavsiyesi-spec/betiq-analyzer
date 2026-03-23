@@ -69,7 +69,6 @@
         .conf-stat { font-size: 12px; color: #666; }
         .conf-stat span { color: #fff; font-weight: 700; }
 
-        /* Value Bet */
         .vb-grid { display: grid; gap: 10px; }
         .vb-row { background: #12121f; border: 1px solid #2a1a4e; border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .vb-label { font-size: 13px; font-weight: 700; color: #a78bfa; flex: 1; min-width: 120px; }
@@ -104,7 +103,6 @@
             <div class="stats-container">
                 <h2 style="color:#fff; margin-bottom:20px;">📊 İstatistikler</h2>
 
-                <!-- Genel Özet -->
                 <div class="section">
                     <div class="section-title">🏆 Genel Özet</div>
                     <div class="overview-grid" id="overviewGrid">
@@ -112,7 +110,6 @@
                     </div>
                 </div>
 
-                <!-- Günlük Trend Grafiği -->
                 <div class="section">
                     <div class="section-title">📈 Günlük Başarı Trendi (Son 30 Gün)</div>
                     <div class="chart-box">
@@ -120,7 +117,6 @@
                     </div>
                 </div>
 
-                <!-- Kategori Başarısı -->
                 <div class="section">
                     <div class="section-title">🎯 Tahmin Türüne Göre Başarı</div>
                     <div class="chart-box">
@@ -140,12 +136,11 @@
                     </div>
                 </div>
 
-                <!-- Value Bet Performansı -->
                 <div class="section">
                     <div class="section-title">💎 Value Bet Performansı</div>
                     <div class="chart-box">
                         <div id="valueBetInfo" style="font-size:11px;color:#555;margin-bottom:12px;">
-                            Skor girilen maçlardaki value bet önerilerinin gerçek başarı oranı. Veri birikmesi için sonuç girilmesi gerekir.
+                            Skor girilen maçlardaki value bet önerilerinin gerçek başarı oranı.
                         </div>
                         <div class="vb-grid" id="valueBetGrid">
                             <div class="loading">Yükleniyor...</div>
@@ -153,16 +148,13 @@
                     </div>
                 </div>
 
-                <!-- İki kolon: Güven + Lig -->
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:32px;" class="two-col-section">
-                    <!-- Güven Seviyesi -->
                     <div>
                         <div class="section-title">💎 Güven Seviyesine Göre</div>
                         <div class="conf-grid" id="confidenceGrid">
                             <div class="loading">Yükleniyor...</div>
                         </div>
                     </div>
-                    <!-- Lig Bazında -->
                     <div>
                         <div class="section-title">🌍 Lig Bazında Başarı</div>
                         <div class="league-grid" id="leagueGrid">
@@ -171,7 +163,6 @@
                     </div>
                 </div>
 
-                <!-- En İyi / En Kötü Günler -->
                 <div class="section">
                     <div class="section-title">🏅 En İyi & En Kötü Günler</div>
                     <div class="day-cards" id="dayCards">
@@ -197,7 +188,6 @@
             return `${day}/${m}`;
         }
 
-        // ─── Genel Özet ──────────────────────────────────────────────────────
         async function loadOverview() {
             const resp = await fetch('/api/stats/overview');
             const d = await resp.json();
@@ -231,7 +221,6 @@
             `;
         }
 
-        // ─── Günlük Trend ────────────────────────────────────────────────────
         async function loadDailyChart() {
             const resp = await fetch('/api/stats/daily');
             const data = await resp.json();
@@ -269,7 +258,6 @@
             });
         }
 
-        // ─── Kategori Tablosu ─────────────────────────────────────────────────
         async function loadCategories() {
             const resp = await fetch('/api/stats/by-category');
             const data = await resp.json();
@@ -289,7 +277,6 @@
             `).join('');
         }
 
-        // ─── Value Bet Performansı ────────────────────────────────────────────
         async function loadValueBets() {
             const container = document.getElementById('valueBetGrid');
             try {
@@ -328,7 +315,6 @@
             }
         }
 
-        // ─── Güven Seviyesi ───────────────────────────────────────────────────
         async function loadConfidence() {
             const resp = await fetch('/api/stats/by-confidence');
             const data = await resp.json();
@@ -352,7 +338,6 @@
             `).join('');
         }
 
-        // ─── Lig Bazında ──────────────────────────────────────────────────────
         async function loadLeagues() {
             const resp = await fetch('/api/stats/by-league');
             const data = await resp.json();
@@ -374,12 +359,15 @@
                         <div class="ls-val ${pctColor(l.pct_btts)}">${l.pct_btts}%</div>
                         <div class="ls-lbl">KG</div>
                     </div>
+                    ${l.total_ht > 0 ? `<div class="league-stat">
+                        <div class="ls-val ${pctColor(l.pct_ht)}">${l.pct_ht}%</div>
+                        <div class="ls-lbl">IY 0.5</div>
+                    </div>` : ''}
                     <div class="league-stat" style="color:#444; font-size:11px;">${l.total} maç</div>
                 </div>
             `).join('');
         }
 
-        // ─── En İyi / En Kötü Günler ──────────────────────────────────────────
         async function loadBestWorst() {
             const resp = await fetch('/api/stats/best-worst-days');
             const data = await resp.json();
