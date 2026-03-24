@@ -117,11 +117,13 @@ def api_stats_overview():
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
-            SELECT COUNT(*) as total, SUM(pred_1x2_correct) as c1x2,
-                SUM(over25_correct) as cover25, SUM(btts_correct) as cbtts,
-                SUM(score_correct) as cscore, SUM(ht_correct) as cht,
-                COUNT(CASE WHEN ht_home_score IS NOT NULL THEN 1 END) as total_ht
-            FROM match_results
+            SELECT COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2,
+                SUM(r.over25_correct) as cover25, SUM(r.btts_correct) as cbtts,
+                SUM(r.score_correct) as cscore, SUM(r.ht_correct) as cht,
+                COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
         ''')
         row = dict(cur.fetchone())
         total = row['total'] or 0
@@ -152,6 +154,7 @@ def api_stats_daily():
                 SUM(r.over25_correct) as cover25,
                 SUM(r.btts_correct) as cbtts
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
             GROUP BY a.analysis_date ORDER BY a.analysis_date DESC LIMIT 30
         ''')
         rows = [dict(r) for r in cur.fetchall()]
@@ -178,12 +181,14 @@ def api_stats_by_category():
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
-            SELECT COUNT(*) as total, SUM(pred_1x2_correct) as c1x2,
-                SUM(over25_correct) as cover25, SUM(btts_correct) as cbtts,
-                SUM(score_correct) as cscore,
-                COUNT(CASE WHEN ht_home_score IS NOT NULL THEN 1 END) as total_ht,
-                SUM(ht_correct) as cht
-            FROM match_results
+            SELECT COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2,
+                SUM(r.over25_correct) as cover25, SUM(r.btts_correct) as cbtts,
+                SUM(r.score_correct) as cscore,
+                COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
+                SUM(r.ht_correct) as cht
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
         ''')
         row = dict(cur.fetchone())
         total = row['total'] or 0
@@ -215,6 +220,7 @@ def api_stats_by_league():
                 COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
                 SUM(r.ht_correct) as cht
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
             GROUP BY a.league HAVING COUNT(*) >= 3 ORDER BY COUNT(*) DESC
         ''')
         rows = [dict(r) for r in cur.fetchall()]
@@ -277,6 +283,7 @@ def api_stats_best_worst_days():
         cur.execute('''
             SELECT a.analysis_date, COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
             GROUP BY a.analysis_date HAVING COUNT(*) >= 2
             ORDER BY (SUM(r.pred_1x2_correct)::float / COUNT(*)) DESC
         ''')
