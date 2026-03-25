@@ -38,6 +38,7 @@ def init_db():
             home_goals_trend TEXT,
             away_goals_trend TEXT,
             value_bets TEXT,
+            csv_data TEXT,
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
@@ -114,6 +115,7 @@ def init_db():
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS home_goals_trend TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS value_bets TEXT',
+        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS csv_data TEXT',
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS value_bet_results TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS predicted_ht_score TEXT',
     ]:
@@ -358,8 +360,8 @@ def save_analysis(data: dict):
             prediction_1x2, over25_pct, ht2g_pct, btts_pct, predicted_score,
             predicted_ht_score, confidence, reasoning, h2h_summary, home_form, away_form,
             home_goals_avg, away_goals_avg, home_goals_trend, away_goals_trend,
-            value_bets
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            value_bets, csv_data
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
         data.get('analysis_date', datetime.now().strftime('%Y-%m-%d')),
         data.get('fixture_id'),
@@ -375,10 +377,24 @@ def save_analysis(data: dict):
         data.get('home_goals_avg', 0), data.get('away_goals_avg', 0),
         data.get('home_goals_trend'), data.get('away_goals_trend'),
         data.get('value_bets'),
+        json.dumps(data.get('csv_data'), ensure_ascii=False) if data.get('csv_data') is not None else None,
     ))
     conn.commit()
     cur.close()
     conn.close()
+
+
+def _decode_csv_data_in_rows(rows):
+    result = []
+    for r in rows:
+        row = dict(r)
+        if row.get('csv_data'):
+            try:
+                row['csv_data'] = json.loads(row['csv_data']) if isinstance(row['csv_data'], str) else row['csv_data']
+            except:
+                row['csv_data'] = None
+        result.append(row)
+    return result
 
 
 def get_today_matches():
@@ -392,7 +408,7 @@ def get_today_matches():
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    return [dict(r) for r in rows]
+    return _decode_csv_data_in_rows(rows)
 
 
 def get_recent_analyses(days=7):
@@ -406,7 +422,7 @@ def get_recent_analyses(days=7):
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    return [dict(r) for r in rows]
+    return _decode_csv_data_in_rows(rows)
 
 
 def get_analyses_by_date(date_str):
@@ -419,7 +435,7 @@ def get_analyses_by_date(date_str):
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    return [dict(r) for r in rows]
+    return _decode_csv_data_in_rows(rows)
 
 
 def get_analyses_by_date_with_results(date_str):
@@ -443,7 +459,7 @@ def get_analyses_by_date_with_results(date_str):
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    return [dict(r) for r in rows]
+    return _decode_csv_data_in_rows(rows)
 
 
 def get_analysis_by_id(analysis_id):
@@ -453,7 +469,15 @@ def get_analysis_by_id(analysis_id):
     row = cur.fetchone()
     cur.close()
     conn.close()
-    return dict(row) if row else None
+    if not row:
+        return None
+    result = dict(row)
+    if result.get('csv_data'):
+        try:
+            result['csv_data'] = json.loads(result['csv_data']) if isinstance(result['csv_data'], str) else result['csv_data']
+        except:
+            result['csv_data'] = None
+    return result
 
 
 def get_available_dates():
