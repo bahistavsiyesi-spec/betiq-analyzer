@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, jsonify, request
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
@@ -474,7 +475,7 @@ def api_coupon_today():
         min_count = max(2, min(min_count, 8))
         max_count = max(min_count, min(max_count, 8))
 
-        MIN_PCT = 65
+        MIN_PCT = 70
 
         # Tur oncelik sirasi: IY 0.5 Ust > 2.5 Ust > KG Var > 1X2 > 2.5 Alt > KG Yok
         TYPE_PRIORITY = {
@@ -486,37 +487,39 @@ def api_coupon_today():
         all_candidates = []
         for m in matches:
             confidence = m.get('confidence', '')
-            # Turkce karakter sorunu icin her iki versiyonu da kontrol et
-            if confidence not in ('Yuksek', 'Cok Yuksek', 'Y\u00fcksek', '\u00c7ok Y\u00fcksek'):
-                continue
             over25_pct = float(m.get('over25_pct') or 0)
             btts_pct = float(m.get('btts_pct') or 0)
             ht2g_pct = float(m.get('ht2g_pct') or 0)
-            conf_score = 4 if confidence in ('Cok Yuksek', '\u00c7ok Y\u00fcksek') else 3
+
+            high_conf = confidence in ('Yuksek', 'Cok Yuksek', 'Y\u00fcksek', '\u00c7ok Y\u00fcksek')
+            if confidence in ('Cok Yuksek', '\u00c7ok Y\u00fcksek'):
+                conf_score = 4
+            elif confidence in ('Yuksek', 'Y\u00fcksek'):
+                conf_score = 3
+            elif confidence == 'Orta':
+                conf_score = 2
+            else:
+                conf_score = 1
+
             pred = m.get('prediction_1x2', '?')
             pred_text = {
                 '1': f"{m['home_team']} Kazanir",
                 'X': 'Beraberlik',
                 '2': f"{m['away_team']} Kazanir"
             }.get(pred, pred)
-            has_good = False
 
             if ht2g_pct >= MIN_PCT:
                 all_candidates.append({'type': 'IY 0.5 Ust', 'label': 'IY 0.5 Ustu', 'pct': ht2g_pct, 'conf_score': conf_score, 'match': m})
-                has_good = True
             if over25_pct >= MIN_PCT:
                 all_candidates.append({'type': '2.5 Ust', 'label': '2.5 Gol Ustu', 'pct': over25_pct, 'conf_score': conf_score, 'match': m})
-                has_good = True
             elif (100 - over25_pct) >= MIN_PCT:
                 all_candidates.append({'type': '2.5 Alt', 'label': '2.5 Gol Alti', 'pct': 100-over25_pct, 'conf_score': conf_score, 'match': m})
-                has_good = True
             if btts_pct >= MIN_PCT:
                 all_candidates.append({'type': 'KG Var', 'label': 'KG Var', 'pct': btts_pct, 'conf_score': conf_score, 'match': m})
-                has_good = True
             elif (100 - btts_pct) >= MIN_PCT:
                 all_candidates.append({'type': 'KG Yok', 'label': 'KG Yok', 'pct': 100-btts_pct, 'conf_score': conf_score, 'match': m})
-                has_good = True
-            if not has_good:
+
+            if high_conf:
                 all_candidates.append({'type': '1X2', 'label': pred_text, 'pct': conf_score*20, 'conf_score': conf_score, 'match': m})
 
         if not all_candidates:
