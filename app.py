@@ -585,7 +585,21 @@ def api_coupon_today():
                         cur2.close(); conn2.close()
                         if pm and pm.get('csv_data'):
                             pm_csv = _json.loads(pm['csv_data']) if isinstance(pm['csv_data'], str) else pm['csv_data']
-                            odds_val = pm_csv.get(odds_key)
+                            normalized = {
+                                str(k).strip().lower().replace(' ', '_'): v
+                                for k, v in pm_csv.items()
+                            }
+                            odds_aliases = {
+                                'odds_ht_over05': ['odds_ht_over05', 'odds_1h_over05', 'odds_ht_over_0_5', 'odds_1h_over_0_5'],
+                                'odds_over25': ['odds_over25', 'odds_over_2_5'],
+                                'odds_under25': ['odds_under25', 'odds_under_2_5'],
+                                'odds_btts_yes': ['odds_btts_yes', 'odds_btts_yes_'],
+                                'odds_btts_no': ['odds_btts_no', 'odds_btts_no_'],
+                            }
+                            for key in odds_aliases.get(odds_key, [odds_key]):
+                                if key in normalized and normalized.get(key) not in (None, '', 0, '0'):
+                                    odds_val = normalized.get(key)
+                                    break
             except: pass
 
             coupon.append({
