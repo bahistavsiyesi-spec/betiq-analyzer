@@ -494,21 +494,22 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
     """
     CSV 3.5/4.5 üst yüzdelerine göre daha gerçekçi skor üretir.
     Öncelik sırası: 4.5 üst > 3.5 üst > 2.5 üst > düşük gol.
+    Kritik kural: 3.5 üst düşükse 4 gollü skor üretme.
     """
     o35 = _safe_float(over35_avg)
     o45 = _safe_float(over45_avg)
     btts = _safe_float(btts_pct) or 0
     o25 = _safe_float(over25_pct) or 0
 
-    # 4.5 üst çok yüksekse toplam gol 5+ olmalı
+    # 4.5 ÜST → 5+ gol
     if o45 is not None and o45 >= 35:
         if pred_1x2 == '1':
             return '3-2' if btts >= 60 else '4-1'
         if pred_1x2 == '2':
             return '2-3' if btts >= 60 else '1-4'
-        return '3-2' if btts >= 65 else '2-2'
+        return '3-2' if btts >= 65 else '2-3'
 
-    # 3.5 üst yüksekse toplam gol 4+ olmalı
+    # 3.5 ÜST → 4+ gol
     if o35 is not None and o35 >= 55:
         if pred_1x2 == '1':
             return '3-1' if btts >= 50 else '4-0'
@@ -516,15 +517,23 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
             return '1-3' if btts >= 50 else '0-4'
         return '2-2'
 
-    # 2.5 üst çok yüksek ama 3.5 üst değilse 3 gol bandı ağırlıklı kal
+    # KRİTİK FIX → 3.5 düşükse 4 gollü skor YASAK
+    if o35 is not None and o35 < 45:
+        if pred_1x2 == '1':
+            return '2-1' if btts >= 50 else '2-0'
+        if pred_1x2 == '2':
+            return '1-2' if btts >= 50 else '0-2'
+        return '1-1'
+
+    # 2.5 ÜST yüksek ama 3.5 ÜST net değilse 3 gol bandında kal
     if o25 >= 70:
         if pred_1x2 == '1':
             return '2-1' if btts >= 55 else '3-0'
         if pred_1x2 == '2':
             return '1-2' if btts >= 55 else '0-3'
-        return '2-2' if btts >= 65 and (o35 is not None and o35 >= 45) else '1-1'
+        return '1-1'
 
-    # 2.5 alt eğilimli maç
+    # 2.5 ALT eğilimli maç
     if o25 <= 35:
         if pred_1x2 == '1':
             return '1-0'
@@ -537,7 +546,7 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
         return '2-0' if btts < 45 else '2-1'
     if pred_1x2 == '2':
         return '0-2' if btts < 45 else '1-2'
-    return '1-1' if btts < 60 else '2-2'
+    return '1-1'
 
 
 def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
