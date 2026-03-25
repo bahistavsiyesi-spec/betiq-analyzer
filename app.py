@@ -565,42 +565,78 @@ def api_coupon_today():
             odds_val = None
             try:
                 import json as _json
+                import re
+
+                def _norm_text(s):
+                    s = str(s or '').strip().lower()
+                    s = s.replace('&', ' and ')
+                    s = re.sub(r'[^a-z0-9]+', ' ', s)
+                    s = re.sub(r'\b(fc|cf|sc|afc|fk|sk|ac|as)\b', ' ', s)
+                    s = re.sub(r'\b(women|woman|ladies|female|women fc|wfc|w)\b', ' women ', s)
+                    s = re.sub(r'\b(reserves|reserve|ii|b team|b)\b', ' reserves ', s)
+                    s = re.sub(r'\b(u[0-9]{2})\b', ' youth ', s)
+                    s = re.sub(r'\s+', ' ', s).strip()
+                    return s
+
+                def _same_team(a, b):
+                    na, nb = _norm_text(a), _norm_text(b)
+                    return na == nb or na in nb or nb in na
+
+                def _norm_key(k):
+                    k = str(k or '').strip().lower()
+                    k = k.replace('%', 'pct')
+                    k = re.sub(r'[^a-z0-9]+', '_', k)
+                    k = re.sub(r'_+', '_', k).strip('_')
+                    return k
+
+                def _extract_odds_from_csv(pm_csv, odds_key):
+                    if not pm_csv or not odds_key:
+                        return None
+                    normalized = {_norm_key(k): v for k, v in pm_csv.items()}
+                    odds_aliases = {
+                        'odds_ht_over05': [
+                            'odds_ht_over05', 'odds_ht_over_05', 'odds_ht_over_0_5',
+                            'odds_1h_over05', 'odds_1h_over_05', 'odds_1h_over_0_5',
+                            'odds_1st_half_over05', 'odds_1st_half_over_05', 'odds_1st_half_over_0_5',
+                            '1st_half_over05', 'first_half_over05'
+                        ],
+                        'odds_over25': ['odds_over25', 'odds_over_25', 'odds_over_2_5', 'over25', 'over_25'],
+                        'odds_under25': ['odds_under25', 'odds_under_25', 'odds_under_2_5', 'under25', 'under_25'],
+                        'odds_btts_yes': ['odds_btts_yes', 'odds_btts_yes_', 'btts_yes', 'odds_bttsyes'],
+                        'odds_btts_no': ['odds_btts_no', 'odds_btts_no_', 'btts_no', 'odds_bttsno'],
+                    }
+                    for key in odds_aliases.get(odds_key, [odds_key]):
+                        val = normalized.get(key)
+                        if val not in (None, '', 0, '0'):
+                            return val
+                    return None
+
                 vb_raw = m.get('value_bets')
                 vb_list = _json.loads(vb_raw) if vb_raw else []
+
                 # Value bets'ten odds bul
                 for vb in vb_list:
                     if vb.get('label','').replace('Over 2.5','2.5 Ust').replace('KG Var','KG Var') in t or t in vb.get('label',''):
                         odds_val = vb.get('odds')
                         break
-                # Bulunamazsa odds_map ile dene — pending_matches csv_data'dan
+
+                # Bulunamazsa pending_matches csv_data'dan dene
                 if not odds_val:
                     odds_key = odds_map.get(t)
                     if odds_key:
-                        import psycopg2, psycopg2.extras, os
-                        conn2 = psycopg2.connect(os.environ.get('DATABASE_URL',''))
-                        cur2 = conn2.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                        cur2.execute('SELECT csv_data FROM pending_matches WHERE home_team=%s AND away_team=%s ORDER BY id DESC LIMIT 1',
-                                     (m['home_team'], m['away_team']))
-                        pm = cur2.fetchone()
-                        cur2.close(); conn2.close()
-                        if pm and pm.get('csv_data'):
-                            pm_csv = _json.loads(pm['csv_data']) if isinstance(pm['csv_data'], str) else pm['csv_data']
-                            normalized = {
-                                str(k).strip().lower().replace(' ', '_'): v
-                                for k, v in pm_csv.items()
-                            }
-                            odds_aliases = {
-                                'odds_ht_over05': ['odds_ht_over05', 'odds_1h_over05', 'odds_ht_over_0_5', 'odds_1h_over_0_5'],
-                                'odds_over25': ['odds_over25', 'odds_over_2_5'],
-                                'odds_under25': ['odds_under25', 'odds_under_2_5'],
-                                'odds_btts_yes': ['odds_btts_yes', 'odds_btts_yes_'],
-                                'odds_btts_no': ['odds_btts_no', 'odds_btts_no_'],
-                            }
-                            for key in odds_aliases.get(odds_key, [odds_key]):
-                                if key in normalized and normalized.get(key) not in (None, '', 0, '0'):
-                                    odds_val = normalized.get(key)
-                                    break
-            except: pass
+                        pending = get_pending_matches()
+                        best_pm = None
+                        for pm in pending:
+                            if _same_team(pm.get('home_team'), m.get('home_team')) and _same_team(pm.get('away_team'), m.get('away_team')):
+                                best_pm = pm
+                                break
+                        if best_pm and best_pm.get('csv_data'):
+                            pm_csv = best_pm['csv_data']
+                            if isinstance(pm_csv, str):
+                                pm_csv = _json.loads(pm_csv)
+                            odds_val = _extract_odds_from_csv(pm_csv, odds_key)
+            except Exception:
+                pass
 
             coupon.append({
                 'home_team': m['home_team'],
