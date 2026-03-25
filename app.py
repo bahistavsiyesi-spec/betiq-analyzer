@@ -565,34 +565,23 @@ def api_coupon_today():
             odds_val = None
             try:
                 import json as _json
-                import re
+                import re as _re
 
-                def _norm_text(s):
-                    s = str(s or '').strip().lower()
-                    s = s.replace('&', ' and ')
-                    s = re.sub(r'[^a-z0-9]+', ' ', s)
-                    s = re.sub(r'\b(fc|cf|sc|afc|fk|sk|ac|as)\b', ' ', s)
-                    s = re.sub(r'\b(women|woman|ladies|female|women fc|wfc|w)\b', ' women ', s)
-                    s = re.sub(r'\b(reserves|reserve|ii|b team|b)\b', ' reserves ', s)
-                    s = re.sub(r'\b(u[0-9]{2})\b', ' youth ', s)
-                    s = re.sub(r'\s+', ' ', s).strip()
-                    return s
+                def _normalize_csv_keys(data):
+                    normalized = {}
+                    if not isinstance(data, dict):
+                        return normalized
+                    for k, v in data.items():
+                        key = str(k).strip().lower()
+                        key = key.replace('%', 'pct')
+                        key = key.replace('.', '')
+                        key = key.replace('-', '_').replace(' ', '_')
+                        key = _re.sub(r'_+', '_', key)
+                        normalized[key] = v
+                    return normalized
 
-                def _same_team(a, b):
-                    na, nb = _norm_text(a), _norm_text(b)
-                    return na == nb or na in nb or nb in na
-
-                def _norm_key(k):
-                    k = str(k or '').strip().lower()
-                    k = k.replace('%', 'pct')
-                    k = re.sub(r'[^a-z0-9]+', '_', k)
-                    k = re.sub(r'_+', '_', k).strip('_')
-                    return k
-
-                def _extract_odds_from_csv(pm_csv, odds_key):
-                    if not pm_csv or not odds_key:
-                        return None
-                    normalized = {_norm_key(k): v for k, v in pm_csv.items()}
+                def _extract_odds_from_csv(data, odds_key):
+                    normalized = _normalize_csv_keys(data)
                     odds_aliases = {
                         'odds_ht_over05': [
                             'odds_ht_over05', 'odds_ht_over_05', 'odds_ht_over_0_5',
@@ -611,16 +600,41 @@ def api_coupon_today():
                             return val
                     return None
 
+                def _same_team(a, b):
+                    def norm(s):
+                        s = str(s or '').strip().lower()
+                        s = s.replace('&', 'and')
+                        s = _re.sub(r'[^a-z0-9]+', ' ', s)
+                        s = _re.sub(r'\b(fc|cf|afc|sc|ac|club|women|woman|wfc|w)\b', ' ', s)
+                        s = _re.sub(r'\s+', ' ', s).strip()
+                        return s
+                    na, nb = norm(a), norm(b)
+                    return na == nb or na in nb or nb in na
+
                 vb_raw = m.get('value_bets')
-                vb_list = _json.loads(vb_raw) if vb_raw else []
+                vb_list = _json.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
 
                 # Value bets'ten odds bul
                 for vb in vb_list:
-                    if vb.get('label','').replace('Over 2.5','2.5 Ust').replace('KG Var','KG Var') in t or t in vb.get('label',''):
+                    label = str(vb.get('label', ''))
+                    if label.replace('Over 2.5', '2.5 Ust').replace('KG Var', 'KG Var') in t or t in label:
                         odds_val = vb.get('odds')
-                        break
+                        if odds_val:
+                            break
 
-                # Bulunamazsa pending_matches csv_data'dan dene
+                # Önce analyses içindeki csv_data'dan dene
+                if not odds_val:
+                    odds_key = odds_map.get(t)
+                    analysis_csv = m.get('csv_data')
+                    if isinstance(analysis_csv, str) and analysis_csv:
+                        try:
+                            analysis_csv = _json.loads(analysis_csv)
+                        except Exception:
+                            analysis_csv = None
+                    if odds_key and analysis_csv:
+                        odds_val = _extract_odds_from_csv(analysis_csv, odds_key)
+
+                # Son fallback: pending_matches csv_data'dan dene
                 if not odds_val:
                     odds_key = odds_map.get(t)
                     if odds_key:
