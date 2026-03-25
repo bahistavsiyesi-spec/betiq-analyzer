@@ -688,6 +688,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         'home_goals_trend': json.dumps(home_goals_trend, ensure_ascii=False) if home_goals_trend else None,
         'away_goals_trend': json.dumps(away_goals_trend, ensure_ascii=False) if away_goals_trend else None,
         'value_bets': json.dumps(value_bets, ensure_ascii=False) if value_bets else None,
+        'csv_data': csv_data,
     }
 
 
