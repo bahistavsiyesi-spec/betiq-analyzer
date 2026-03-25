@@ -368,6 +368,9 @@ Mevcut veri durumu:
         '   - btts_pct > %65 → her iki takım da gol atmalı (1-1, 2-1, 1-2 gibi)\n'
         '   - over25_pct < %40 → toplam gol MAX 2 olmalı (1-0, 0-1, 1-1, 2-0, 0-2)\n'
         '   - over25_pct > %70 → toplam gol MIN 3 olmalı (2-1, 3-0, 1-2, 3-1 gibi)\n'
+        '   - CSV over35_avg >= %55 ise predicted_score toplam golü MIN 4 olmalı (3-1, 2-2, 1-3, 4-0 gibi)\n'
+        '   - CSV over45_avg >= %35 ise predicted_score toplam golü MIN 5 olmalı (3-2, 4-1, 2-3 gibi)\n'
+        '   - CSV over25_avg yüksek ama over35_avg düşükse 2-1 / 1-2 / 3-0 bandında kal\n'
         '   - prediction_1x2=1 → ev sahibi skoru deplasmandan yüksek olmalı\n'
         '   - prediction_1x2=2 → deplasman skoru ev sahibinden yüksek olmalı\n'
         '   - prediction_1x2=X → skorlar eşit olmalı (1-1, 2-2, 0-0)\n'
@@ -474,6 +477,67 @@ def merge_results(r1, r2):
         'reasoning': r1.get('reasoning', r2.get('reasoning', [])),
         'h2h_summary': r1.get('h2h_summary', '')
     }
+
+
+
+
+def _safe_float(v):
+    try:
+        if v is None or v == '':
+            return None
+        return float(v)
+    except:
+        return None
+
+
+def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, over45_avg=None):
+    """
+    CSV 3.5/4.5 üst yüzdelerine göre daha gerçekçi skor üretir.
+    Öncelik sırası: 4.5 üst > 3.5 üst > 2.5 üst > düşük gol.
+    """
+    o35 = _safe_float(over35_avg)
+    o45 = _safe_float(over45_avg)
+    btts = _safe_float(btts_pct) or 0
+    o25 = _safe_float(over25_pct) or 0
+
+    # 4.5 üst çok yüksekse toplam gol 5+ olmalı
+    if o45 is not None and o45 >= 35:
+        if pred_1x2 == '1':
+            return '3-2' if btts >= 60 else '4-1'
+        if pred_1x2 == '2':
+            return '2-3' if btts >= 60 else '1-4'
+        return '3-2' if btts >= 65 else '2-2'
+
+    # 3.5 üst yüksekse toplam gol 4+ olmalı
+    if o35 is not None and o35 >= 55:
+        if pred_1x2 == '1':
+            return '3-1' if btts >= 50 else '4-0'
+        if pred_1x2 == '2':
+            return '1-3' if btts >= 50 else '0-4'
+        return '2-2'
+
+    # 2.5 üst çok yüksek ama 3.5 üst değilse 3 gol bandı ağırlıklı kal
+    if o25 >= 70:
+        if pred_1x2 == '1':
+            return '2-1' if btts >= 55 else '3-0'
+        if pred_1x2 == '2':
+            return '1-2' if btts >= 55 else '0-3'
+        return '2-2' if btts >= 65 and (o35 is not None and o35 >= 45) else '1-1'
+
+    # 2.5 alt eğilimli maç
+    if o25 <= 35:
+        if pred_1x2 == '1':
+            return '1-0'
+        if pred_1x2 == '2':
+            return '0-1'
+        return '1-1'
+
+    # Orta bölge
+    if pred_1x2 == '1':
+        return '2-0' if btts < 45 else '2-1'
+    if pred_1x2 == '2':
+        return '0-2' if btts < 45 else '1-2'
+    return '1-1' if btts < 60 else '2-2'
 
 
 def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
@@ -678,7 +742,13 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         'over25_pct': round(over25_pct),
         'ht2g_pct': round(ht2g_pct),
         'btts_pct': round(btts_pct),
-        'predicted_score': result.get('predicted_score', '?-?'),
+        'predicted_score': _pick_score_by_csv_rules(
+            result.get('prediction_1x2', '?'),
+            btts_pct,
+            over25_pct,
+            csv_data.get('over35_avg') if csv_data else None,
+            csv_data.get('over45_avg') if csv_data else None,
+        ),
         'predicted_ht_score': result.get('predicted_ht_score', '?-?'),
         'confidence': confidence,
         'reasoning': json.dumps(result.get('reasoning', []), ensure_ascii=False),
@@ -701,7 +771,7 @@ def mock_analysis(fixture, home_form='', away_form='', home_goals_avg=0, away_go
         'home_team': home_team, 'away_team': away_team,
         'league': fixture['league']['name'], 'match_time': fixture['fixture']['date'],
         'prediction_1x2': '1', 'over25_pct': 55, 'ht2g_pct': 40, 'btts_pct': 45,
-        'predicted_score': '2-1', 'predicted_ht_score': '1-0', 'confidence': 'Orta',
+        'predicted_score': _pick_score_by_csv_rules('1', 45, 55, None, None), 'predicted_ht_score': '1-0', 'confidence': 'Orta',
         'reasoning': json.dumps([home_team + ' ev sahibi avantajına sahip', 'İstatistiksel model tahmini'], ensure_ascii=False),
         'h2h_summary': 'Genel istatistiklere göre tahmin',
         'home_form': home_form, 'away_form': away_form,
