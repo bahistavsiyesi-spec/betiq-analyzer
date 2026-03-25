@@ -557,6 +557,108 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
     return '1-1'
 
 
+def _parse_score(score_text):
+    try:
+        if not score_text or '-' not in str(score_text):
+            return None
+        left, right = str(score_text).strip().split('-', 1)
+        return int(left.strip()), int(right.strip())
+    except:
+        return None
+
+
+def _is_score_valid(score_text, pred_1x2, btts_pct, over25_pct, over35_avg=None, over45_avg=None):
+    parsed = _parse_score(score_text)
+    if not parsed:
+        return False
+
+    home, away = parsed
+    total = home + away
+    btts = _safe_float(btts_pct) or 0
+    o25 = _safe_float(over25_pct) or 0
+    o35 = _safe_float(over35_avg)
+    o45 = _safe_float(over45_avg)
+
+    if pred_1x2 == '1' and home <= away:
+        return False
+    if pred_1x2 == '2' and away <= home:
+        return False
+    if pred_1x2 == 'X' and home != away:
+        return False
+
+    if btts < 40 and home > 0 and away > 0:
+        return False
+    if btts > 65 and (home == 0 or away == 0):
+        return False
+
+    if o25 < 40 and total > 2:
+        return False
+    if o25 > 70 and total < 3:
+        return False
+
+    if o35 is not None and o35 < 45 and total >= 4:
+        return False
+    if o35 is not None and o35 >= 55 and total < 4:
+        return False
+    if o45 is not None and o45 >= 35 and total < 5:
+        return False
+
+    if total > 5:
+        return False
+
+    return True
+
+
+def _is_ht_ft_consistent(ht_score_text, ft_score_text):
+    ht = _parse_score(ht_score_text)
+    ft = _parse_score(ft_score_text)
+    if not ht or not ft:
+        return False
+
+    ht_home, ht_away = ht
+    ft_home, ft_away = ft
+
+    if ht_home > ft_home or ht_away > ft_away:
+        return False
+
+    return True
+
+
+def _repair_ht_from_ft(ft_score_text, ht2g_pct=None):
+    ft = _parse_score(ft_score_text)
+    if not ft:
+        return '?-?'
+
+    home, away = ft
+    total = home + away
+    ht2g = _safe_float(ht2g_pct) or 0
+
+    if total == 0:
+        return '0-0'
+    if total == 1:
+        return '1-0' if home > away else '0-1'
+    if total == 2:
+        if home == away:
+            return '1-1' if ht2g >= 60 else '0-0'
+        if home > away:
+            return '1-0'
+        return '0-1'
+    if total == 3:
+        if home > away:
+            return '1-0' if ht2g < 65 else '1-1'
+        if away > home:
+            return '0-1' if ht2g < 65 else '1-1'
+        return '1-1'
+    if total >= 4:
+        if home == away:
+            return '1-1'
+        if home > away:
+            return '2-0' if away == 0 else '2-1'
+        return '0-2' if home == 0 else '1-2'
+
+    return '1-0'
+
+
 def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_form='', away_form='',
                         home_goals_avg=0, away_goals_avg=0,
@@ -750,6 +852,34 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         logger.info(f'Consistency fix: over25={over25_pct}<35 but btts={btts_pct}>45 → btts set to 45')
         btts_pct = 45
 
+    ai_predicted_score = result.get('predicted_score', '?-?')
+    ai_predicted_ht_score = result.get('predicted_ht_score', '?-?')
+    fallback_score = _pick_score_by_csv_rules(
+        result.get('prediction_1x2', '?'),
+        btts_pct,
+        over25_pct,
+        csv_data.get('over35_avg') if csv_data else None,
+        csv_data.get('over45_avg') if csv_data else None,
+    )
+
+    final_score = ai_predicted_score
+    if not _is_score_valid(
+        final_score,
+        result.get('prediction_1x2', '?'),
+        btts_pct,
+        over25_pct,
+        csv_data.get('over35_avg') if csv_data else None,
+        csv_data.get('over45_avg') if csv_data else None,
+    ):
+        logger.info(f'AI predicted_score invalid, fallback used: {ai_predicted_score} -> {fallback_score}')
+        final_score = fallback_score
+
+    final_ht_score = ai_predicted_ht_score
+    if not _is_ht_ft_consistent(final_ht_score, final_score):
+        repaired_ht = _repair_ht_from_ft(final_score, ht2g_pct)
+        logger.info(f'AI predicted_ht_score inconsistent, repaired: {ai_predicted_ht_score} -> {repaired_ht}')
+        final_ht_score = repaired_ht
+
     return {
         'analysis_date': datetime.now().strftime('%Y-%m-%d'),
         'fixture_id': fixture['fixture']['id'],
@@ -759,14 +889,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         'over25_pct': round(over25_pct),
         'ht2g_pct': round(ht2g_pct),
         'btts_pct': round(btts_pct),
-        'predicted_score': _pick_score_by_csv_rules(
-            result.get('prediction_1x2', '?'),
-            btts_pct,
-            over25_pct,
-            csv_data.get('over35_avg') if csv_data else None,
-            csv_data.get('over45_avg') if csv_data else None,
-        ),
-        'predicted_ht_score': result.get('predicted_ht_score', '?-?'),
+        'predicted_score': final_score,
+        'predicted_ht_score': final_ht_score,
         'confidence': confidence,
         'reasoning': json.dumps(result.get('reasoning', []), ensure_ascii=False),
         'h2h_summary': result.get('h2h_summary', ''),
