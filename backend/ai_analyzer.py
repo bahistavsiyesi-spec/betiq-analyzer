@@ -517,6 +517,14 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
             return '1-3' if btts >= 50 else '0-4'
         return '2-2'
 
+    # 3.5 orta bölge (45-54 arası) -> 3 gol bandı
+    if o35 is not None and 45 <= o35 < 55:
+        if pred_1x2 == '1':
+            return '2-1' if btts >= 55 else '3-0'
+        if pred_1x2 == '2':
+            return '1-2' if btts >= 55 else '0-3'
+        return '2-1'
+
     # KRİTİK FIX → 3.5 düşükse 4 gollü skor YASAK
     if o35 is not None and o35 < 45:
         if pred_1x2 == '1':
