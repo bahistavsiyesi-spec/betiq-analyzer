@@ -117,6 +117,34 @@ def build_csv_section(home_team, away_team, csv_data):
     if corn_lines:
         lines.append('Korner İstatistikleri (CSV):')
         lines.extend(corn_lines)
+    shot_lines = []
+    hs = csv_data.get('home_shots')
+    hon = csv_data.get('home_shots_on')
+    as_ = csv_data.get('away_shots')
+    aon = csv_data.get('away_shots_on')
+    for key, label in [
+        ('home_shots',    f'{home_team} toplam şut/maç'),
+        ('home_shots_on', f'{home_team} isabetli şut/maç'),
+        ('away_shots',    f'{away_team} toplam şut/maç'),
+        ('away_shots_on', f'{away_team} isabetli şut/maç'),
+    ]:
+        v = csv_data.get(key)
+        if v is not None:
+            shot_lines.append(f'  - {label}: {v}')
+    if hs and hon:
+        try:
+            acc = round(float(hon) / float(hs) * 100, 1)
+            shot_lines.append(f'  - {home_team} isabet oranı: %{acc}')
+        except: pass
+    if as_ and aon:
+        try:
+            acc = round(float(aon) / float(as_) * 100, 1)
+            shot_lines.append(f'  - {away_team} isabet oranı: %{acc}')
+        except: pass
+    if shot_lines:
+        lines.append('Şut İstatistikleri (CSV):')
+        lines.extend(shot_lines)
+
     cards = csv_data.get('avg_cards')
     if cards is not None:
         lines.append(f'Ortalama Kart/Maç: {cards}')
@@ -192,6 +220,27 @@ def build_prompt(home_team, away_team, league, match_time,
             trend_text += f'- {away_team} attığı: {" | ".join(str(g) for g in away_goals_trend["scored"])} (ort. {away_goals_trend["scored_avg"]})\n'
             trend_text += f'- {away_team} yediği: {" | ".join(str(g) for g in away_goals_trend["conceded"])} (ort. {away_goals_trend["conceded_avg"]})\n'
 
+    shot_text = ''
+    if home_shot_stats or away_shot_stats:
+        shot_text = '\nŞut İstatistikleri (son 5 maç ortalaması):\n'
+        if home_shot_stats:
+            shot_text += (f'- {home_team}: {home_shot_stats["shots_avg"]} şut/maç, '
+                          f'{home_shot_stats["shots_on_target_avg"]} isabetli, '
+                          f'%{home_shot_stats["shot_accuracy"]} isabet oranı, '
+                          f'{home_shot_stats["shots_conceded_avg"]} yenilen şut/maç\n')
+        if away_shot_stats:
+            shot_text += (f'- {away_team}: {away_shot_stats["shots_avg"]} şut/maç, '
+                          f'{away_shot_stats["shots_on_target_avg"]} isabetli, '
+                          f'%{away_shot_stats["shot_accuracy"]} isabet oranı, '
+                          f'{away_shot_stats["shots_conceded_avg"]} yenilen şut/maç\n')
+        if home_shot_stats and away_shot_stats:
+            h_acc = home_shot_stats['shot_accuracy']
+            a_acc = away_shot_stats['shot_accuracy']
+            h_on = home_shot_stats['shots_on_target_avg']
+            a_on = away_shot_stats['shots_on_target_avg']
+            dominant = home_team if h_on > a_on else away_team
+            shot_text += f'- İsabetli şut üstünlüğü: {dominant} ({max(h_on, a_on)} vs {min(h_on, a_on)}/maç)\n'
+
     venue_text = ''
     has_venue = (home_home_avg is not None and home_home_avg > 0) or (away_away_avg is not None and away_away_avg > 0)
     if has_venue:
@@ -221,6 +270,16 @@ def build_prompt(home_team, away_team, league, match_time,
     csv_hint = ''
     if csv_data:
         hints = []
+        if csv_data.get('home_shots_on') and csv_data.get('away_shots_on'):
+            try:
+                hs = float(csv_data.get('home_shots', 1) or 1)
+                hon = float(csv_data['home_shots_on'])
+                as_ = float(csv_data.get('away_shots', 1) or 1)
+                aon = float(csv_data['away_shots_on'])
+                h_acc = round(hon / hs * 100, 1)
+                a_acc = round(aon / as_ * 100, 1)
+                hints.append(f'İsabetli şut oranı: {home_team} %{h_acc} vs {away_team} %{a_acc} — gol beklentisini destekler')
+            except: pass
         if csv_data.get('home_xg') and csv_data.get('away_xg'):
             hints.append('xG verileri en güvenilir tahmin kaynağı — yüksek xG → yüksek gol beklentisi')
         if csv_data.get('over25_avg'):
@@ -276,6 +335,47 @@ def build_prompt(home_team, away_team, league, match_time,
         pct_rules += 'ht2g_pct: CSV yok — form trendi + gol ortalamasıyla serbest hesapla\n\n'
 
     pct_rules += '── Yüzde Kuralları Sonu ──\n'
+
+    # Şut kuralları
+    shot_rules = ''
+    if home_shot_stats or away_shot_stats:
+        h_on = home_shot_stats.get('shots_on_target_avg', 0) if home_shot_stats else 0
+        a_on = away_shot_stats.get('shots_on_target_avg', 0) if away_shot_stats else 0
+        h_acc = home_shot_stats.get('shot_accuracy', 0) if home_shot_stats else 0
+        a_acc = away_shot_stats.get('shot_accuracy', 0) if away_shot_stats else 0
+        total_on = (h_on or 0) + (a_on or 0)
+
+        shot_rules = '\n── Şut Bazlı Tahmin Kuralları (ZORUNLU) ──\n'
+        shot_rules += f'Toplam isabetli şut/maç: {total_on} (ev {h_on} + dep {a_on})\n\n'
+
+        shot_rules += 'over25_pct için şut düzeltmesi:\n'
+        if total_on >= 10:
+            shot_rules += f'  - Toplam isabetli şut {total_on} ≥ 10 → over25_pct minimum %55 olmalı\n'
+        elif total_on <= 5:
+            shot_rules += f'  - Toplam isabetli şut {total_on} ≤ 5 → over25_pct maximum %50 olmalı\n'
+        else:
+            shot_rules += f'  - Toplam isabetli şut {total_on} orta bölge → CSV baz değerine yakın kal\n'
+
+        shot_rules += '\nbtts_pct için şut düzeltmesi:\n'
+        if h_on >= 4.5 and a_on >= 4.5:
+            shot_rules += f'  - Her iki takım da {h_on}/{a_on} isabetli şut üretiyor → btts_pct minimum %55 olmalı\n'
+        elif h_on <= 2.5 or a_on <= 2.5:
+            low_team = home_team if (h_on or 0) <= 2.5 else away_team
+            shot_rules += f'  - {low_team} isabetli şutu düşük ({min(h_on or 0, a_on or 0)}/maç) → btts_pct maximum %45 olmalı\n'
+        else:
+            shot_rules += '  - Şut dengeli → CSV btts_avg baz değerine yakın kal\n'
+
+        shot_rules += '\nİsabet oranı yorumu:\n'
+        if h_acc >= 40:
+            shot_rules += f'  - {home_team} isabet oranı %{h_acc} — yüksek → gol üretme kapasitesi güçlü\n'
+        elif h_acc <= 25:
+            shot_rules += f'  - {home_team} isabet oranı %{h_acc} — düşük → etkisiz hücum, over25 kır\n'
+        if a_acc >= 40:
+            shot_rules += f'  - {away_team} isabet oranı %{a_acc} — yüksek → gol üretme kapasitesi güçlü\n'
+        elif a_acc <= 25:
+            shot_rules += f'  - {away_team} isabet oranı %{a_acc} — düşük → etkisiz hücum, over25 kır\n'
+
+        shot_rules += '── Şut Kuralları Sonu ──\n'
 
     # Taraf tahmini kuralları
     hxg = csv_data.get('home_xg') if csv_data else None
@@ -345,12 +445,14 @@ Mevcut veri durumu:
         f'Maç Tipi: {match_importance}\n'
         + stats_text + '\n'
         + trend_text + '\n'
+        + shot_text + '\n'
         + venue_text + '\n'
         + standing_text + '\n'
         + h2h_text + '\n'
         + csv_text + '\n'
         + csv_hint + '\n'
         + pct_rules + '\n'
+        + shot_rules + '\n'
         + prediction_rules + '\n'
         + confidence_rules + '\n'
         + 'Genel analiz talimatları:\n'
@@ -488,17 +590,73 @@ def _safe_float(v):
         return None
 
 
-def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, over45_avg=None):
+def _shot_pressure_score(home_shot_stats, away_shot_stats):
+    """
+    Şut istatistiklerinden 0-3 arası baskı skoru üretir.
+    Yüksek → golcü maç beklentisi, düşük → az gollü maç.
+    Döndürür: (pressure_score, dominant_side)
+      pressure_score: 0=düşük, 1=orta-düşük, 2=orta-yüksek, 3=yüksek
+      dominant_side: '1' | '2' | 'X'
+    """
+    if not home_shot_stats and not away_shot_stats:
+        return None, 'X'
+
+    h_on = _safe_float(home_shot_stats.get('shots_on_target_avg') if home_shot_stats else None) or 0
+    a_on = _safe_float(away_shot_stats.get('shots_on_target_avg') if away_shot_stats else None) or 0
+    h_acc = _safe_float(home_shot_stats.get('shot_accuracy') if home_shot_stats else None) or 0
+    a_acc = _safe_float(away_shot_stats.get('shot_accuracy') if away_shot_stats else None) or 0
+    h_conc = _safe_float(home_shot_stats.get('shots_conceded_avg') if home_shot_stats else None) or 0
+    a_conc = _safe_float(away_shot_stats.get('shots_conceded_avg') if away_shot_stats else None) or 0
+
+    total_on = h_on + a_on
+    avg_acc = (h_acc + a_acc) / 2 if (h_acc and a_acc) else max(h_acc, a_acc)
+
+    # Baskı skoru: toplam isabetli şut + isabet oranı ağırlıklı
+    if total_on >= 10 and avg_acc >= 38:
+        pressure = 3   # çok yüksek
+    elif total_on >= 8 or avg_acc >= 35:
+        pressure = 2   # orta-yüksek
+    elif total_on >= 5 or avg_acc >= 28:
+        pressure = 1   # orta-düşük
+    else:
+        pressure = 0   # düşük
+
+    # Dominant taraf: isabetli şut + karşı tarafa yenilen şut kombine
+    h_attack = h_on + (a_conc * 0.3)
+    a_attack = a_on + (h_conc * 0.3)
+    diff = h_attack - a_attack
+    if abs(diff) < 0.8:
+        dominant = 'X'
+    elif diff > 0:
+        dominant = '1'
+    else:
+        dominant = '2'
+
+    return pressure, dominant
+
+
+def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, over45_avg=None,
+                              home_shot_stats=None, away_shot_stats=None):
     """
     CSV 3.5/4.5 üst yüzdelerine göre daha gerçekçi skor üretir.
-    Öncelik sırası: 4.5 üst > 3.5 üst > 2.5 üst > düşük gol.
-    Kritik kural: 3.5 üst düşükse 4 gollü skor üretme.
+    Şut istatistikleri varsa tempo filtresi uygular.
+    Öncelik sırası: 4.5 üst > 3.5 üst > şut baskısı > 2.5 üst > düşük gol.
     pred_1x2 == 'X' için her zaman eşit skor döndürür.
     """
     o35 = _safe_float(over35_avg)
     o45 = _safe_float(over45_avg)
     btts = _safe_float(btts_pct) or 0
     o25 = _safe_float(over25_pct) or 0
+
+    # Şut baskı skoru
+    pressure, shot_dominant = _shot_pressure_score(home_shot_stats, away_shot_stats)
+
+    # Şut baskısına göre over25 soft-adjust (CSV clamp'ten önce gelmiyor, fallback'i etkiliyor)
+    if pressure is not None:
+        if pressure == 0 and o25 > 55:
+            o25 = 55   # düşük baskılı maçta over25 fazla iyimser — kır
+        elif pressure == 3 and o25 < 50:
+            o25 = 50   # yüksek baskılı maçta over25 fazla kötümser — yükselt
 
     # 4.5 ÜST → 5+ gol
     if o45 is not None and o45 >= 35:
@@ -516,6 +674,14 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
         if pred_1x2 == '2':
             return '1-3' if btts >= 50 else '0-4'
         return '2-2'  # X → 4 gollü beraberlik ✅
+
+    # ŞUT BASKISI yüksek ama CSV over35 net değilse → 3 gol bandına zorla
+    if pressure == 3 and (o35 is None or o35 < 55):
+        if pred_1x2 == '1':
+            return '2-1' if btts >= 50 else '3-0'
+        if pred_1x2 == '2':
+            return '1-2' if btts >= 50 else '0-3'
+        return '1-1'
 
     # 3.5 orta bölge (45-54 arası) → 3 gol bandı
     if o35 is not None and 45 <= o35 < 55:
@@ -841,6 +1007,36 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 logger.info(f'ht2g_pct clamped {ht2g_pct}→{clamped} (base={ht_base})')
                 ht2g_pct = clamped
 
+    # ── Şut bazlı yüzde düzeltmesi ───────────────────────────────────────────
+    pressure, shot_dominant = _shot_pressure_score(home_shot_stats, away_shot_stats)
+    if pressure is not None:
+        # over25_pct düzeltmesi
+        if pressure == 0:
+            # Düşük baskılı maç → over25 fazla iyimserse kır (max -6)
+            if over25_pct > 58:
+                adj = min(6, over25_pct - 52)
+                logger.info(f'Shot pressure=0: over25_pct {over25_pct}→{over25_pct - adj} (düşük baskı)')
+                over25_pct -= adj
+        elif pressure == 3:
+            # Yüksek baskılı maç → over25 fazla kötümserse yükselt (max +6)
+            if over25_pct < 52:
+                adj = min(6, 58 - over25_pct)
+                logger.info(f'Shot pressure=3: over25_pct {over25_pct}→{over25_pct + adj} (yüksek baskı)')
+                over25_pct += adj
+
+        # btts_pct düzeltmesi: her iki takım da yüksek isabetli şut üretiyorsa btts güçlenir
+        h_on = _safe_float(home_shot_stats.get('shots_on_target_avg') if home_shot_stats else None) or 0
+        a_on = _safe_float(away_shot_stats.get('shots_on_target_avg') if away_shot_stats else None) or 0
+        if h_on >= 4.5 and a_on >= 4.5 and btts_pct < 60:
+            adj = min(5, 65 - btts_pct)
+            logger.info(f'Shot both-teams-high SOT: btts_pct {btts_pct}→{btts_pct + adj} (h_on={h_on} a_on={a_on})')
+            btts_pct += adj
+        elif h_on <= 2.5 and a_on <= 2.5 and btts_pct > 45:
+            adj = min(5, btts_pct - 40)
+            logger.info(f'Shot both-teams-low SOT: btts_pct {btts_pct}→{btts_pct - adj} (h_on={h_on} a_on={a_on})')
+            btts_pct -= adj
+    # ─────────────────────────────────────────────────────────────────────────
+
     # Tutarlılık garantisi — clamp sonrası çelişkileri düzelt
     if btts_pct > 60 and over25_pct < 45:
         logger.info(f'Consistency fix: btts={btts_pct}>60 but over25={over25_pct}<45 → over25 set to 45')
@@ -863,6 +1059,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         over25_pct,
         csv_data.get('over35_avg') if csv_data else None,
         csv_data.get('over45_avg') if csv_data else None,
+        home_shot_stats=home_shot_stats,
+        away_shot_stats=away_shot_stats,
     )
 
     final_score = ai_predicted_score
