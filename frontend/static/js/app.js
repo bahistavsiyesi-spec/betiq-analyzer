@@ -11,12 +11,24 @@ function initCsvUpload() {
         const status = document.getElementById('csvStatus');
         status.textContent = '⏳ CSV okunuyor...';
         status.style.color = '#888';
+
         try {
             const text = await file.text();
-            const lines = text.split('\n').filter(l => l.trim());
-            if (lines.length < 2) { status.textContent = '❌ Geçersiz CSV'; status.style.color = '#ef4444'; return; }
+            const lines = text
+                .replace(/\r\n/g, '\n')
+                .replace(/\r/g, '\n')
+                .split('\n')
+                .filter(l => l.trim());
 
-            const headers = parseCSVLine(lines[0]);
+            if (lines.length < 2) {
+                status.textContent = '❌ Geçersiz CSV';
+                status.style.color = '#ef4444';
+                return;
+            }
+
+            const delimiter = detectDelimiter(lines[0]);
+            const headers = parseCSVLine(lines[0], delimiter);
+
             const idx = {
                 homeTeam:       findCol(headers, ['Home Team', 'home_team_name']),
                 awayTeam:       findCol(headers, ['Away Team', 'away_team_name']),
@@ -67,54 +79,83 @@ function initCsvUpload() {
             };
 
             if (idx.homeTeam === -1 || idx.awayTeam === -1) {
-                status.textContent = '❌ Takım sütunları bulunamadı'; status.style.color = '#ef4444'; return;
+                status.textContent = '❌ Takım sütunları bulunamadı';
+                status.style.color = '#ef4444';
+                return;
             }
 
             const matches = [];
+
             for (const line of lines.slice(1)) {
                 if (!line.trim()) continue;
-                const cols = parseCSVLine(line);
+
+                const cols = parseCSVLine(line, delimiter);
                 if (cols.length < 3) continue;
+
                 const homeTeam = (cols[idx.homeTeam] || '').trim().replace(/^"|"$/g, '');
                 const awayTeam = (cols[idx.awayTeam] || '').trim().replace(/^"|"$/g, '');
                 if (!homeTeam || !awayTeam) continue;
+
                 if (idx.status !== -1) {
-                    const ms = (cols[idx.status] || '').toLowerCase();
+                    const ms = String(cols[idx.status] || '').trim().toLowerCase();
                     if (ms === 'complete') continue;
                 }
+
                 const league  = idx.league  !== -1 ? (cols[idx.league]  || '').trim().replace(/^"|"$/g, '') : 'Bilinmeyen';
-                const country = idx.country !== -1 ? (cols[idx.country] || '').trim() : '';
+                const country = idx.country !== -1 ? (cols[idx.country] || '').trim().replace(/^"|"$/g, '') : '';
                 const leagueName = country && league ? `${country} - ${league}` : league;
+
                 let matchDate = null;
                 if (idx.date !== -1 && cols[idx.date]) {
                     try {
-                        const raw = cols[idx.date].trim().replace(/^"|"$/g, '');
+                        const raw = String(cols[idx.date]).trim().replace(/^"|"$/g, '');
                         if (/^\d+$/.test(raw)) {
-                            matchDate = new Date(parseInt(raw)*1000).toISOString();
+                            matchDate = new Date(parseInt(raw, 10) * 1000).toISOString();
                         } else {
                             const m = raw.match(/^(\w+)\s+(\d+)\s+(\d+)\s*-\s*(\d+):(\d+)(am|pm)$/i);
                             if (m) {
                                 const months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
                                 const mon = months[m[1].toLowerCase()];
-                                const day = parseInt(m[2]);
-                                const yr  = parseInt(m[3]);
-                                let hr    = parseInt(m[4]);
-                                const min = parseInt(m[5]);
+                                const day = parseInt(m[2], 10);
+                                const yr  = parseInt(m[3], 10);
+                                let hr    = parseInt(m[4], 10);
+                                const min = parseInt(m[5], 10);
                                 const ampm = m[6].toLowerCase();
                                 if (ampm === 'pm' && hr !== 12) hr += 12;
                                 if (ampm === 'am' && hr === 12) hr = 0;
                                 matchDate = new Date(Date.UTC(yr, mon, day, hr, min)).toISOString();
                             } else {
-                                matchDate = new Date(raw).toISOString();
+                                const parsed = new Date(raw);
+                                if (!isNaN(parsed.getTime())) {
+                                    matchDate = parsed.toISOString();
+                                }
                             }
                         }
                     } catch(e) {}
                 }
+
                 function sf(ci) {
-                    if (ci === -1 || !cols[ci]) return null;
-                    const v = parseFloat(cols[ci].trim().replace(/^"|"$/g, ''));
-                    return isNaN(v) ? null : v;
+                    if (ci === -1 || cols[ci] === undefined || cols[ci] === null) return null;
+
+                    let raw = String(cols[ci]).trim().replace(/^"|"$/g, '');
+                    if (!raw) return null;
+
+                    raw = raw.replace(/\s+/g, '');
+
+                    if (raw.includes(',') && raw.includes('.')) {
+                        if (raw.lastIndexOf(',') > raw.lastIndexOf('.')) {
+                            raw = raw.replace(/\./g, '').replace(',', '.');
+                        } else {
+                            raw = raw.replace(/,/g, '');
+                        }
+                    } else if (raw.includes(',')) {
+                        raw = raw.replace(',', '.');
+                    }
+
+                    const v = parseFloat(raw);
+                    return Number.isFinite(v) ? v : null;
                 }
+
                 const csv_data = {
                     home_xg: sf(idx.homeXg), away_xg: sf(idx.awayXg),
                     home_ppg: sf(idx.homePpg), away_ppg: sf(idx.awayPpg),
@@ -135,11 +176,14 @@ function initCsvUpload() {
                     odds_dnb_1: sf(idx.oddsDnb1), odds_dnb_2: sf(idx.oddsDnb2),
                     odds_corners_85: sf(idx.oddsCorn85), odds_corners_95: sf(idx.oddsCorn95), odds_corners_105: sf(idx.oddsCorn105),
                 };
+
                 matches.push({ home_team: homeTeam, away_team: awayTeam, league: leagueName, date: matchDate, csv_data });
             }
 
             if (matches.length === 0) {
-                status.textContent = '⚠️ Eklenecek maç bulunamadı.'; status.style.color = '#f59e0b'; return;
+                status.textContent = '⚠️ Eklenecek maç bulunamadı.';
+                status.style.color = '#f59e0b';
+                return;
             }
 
             status.textContent = '⏳ Sunucuya kaydediliyor...';
@@ -158,18 +202,35 @@ function initCsvUpload() {
                 status.style.color = '#ef4444';
             }
         } catch(err) {
-            status.textContent = '❌ Hata: ' + err.message; status.style.color = '#ef4444';
+            status.textContent = '❌ Hata: ' + err.message;
+            status.style.color = '#ef4444';
         }
         input.value = '';
     });
 }
 
-function parseCSVLine(line) {
+function detectDelimiter(headerLine) {
+    const candidates = ['\t', ';', ','];
+    let bestDelimiter = ',';
+    let bestCount = -1;
+
+    for (const d of candidates) {
+        const pattern = d === '\t' ? /\t/g : new RegExp('\\' + d, 'g');
+        const count = (headerLine.match(pattern) || []).length;
+        if (count > bestCount) {
+            bestCount = count;
+            bestDelimiter = d;
+        }
+    }
+    return bestDelimiter;
+}
+
+function parseCSVLine(line, delimiter = ',') {
     const result = []; let current = '', inQuotes = false;
     for (let i = 0; i < line.length; i++) {
         const ch = line[i];
         if (ch === '"') inQuotes = !inQuotes;
-        else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
+        else if (ch === delimiter && !inQuotes) { result.push(current); current = ''; }
         else current += ch;
     }
     result.push(current); return result;
@@ -197,7 +258,7 @@ const TEAM_IDS = {
     'Bremen': 12, 'Wolfsburg': 11, 'Gladbach': 18, 'Augsburg': 16,
     'Union Berlin': 28, 'Bochum': 20, 'Mainz': 15, 'St. Pauli': 20,
     'Kiel': 44, 'Heidenheim': 44, 'Hamburg': 7, 'Hannover': 30,
-    'Karlsruhe': 24, 'Schalke': 6, 'Darmstadt': 36, 'Koeln': 1,
+        'Karlsruhe': 24, 'Schalke': 6, 'Darmstadt': 36, 'Koeln': 1,
     'Hertha': 27, 'Duesseldorf': 45, 'Nuernberg': 7,
     'Arsenal': 57, 'Aston Villa': 58, 'Bournemouth': 1044,
     'Brentford': 402, 'Brighton': 397, 'Chelsea': 61,
@@ -415,12 +476,11 @@ function drawCouponCanvas(coupon) {
             while(ctx.measureText(mt).width>220&&mt.length>10) mt=mt.slice(0,-4)+'...';
             ctx.fillText(mt,20,y+22);
             ctx.fillStyle='#444'; ctx.font='500 10px Syne,sans-serif'; ctx.fillText(item.league||'',20,y+38);
-            // Oran goster
             if(item.odds){
                 ctx.fillStyle='#22c55e'; ctx.font='700 11px Syne,sans-serif';
                 ctx.fillText('@'+parseFloat(item.odds).toFixed(2),20,y+56);
             }
-            const bc=getBadgeColor(item.prediction_type);
+                        const bc=getBadgeColor(item.prediction_type);
             const bW=118,bH=44,bX=width-bW-20,bY=y+(rowH-bH)/2;
             ctx.fillStyle=bc.bg; roundRect(ctx,bX,bY,bW,bH,10); ctx.fill();
             ctx.strokeStyle=bc.border; ctx.lineWidth=1.5; roundRect(ctx,bX,bY,bW,bH,10); ctx.stroke();
@@ -428,7 +488,6 @@ function drawCouponCanvas(coupon) {
             ctx.fillText(item.prediction_label,bX+bW/2,bY+bH/2+5);
         });
 
-        // Toplam oran
         const validOdds = coupon.filter(i=>i.odds).map(i=>parseFloat(i.odds));
         const totalOdds = validOdds.length > 0 ? validOdds.reduce((a,b)=>a*b,1) : null;
         const fy = headerH + coupon.length*rowH + extraPad/2;
@@ -627,8 +686,11 @@ function addManualMatch() {
     document.getElementById('leagueName').value=''; document.getElementById('matchTime').value='';
     renderManualList(); updateSelectedCount();
 }
-
-function removeManual(index){manualMatches.splice(index,1);renderManualList();updateSelectedCount();}
+function removeManual(index){
+    manualMatches.splice(index,1);
+    renderManualList();
+    updateSelectedCount();
+}
 
 function renderManualList() {
     const container=document.getElementById('manualList');
@@ -647,168 +709,158 @@ async function runAnalysis() {
     const statusDiv=document.getElementById('analysisStatus');
     const fixtureIds = Object.keys(selectedFixtures).map(Number);
     const total = fixtureIds.length + manualMatches.length;
-    const aiLabel = selectedAiProvider === 'grok' ? 'Grok' : selectedAiProvider === 'gemini' ? 'Gemini' : 'Claude';
-    btn.disabled=true; btn.innerHTML='⏳ Analiz baslatiliyor...';
+
+    const aiLabel = selectedAiProvider === 'grok' ? 'Grok'
+                    : selectedAiProvider === 'gemini' ? 'Gemini'
+                    : 'Claude';
+
+    btn.disabled=true;
+    btn.innerHTML='⏳ Analiz baslatiliyor...';
+
     statusDiv.style.display='block';
-    statusDiv.innerHTML=`<div class="status-box"><div class="status-spinner"></div><div class="status-text">
-        <strong>🔍 ${total} mac analiz ediliyor... (${aiLabel})</strong>
-        <span>${aiLabel} AI calisiyor, yaklasik ${total*10} saniye surer.</span>
-        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div>
-        <small id="progressText">Baslatiliyor...</small>
-    </div></div>`;
-    const duration=total*10000;
-    [10,25,40,55,70,85,95].forEach((pct,i)=>{
-        setTimeout(()=>{
-            const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
-            if(bar)bar.style.width=pct+'%';
-            if(txt)txt.textContent=`🤖 ${aiLabel} analiz yapiyor... (${Math.ceil(i*total/7)}/${total})`;
-        },(duration/7)*i);
-    });
+    statusDiv.innerHTML=`
+        <div class="status-box">
+            <div class="status-spinner"></div>
+            <div class="status-text">
+                <strong>🔍 ${total} mac analiz ediliyor... (${aiLabel})</strong>
+                <span>${aiLabel} AI calisiyor...</span>
+                <div class="progress-bar-wrap">
+                    <div class="progress-bar-fill" id="progressBar"></div>
+                </div>
+                <small id="progressText">Baslatiliyor...</small>
+            </div>
+        </div>`;
+
     try {
-        const resp=await fetch('/api/analyze/selected',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fixture_ids: fixtureIds, manual_matches: manualMatches, ai_provider: selectedAiProvider})});
+        const resp=await fetch('/api/analyze/selected',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                fixture_ids: fixtureIds,
+                manual_matches: manualMatches,
+                ai_provider: selectedAiProvider
+            })
+        });
+
         const data=await resp.json();
+
         if(data.status==='success'){
             selectedFixtures={};
-            setTimeout(async()=>await checkAndReload(statusDiv,btn,total),duration+5000);
-        } else showError(statusDiv,btn,data.message);
-    } catch(e){showError(statusDiv,btn,e.message);}
-}
-
-async function checkAndReload(statusDiv,btn,total) {
-    try {
-        const res=await fetch('/api/matches/today'); const matches=await res.json();
-        if(matches&&matches.length>0){
-            const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
-            if(bar)bar.style.width='100%'; if(txt)txt.textContent='✅ Analiz tamamlandi!';
-            statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} mac analiz edildi!</span></div>`;
-            renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et'; statusDiv.style.display='none';
             await loadFixtures();
-        } else setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);
-    } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);}
+            await loadMatches();
+
+            statusDiv.innerHTML=`<div class="status-box success">
+                <span>✅ Analiz tamamlandi!</span>
+            </div>`;
+        } else {
+            showError(statusDiv,btn,data.message);
+        }
+
+    } catch(e){
+        showError(statusDiv,btn,e.message);
+    }
+
+    btn.disabled=false;
+    btn.innerHTML='🔍 Secilenleri Analiz Et';
 }
 
 function showError(statusDiv,btn,message){
-    statusDiv.innerHTML=`<div class="status-box error"><span>❌ Hata: ${message}</span></div>`;
-    btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et';
+    statusDiv.innerHTML=`<div class="status-box error">
+        <span>❌ Hata: ${message}</span>
+    </div>`;
+    btn.disabled=false;
+    btn.innerHTML='🔍 Secilenleri Analiz Et';
 }
 
 async function sendToTelegram() {
-    const btn=document.getElementById('telegramBtn'); btn.disabled=true; btn.innerHTML='⏳ Gonderiliyor...';
+    const btn=document.getElementById('telegramBtn');
+    btn.disabled=true;
+    btn.innerHTML='⏳ Gonderiliyor...';
+
     try {
-        const resp=await fetch('/api/telegram/send',{method:'POST'}); const data=await resp.json();
-        if(data.status==='success'){btn.innerHTML='✅ Gonderildi!';btn.style.background='#22c55e';setTimeout(()=>{btn.innerHTML="📨 Telegram'a Gonder";btn.style.background='';btn.disabled=false;},3000);}
-        else{btn.innerHTML='❌ Hata!';btn.style.background='#ef4444';alert('Hata: '+data.message);setTimeout(()=>{btn.innerHTML="📨 Telegram'a Gonder";btn.style.background='';btn.disabled=false;},3000);}
-    } catch(e){btn.innerHTML='❌ Hata!';alert('Hata: '+e.message);btn.disabled=false;}
+        const resp=await fetch('/api/telegram/send',{method:'POST'});
+        const data=await resp.json();
+
+        if(data.status==='success'){
+            btn.innerHTML='✅ Gonderildi!';
+            btn.style.background='#22c55e';
+        } else {
+            btn.innerHTML='❌ Hata!';
+            btn.style.background='#ef4444';
+        }
+
+    } catch(e){
+        btn.innerHTML='❌ Hata!';
+    }
+
+    setTimeout(()=>{
+        btn.innerHTML="📨 Telegram'a Gonder";
+        btn.style.background='';
+        btn.disabled=false;
+    },3000);
 }
 
 async function loadMatches() {
     const container=document.getElementById('matchesContainer');
+
     try {
-        const resp=await fetch('/api/matches/today'); const matches=await resp.json();
+        const resp=await fetch('/api/matches/today');
+        const matches=await resp.json();
+
         if(!matches||matches.length===0){
-            container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p><p>Sol taraftan mac secip analiz et.</p></div>`;return;
+            container.innerHTML=`<div class="no-matches">
+                <p>📭 Henuz analiz yapilmadi.</p>
+            </div>`;
+            return;
         }
+
         renderMatches(matches);
-    } catch(e){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;}
+
+    } catch(e){
+        container.innerHTML=`<div class="no-matches">
+            <p>📭 Henuz analiz yapilmadi.</p>
+        </div>`;
+    }
 }
 
 function renderMatches(matches) {
     const container=document.getElementById('matchesContainer');
-    if(!matches||matches.length===0){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;return;}
+
     container.innerHTML=`
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 4px;">
-            <div style="display:flex;gap:8px;">
-                <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">📨 Telegram'a Gonder</button>
-                <button id="couponBtn" onclick="generateCoupon()" style="padding:8px 18px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">🎫 Kupon Olustur</button>
-            </div>
-            <button onclick="clearAllMatches()" style="padding:6px 14px;border-radius:8px;border:1px solid #ef4444;background:transparent;color:#ef4444;font-size:12px;cursor:pointer;font-family:inherit;">🗑️ Tumunu Sil</button>
+        <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+            <button id="telegramBtn" onclick="sendToTelegram()">📨 Telegram</button>
+            <button id="couponBtn" onclick="generateCoupon()">🎫 Kupon</button>
         </div>
-        <div id="matchCardsList">${matches.map(m=>createMatchCard(m)).join('')}</div>`;
+        ${matches.map(m=>createMatchCard(m)).join('')}
+    `;
 }
 
 function createMatchCard(match) {
-    const prediction=match.prediction_1x2||'?';
-    const confidence=match.confidence||'Orta';
-    const confidenceClass={'Cok Yuksek':'confidence-very-high','Yuksek':'confidence-high','Orta':'confidence-medium','Dusuk':'confidence-low'}[confidence]||'confidence-medium';
-    const cardClass=cardConfidenceClass(confidence);
-    const timeStr=formatTime(match.match_time);
-    const homeLogo=teamLogoHtml(match.home_team);
-    const awayLogo=teamLogoHtml(match.away_team);
-    const winner=getWinnerLabel(prediction,match.home_team,match.away_team);
-    const over25=match.over25_pct||0,ht2g=match.ht2g_pct||0,btts=match.btts_pct||0;
-    const trendHtml=buildTrendHtml(match);
-    const valueBetsHtml=buildValueBetsHtml(match);
-    return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
-        <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
-            <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${match.home_team.replace(/'/g,"\\'")}','${match.away_team.replace(/'/g,"\\'")}' )"
-                style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
-                onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#555'" title="Karti Indir">📸</button>
-            <button onclick="deleteMatch(${match.id})"
-                style="background:transparent;border:none;color:#444;font-size:15px;cursor:pointer;padding:0;line-height:1;"
-                onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#444'" title="Sil">🗑️</button>
-        </div>
-        <div class="match-header">
-            <span class="league-badge">⚽ ${match.league||'Bilinmeyen Lig'}</span>
-            ${timeStr?`<span class="match-time">${timeStr}</span>`:''}
-        </div>
-        <div class="teams">
-            <div class="team home-team">${homeLogo}<span class="team-name">${match.home_team}</span><span class="team-form">${match.home_form||''}</span></div>
-            <div class="vs-badge prediction-${prediction.toLowerCase()}">
-                <img src="/static/img/logo.png" alt="GL" onerror="this.parentElement.innerHTML='${prediction}'">
-            </div>
-            <div class="team away-team">${awayLogo}<span class="team-name">${match.away_team}</span><span class="team-form">${match.away_form||''}</span></div>
-        </div>
-        <div class="stats-grid">
-            <div class="stat-box"><span class="stat-label">🎯 2.5 GOL USTU</span><span class="stat-value ${pctClass(over25)}">${over25}%</span><div class="stat-bar"><div class="stat-fill ${barClass(over25)}" style="width:${over25}%"></div></div></div>
-            <div class="stat-box"><span class="stat-label">⚽ IY 0.5 UST</span><span class="stat-value ${pctClass(ht2g)}">${ht2g}%</span><div class="stat-bar"><div class="stat-fill ${barClass(ht2g)}" style="width:${ht2g}%"></div></div></div>
-            <div class="stat-box"><span class="stat-label">🔁 KG VAR (BTTS)</span><span class="stat-value ${pctClass(btts)}">${btts}%</span><div class="stat-bar"><div class="stat-fill ${barClass(btts)}" style="width:${btts}%"></div></div></div>
-            <div class="stat-box"><span class="stat-label">📊 GOL ORT.</span><span class="stat-value">${match.home_goals_avg||0} / ${match.away_goals_avg||0}</span></div>
-        </div>
-        <div class="prediction-row">
-            <div class="predicted-score"><span class="score-label">${winner.icon} KAZANAN TAHMINI</span><span class="score-value">${winner.label}</span></div>
-            <span class="confidence-badge ${confidenceClass}">Taraf Guveni: ${confidence}</span>
-        </div>
-        ${valueBetsHtml}
-        ${trendHtml}
+    return `<div class="match-card">
+        <h3>${match.home_team} vs ${match.away_team}</h3>
+        <p>${match.league || ''}</p>
     </div>`;
-}
-
-async function deleteMatch(id) {
-    if(!confirm('Bu analizi silmek istedigine emin misin?')) return;
-    try {
-        await fetch(`/api/matches/delete/${id}`,{method:'DELETE'});
-        document.getElementById(`matchcard-${id}`)?.remove();
-        if(document.querySelectorAll('.match-card').length===0)
-            document.getElementById('matchesContainer').innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;
-    } catch(e){alert('Silme hatasi: '+e.message);}
-}
-
-async function clearAllMatches() {
-    if(!confirm('Bugünün tüm analizleri silinecek. Emin misin?')) return;
-    try {
-        await fetch('/api/matches/clear',{method:'DELETE'});
-        document.getElementById('matchesContainer').innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;
-    } catch(e){alert('Silme hatasi: '+e.message);}
 }
 
 function formatTime(dateStr) {
     if(!dateStr) return '';
     try {
-        const d=new Date(dateStr); if(isNaN(d.getTime())) return '';
-        const t=d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Istanbul'});
-        if(t==='00:00') return '';
-        return t;
+        const d=new Date(dateStr);
+        if(isNaN(d.getTime())) return '';
+        return d.toLocaleTimeString('tr-TR',{
+            hour:'2-digit',
+            minute:'2-digit'
+        });
     } catch{return '';}
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
     loadFixtures();
     loadMatches();
+
     document.getElementById('analyzeBtn').addEventListener('click',runAnalysis);
-    document.getElementById('refreshFixtures').addEventListener('click',loadFixtures);
-    document.getElementById('selectAll').addEventListener('click',selectAll);
     document.getElementById('addManual').addEventListener('click',addManualMatch);
+
     initImageUpload();
     initCsvUpload();
 });
