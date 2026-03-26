@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from backend.football_api import (
     get_todays_fixtures, get_h2h, get_team_last_matches,
-    get_team_home_away_stats, get_team_standing, teams_match
+    get_team_home_away_stats, get_team_standing, get_team_shot_stats, teams_match
 )
 from backend.database import save_analysis, delete_analyses_by_fixture_ids, log_run
 
@@ -165,7 +165,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     away_standing = None
     country_code = _get_country_code(fixture)
 
-    # U21/U18/rezerv maclar da puan durumu alma — ana takim standings yaniltici olur
+    # U21/U18/rezerv maçlar da puan durumu alma — ana takım standings yanıltıcı olur
     is_youth_match = any(x in home_name.lower() or x in away_name.lower()
                          for x in ['u21', 'u18', 'u23', 'u19', 'reserves', 'youth', ' ii'])
 
@@ -181,6 +181,26 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
             logger.warning('Standings failed: ' + str(e))
     elif is_youth_match:
         logger.info(f'Youth match — standings skipped: {home_name} vs {away_name}')
+
+    # ── Şut istatistikleri (football-data.co.uk) ──────────────────────────────
+    home_shot_stats = None
+    away_shot_stats = None
+    SHOT_SUPPORTED = ('ENG', 'GER', 'ESP', 'ITA', 'FRA')
+    if country_code and country_code in SHOT_SUPPORTED and not is_youth_match:
+        try:
+            home_shot_stats = get_team_shot_stats(home_name, country_code, last=5)
+            away_shot_stats = get_team_shot_stats(away_name, country_code, last=5)
+            if home_shot_stats:
+                logger.info(f'Shot stats {home_name}: {home_shot_stats["shots_avg"]} şut, '
+                            f'{home_shot_stats["shots_on_target_avg"]} isabetli, '
+                            f'%{home_shot_stats["shot_accuracy"]} isabet')
+            if away_shot_stats:
+                logger.info(f'Shot stats {away_name}: {away_shot_stats["shots_avg"]} şut, '
+                            f'{away_shot_stats["shots_on_target_avg"]} isabetli, '
+                            f'%{away_shot_stats["shot_accuracy"]} isabet')
+        except Exception as e:
+            logger.warning(f'Shot stats failed: {e}')
+    # ─────────────────────────────────────────────────────────────────────────
 
     odds_data = None
     if csv_data and csv_data.get('odds_home') and csv_data.get('odds_away'):
@@ -218,8 +238,8 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
         away_standing=away_standing,
         home_venue_stats=home_venue_stats,
         away_venue_stats=away_venue_stats,
-        home_shot_stats=None,
-        away_shot_stats=None,
+        home_shot_stats=home_shot_stats,
+        away_shot_stats=away_shot_stats,
         home_ht_stats=None,
         away_ht_stats=None,
         home_btts_stats=None,
