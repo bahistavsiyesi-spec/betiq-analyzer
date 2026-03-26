@@ -1,15 +1,32 @@
 import logging
-import json
 import time
-import os
 from datetime import datetime
+from typing import Any, Optional
+
+from backend.database import delete_analyses_by_fixture_ids, log_run, save_analysis
 from backend.football_api import (
-    get_todays_fixtures, get_h2h, get_team_last_matches,
-    get_team_home_away_stats, get_team_standing, get_team_shot_stats, teams_match
+    get_h2h,
+    get_team_home_away_stats,
+    get_team_last_matches,
+    get_team_shot_stats,
+    get_team_standing,
+    get_todays_fixtures,
+    teams_match,
 )
-from backend.database import save_analysis, delete_analyses_by_fixture_ids, log_run
 
 logger = logging.getLogger(__name__)
+
+
+def safe_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip().replace(',', '.')
+        if not text:
+            return None
+        return round(float(text), 2)
+    except (TypeError, ValueError):
+        return None
 
 
 def extract_form_from_fixtures(matches, team_name):
@@ -21,14 +38,20 @@ def extract_form_from_fixtures(matches, team_name):
             away_goals = m['goals']['away'] or 0
             is_home = teams_match(team_name, home_name)
             if is_home:
-                if home_goals > away_goals: form.append('W')
-                elif home_goals == away_goals: form.append('D')
-                else: form.append('L')
+                if home_goals > away_goals:
+                    form.append('W')
+                elif home_goals == away_goals:
+                    form.append('D')
+                else:
+                    form.append('L')
             else:
-                if away_goals > home_goals: form.append('W')
-                elif away_goals == home_goals: form.append('D')
-                else: form.append('L')
-        except:
+                if away_goals > home_goals:
+                    form.append('W')
+                elif away_goals == home_goals:
+                    form.append('D')
+                else:
+                    form.append('L')
+        except Exception:
             continue
     return ''.join(form)
 
@@ -42,13 +65,15 @@ def extract_goals_avg(matches, team_name):
             away_goals = m['goals']['away'] or 0
             is_home = teams_match(team_name, home_name)
             if is_home:
-                scored.append(home_goals); conceded.append(away_goals)
+                scored.append(home_goals)
+                conceded.append(away_goals)
             else:
-                scored.append(away_goals); conceded.append(home_goals)
-        except:
+                scored.append(away_goals)
+                conceded.append(home_goals)
+        except Exception:
             continue
-    avg_scored = round(sum(scored)/len(scored), 1) if scored else 0
-    avg_conceded = round(sum(conceded)/len(conceded), 1) if conceded else 0
+    avg_scored = round(sum(scored) / len(scored), 1) if scored else 0
+    avg_conceded = round(sum(conceded) / len(conceded), 1) if conceded else 0
     return avg_scored, avg_conceded
 
 
@@ -63,17 +88,20 @@ def extract_goals_trend(matches, team_name):
                 continue
             is_home = teams_match(team_name, home_name)
             if is_home:
-                scored.append(int(hg)); conceded.append(int(ag))
+                scored.append(int(hg))
+                conceded.append(int(ag))
             else:
-                scored.append(int(ag)); conceded.append(int(hg))
-        except:
+                scored.append(int(ag))
+                conceded.append(int(hg))
+        except Exception:
             continue
     if not scored:
         return None
     return {
-        'scored': scored, 'conceded': conceded,
-        'scored_avg': round(sum(scored)/len(scored), 1),
-        'conceded_avg': round(sum(conceded)/len(conceded), 1),
+        'scored': scored,
+        'conceded': conceded,
+        'scored_avg': round(sum(scored) / len(scored), 1),
+        'conceded_avg': round(sum(conceded) / len(conceded), 1),
         'matches_used': len(scored),
     }
 
@@ -90,20 +118,26 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
             total_goals += hg + ag
             is_our_home = teams_match(home_team, match_home)
             if hg > ag:
-                if is_our_home: home_wins += 1
-                else: away_wins += 1
+                if is_our_home:
+                    home_wins += 1
+                else:
+                    away_wins += 1
             elif hg < ag:
-                if is_our_home: away_wins += 1
-                else: home_wins += 1
+                if is_our_home:
+                    away_wins += 1
+                else:
+                    home_wins += 1
             else:
                 draws += 1
-        except:
+        except Exception:
             continue
     total = len(h2h_matches)
     return {
-        'home_wins': home_wins, 'away_wins': away_wins,
-        'draws': draws, 'total': total,
-        'avg_goals': round(total_goals/total, 1) if total else 0
+        'home_wins': home_wins,
+        'away_wins': away_wins,
+        'draws': draws,
+        'total': total,
+        'avg_goals': round(total_goals / total, 1) if total else 0,
     }
 
 
@@ -124,6 +158,54 @@ def _get_country_code(fixture):
     if any(x in league for x in ['netherlands', 'eredivisie', 'dutch']):
         return 'NED'
     return None
+
+
+def _build_csv_odds_data(csv_data, home_name, away_name):
+    if not csv_data:
+        return None
+
+    raw_home = csv_data.get('odds_home')
+    raw_draw = csv_data.get('odds_draw')
+    raw_away = csv_data.get('odds_away')
+
+    home_odds = safe_float(raw_home)
+    draw_odds = safe_float(raw_draw)
+    away_odds = safe_float(raw_away)
+
+    logger.info(
+        'RAW ODDS CSV: %s | %s | %s',
+        raw_home,
+        raw_draw,
+        raw_away,
+    )
+    logger.info(
+        'PARSED ODDS: %s | %s | %s',
+        home_odds,
+        draw_odds,
+        away_odds,
+    )
+
+    if home_odds is None or away_odds is None:
+        return None
+
+    odds_data = {
+        'home_odds': home_odds,
+        'draw_odds': draw_odds,
+        'away_odds': away_odds,
+        'bookmaker_count': 1,
+        'source': 'CSV',
+    }
+
+    draw_log = f'{draw_odds:.2f}' if draw_odds is not None else 'None'
+    logger.info(
+        'Odds (CSV): %s %.2f | Draw %s | %s %.2f',
+        home_name,
+        home_odds,
+        draw_log,
+        away_name,
+        away_odds,
+    )
+    return odds_data
 
 
 def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
@@ -165,9 +247,10 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     away_standing = None
     country_code = _get_country_code(fixture)
 
-    # U21/U18/rezerv maçlar da puan durumu alma — ana takım standings yanıltıcı olur
-    is_youth_match = any(x in home_name.lower() or x in away_name.lower()
-                         for x in ['u21', 'u18', 'u23', 'u19', 'reserves', 'youth', ' ii'])
+    is_youth_match = any(
+        x in home_name.lower() or x in away_name.lower()
+        for x in ['u21', 'u18', 'u23', 'u19', 'reserves', 'youth', ' ii']
+    )
 
     if country_code and not is_youth_match:
         try:
@@ -182,43 +265,38 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     elif is_youth_match:
         logger.info(f'Youth match — standings skipped: {home_name} vs {away_name}')
 
-    # ── Şut istatistikleri (football-data.co.uk) ──────────────────────────────
     home_shot_stats = None
     away_shot_stats = None
-    SHOT_SUPPORTED = ('ENG', 'GER', 'ESP', 'ITA', 'FRA')
-    if country_code and country_code in SHOT_SUPPORTED and not is_youth_match:
+    shot_supported = ('ENG', 'GER', 'ESP', 'ITA', 'FRA')
+    if country_code and country_code in shot_supported and not is_youth_match:
         try:
             home_shot_stats = get_team_shot_stats(home_name, country_code, last=5)
             away_shot_stats = get_team_shot_stats(away_name, country_code, last=5)
             if home_shot_stats:
-                logger.info(f'Shot stats {home_name}: {home_shot_stats["shots_avg"]} şut, '
-                            f'{home_shot_stats["shots_on_target_avg"]} isabetli, '
-                            f'%{home_shot_stats["shot_accuracy"]} isabet')
+                logger.info(
+                    f'Shot stats {home_name}: {home_shot_stats["shots_avg"]} şut, '
+                    f'{home_shot_stats["shots_on_target_avg"]} isabetli, '
+                    f'%{home_shot_stats["shot_accuracy"]} isabet'
+                )
             if away_shot_stats:
-                logger.info(f'Shot stats {away_name}: {away_shot_stats["shots_avg"]} şut, '
-                            f'{away_shot_stats["shots_on_target_avg"]} isabetli, '
-                            f'%{away_shot_stats["shot_accuracy"]} isabet')
+                logger.info(
+                    f'Shot stats {away_name}: {away_shot_stats["shots_avg"]} şut, '
+                    f'{away_shot_stats["shots_on_target_avg"]} isabetli, '
+                    f'%{away_shot_stats["shot_accuracy"]} isabet'
+                )
         except Exception as e:
             logger.warning(f'Shot stats failed: {e}')
-    # ─────────────────────────────────────────────────────────────────────────
 
-    odds_data = None
-    if csv_data and csv_data.get('odds_home') and csv_data.get('odds_away'):
-        odds_data = {
-            'home_odds': csv_data['odds_home'],
-            'draw_odds': csv_data.get('odds_draw'),
-            'away_odds': csv_data['odds_away'],
-            'bookmaker_count': 1,
-            'source': 'CSV',
-        }
-        logger.info(f'Odds (CSV): {home_name} {odds_data["home_odds"]} | Draw {odds_data["draw_odds"]} | {away_name} {odds_data["away_odds"]}')
+    odds_data = _build_csv_odds_data(csv_data, home_name, away_name)
 
     logger.info(f'Stats: {home_name} form={home_form} avg={home_goals_avg}, {away_name} form={away_form} avg={away_goals_avg}')
 
     if csv_data:
-        logger.info(f'CSV data: xG={csv_data.get("home_xg")}/{csv_data.get("away_xg")} '
-                    f'BTTS%={csv_data.get("btts_avg")} Over25%={csv_data.get("over25_avg")} '
-                    f'IY05%={csv_data.get("ht_over05_avg")} AvgGoals={csv_data.get("avg_goals")}')
+        logger.info(
+            f'CSV data: xG={csv_data.get("home_xg")}/{csv_data.get("away_xg")} '
+            f'BTTS%={csv_data.get("btts_avg")} Over25%={csv_data.get("over25_avg")} '
+            f'IY05%={csv_data.get("ht_over05_avg")} AvgGoals={csv_data.get("avg_goals")}'
+        )
 
     return analyze_with_claude(
         fixture=fixture,
@@ -252,7 +330,10 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     )
 
 
-def run_selected_analysis(fixture_ids=[], manual_matches=[], ai_provider='claude'):
+def run_selected_analysis(fixture_ids=None, manual_matches=None, ai_provider='claude'):
+    fixture_ids = fixture_ids or []
+    manual_matches = manual_matches or []
+
     today = datetime.now().strftime('%Y-%m-%d')
     logger.info(f'Starting selected analysis: {len(fixture_ids)} fixtures, {len(manual_matches)} manual, AI: {ai_provider}')
 
@@ -288,9 +369,9 @@ def run_selected_analysis(fixture_ids=[], manual_matches=[], ai_provider='claude
                     'league': {'id': 0, 'name': m.get('league', 'Manuel Mac')},
                     'teams': {
                         'home': {'id': 0, 'name': home_team},
-                        'away': {'id': 0, 'name': away_team}
+                        'away': {'id': 0, 'name': away_team},
                     },
-                    'goals': {'home': None, 'away': None}
+                    'goals': {'home': None, 'away': None},
                 }
 
                 csv_data = m.get('csv_data') or None
