@@ -355,6 +355,94 @@ function buildTrendHtml(match) {
     </div>`;
 }
 
+// ===== YENİ: KORNER BİLGİ BLOĞU =====
+function buildCornerInfoHtml(match) {
+    // csv_data string olarak gelebilir, parse et
+    let csv = match.csv_data;
+    if (typeof csv === 'string') {
+        try { csv = JSON.parse(csv); } catch(e) { csv = null; }
+    }
+    if (!csv) return '';
+
+    const avg     = csv.avg_corners;
+    const over85  = csv.avg_corners_85;
+    const over95  = csv.avg_corners_95;
+    const over105 = csv.avg_corners_105;
+
+    // En az bir veri yoksa bloğu gösterme
+    if (avg == null && over85 == null && over95 == null && over105 == null) return '';
+
+    // Ortalama kornere göre bar rengi
+    function cornerBarColor(val) {
+        if (val == null) return '#3a3a5a';
+        if (val >= 10) return '#22c55e';
+        if (val >= 8)  return '#f59e0b';
+        return '#60a5fa';
+    }
+
+    // Yüzde oranını göster (0–1 arası geliyorsa ×100)
+    function fmtPct(val) {
+        if (val == null) return '—';
+        const v = val > 1 ? val : val * 100;
+        return v.toFixed(0) + '%';
+    }
+
+    function fmtNum(val) {
+        return val != null ? parseFloat(val).toFixed(1) : '—';
+    }
+
+    // Bar genişliği: ortalama korner max ~14 kabul edelim
+    const barWidth = avg != null ? Math.min(100, (avg / 14) * 100).toFixed(1) : 0;
+    const barColor = cornerBarColor(avg);
+
+    // Over oranları için renk
+    function pctColor(val) {
+        if (val == null) return '#555';
+        const v = val > 1 ? val : val * 100;
+        if (v >= 70) return '#22c55e';
+        if (v >= 45) return '#f59e0b';
+        return '#60a5fa';
+    }
+
+    const thresholds = [
+        { label: '8.5 Üst', val: over85 },
+        { label: '9.5 Üst', val: over95 },
+        { label: '10.5 Üst', val: over105 },
+    ].filter(t => t.val != null);
+
+    const thresholdHtml = thresholds.map(t => `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;
+                    background:#0d0d1a;border:1px solid #1e1e3a;border-radius:8px;
+                    padding:6px 10px;min-width:62px;">
+            <span style="font-size:9px;color:#444;font-weight:600;white-space:nowrap;">${t.label}</span>
+            <span style="font-size:13px;font-weight:800;color:${pctColor(t.val)};">${fmtPct(t.val)}</span>
+        </div>`
+    ).join('');
+
+    return `
+    <div style="margin-top:10px;padding:10px 12px;background:#0a0a16;border-radius:10px;border:1px solid #1a1a2e;">
+        <div style="font-size:10px;color:#3b82f6;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">
+            🚩 KORNER İSTATİSTİKLERİ
+        </div>
+
+        ${avg != null ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11px;color:#555;">Ort. Korner</span>
+            <div style="display:flex;align-items:center;gap:8px;flex:1;margin-left:12px;">
+                <div style="flex:1;height:6px;background:#1e1e3a;border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:${barWidth}%;background:${barColor};border-radius:3px;transition:width 0.4s;"></div>
+                </div>
+                <span style="font-size:13px;font-weight:800;color:${barColor};min-width:28px;text-align:right;">${fmtNum(avg)}</span>
+            </div>
+        </div>` : ''}
+
+        ${thresholds.length > 0 ? `
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            ${thresholdHtml}
+        </div>` : ''}
+    </div>`;
+}
+
 // ─── Kupon ────────────────────────────────────────────────────────────────────
 async function generateCoupon() {
     const btn = document.getElementById('couponBtn');
@@ -739,6 +827,7 @@ function createMatchCard(match) {
     const over25=match.over25_pct||0,ht2g=match.ht2g_pct||0,btts=match.btts_pct||0;
     const trendHtml=buildTrendHtml(match);
     const valueBetsHtml=buildValueBetsHtml(match);
+    const cornerInfoHtml=buildCornerInfoHtml(match);   // ← YENİ
     return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
             <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${match.home_team.replace(/'/g,"\\'")}','${match.away_team.replace(/'/g,"\\'")}' )"
@@ -771,6 +860,7 @@ function createMatchCard(match) {
         </div>
         ${valueBetsHtml}
         ${trendHtml}
+        ${cornerInfoHtml}
     </div>`;
 }
 
