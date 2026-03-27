@@ -44,14 +44,29 @@ LEAGUE_CODES = {
 }
 
 # ─── football-data.co.uk lig CSV kodları ─────────────────────────────────────
-# Format: season/league_code.csv → 2425 = 2024-25 sezonu
 FDCO_LEAGUES = {
-    'ENG': ('2425', 'E0'),   # Premier League
-    'GER': ('2425', 'D1'),   # Bundesliga
-    'ESP': ('2425', 'SP1'),  # La Liga
-    'ITA': ('2425', 'I1'),   # Serie A
-    'FRA': ('2425', 'F1'),   # Ligue 1
+    'ENG': ('2425', 'E0'),
+    'GER': ('2425', 'D1'),
+    'ESP': ('2425', 'SP1'),
+    'ITA': ('2425', 'I1'),
+    'FRA': ('2425', 'F1'),
 }
+
+# ─── Gençlik/Rezerv takım suffix'leri ────────────────────────────────────────
+YOUTH_SUFFIXES = (
+    'u21', 'u18', 'u23', 'u19', 'u20', 'u17', 'u16', 'u15',
+    'reserves', 'reserve', 'youth', ' ii', ' b', 'res.',
+    'development', 'academy', 'cdp',
+)
+
+def is_youth_or_reserve(team_name):
+    """Takım adı gençlik/rezerv takımına işaret ediyorsa True döner."""
+    name_lower = team_name.lower()
+    for suffix in YOUTH_SUFFIXES:
+        if suffix in name_lower:
+            return True
+    return False
+
 
 def normalize_name(name):
     name = name.lower().strip()
@@ -208,7 +223,6 @@ def is_italian_team(team_name):
 # ─── football-data.co.uk Şut/Korner İstatistikleri ───────────────────────────
 
 def _fetch_fdco_csv(country_code):
-    """football-data.co.uk'dan CSV çek, günlük cache'le."""
     today = date.today()
     if country_code in _shots_cache:
         cached = _shots_cache[country_code]
@@ -236,16 +250,6 @@ def _fetch_fdco_csv(country_code):
 
 
 def get_team_shot_stats(team_name, country_code, last=5):
-    """
-    Takımın son N maçındaki şut/şuta isabet/korner ortalamasını döndür.
-    Döndürür: {
-        'shots_avg': 13.2,        → ortalama şut
-        'shots_on_target_avg': 5.1, → şuta isabet
-        'corners_avg': 5.8,       → korner
-        'shots_conceded_avg': 10.4, → yenilen şut
-        'shot_accuracy': 38.6     → isabet yüzdesi
-    }
-    """
     rows = _fetch_fdco_csv(country_code)
     if not rows:
         return None
@@ -288,7 +292,6 @@ def get_team_shot_stats(team_name, country_code, last=5):
     if not team_matches:
         return None
 
-    # Son N maç
     recent = team_matches[-last:]
     n = len(recent)
 
@@ -437,21 +440,18 @@ def get_team_standing(team_name, country_code):
     if not standings:
         return None
 
-    # U21/U18/U23/B/II suffix temizle
     clean_name = team_name
     for suffix in [' U21', ' U18', ' U23', ' U19', ' B', ' II', ' Reserves', ' Youth']:
         if clean_name.endswith(suffix):
             clean_name = clean_name[:-len(suffix)].strip()
             break
 
-    # Önce temizlenmiş isimle dene
     clean_norm = normalize_name(clean_name)
     for s in standings:
         s_norm = normalize_name(s['team'])
         if clean_norm in s_norm or s_norm in clean_norm:
             return s
 
-    # Sonra orijinal isimle dene
     team_norm = normalize_name(team_name)
     for s in standings:
         s_norm = normalize_name(s['team'])
@@ -549,6 +549,11 @@ def get_todays_fixtures():
 # ─── Ana Fonksiyonlar ─────────────────────────────────────────────────────────
 
 def get_team_last_matches(team_name, last=10):
+    # Gençlik/rezerv takımları için ana takım verileri çekilmemeli
+    if is_youth_or_reserve(team_name):
+        logger.info(f'Youth/reserve team skipped for stats: {team_name}')
+        return []
+
     if is_german_team(team_name):
         team_id = _find_team_id(team_name, GERMAN_TEAM_NORMALIZED)
         if team_id:
@@ -574,6 +579,11 @@ def get_team_last_matches(team_name, last=10):
 
 
 def get_h2h(team1_name, team2_name, last=5):
+    # Gençlik/rezerv takımları için H2H çekilmemeli
+    if is_youth_or_reserve(team1_name) or is_youth_or_reserve(team2_name):
+        logger.info(f'Youth/reserve team H2H skipped: {team1_name} vs {team2_name}')
+        return []
+
     if is_german_team(team1_name) or is_german_team(team2_name):
         team_id = _find_team_id(team1_name, GERMAN_TEAM_NORMALIZED) or \
                   _find_team_id(team2_name, GERMAN_TEAM_NORMALIZED)
