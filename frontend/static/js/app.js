@@ -164,40 +164,16 @@ function initCsvUpload() {
     });
 }
 
-// ===== CSV SATIR PARSE - ONDALIK VİRGÜL DESTEKLİ =====
-// Tırnaksız ondalık virgülleri (örn: 3,27) kolon virgülüyle karıştırmamak için
-// satırı önce ön işlemden geçirir: digit,digit → "digit,digit"
-function preprocessCSVLine(line) {
-    let result = '';
-    let inQuotes = false;
-    let i = 0;
-    while (i < line.length) {
+function parseCSVLine(line) {
+    const result = []; let current = '', inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
         const ch = line[i];
-        if (ch === '"') {
-            inQuotes = !inQuotes;
-            result += ch;
-            i++;
-            continue;
-        }
-        // Tırnak dışında virgül ve her iki yanı rakamsa → ondalık virgül
-        if (!inQuotes && ch === ',') {
-            const nextCh = line[i + 1];
-            const prevCh = result.length > 0 ? result[result.length - 1] : '';
-            if (prevCh >= '0' && prevCh <= '9' && nextCh >= '0' && nextCh <= '9') {
-                // Önceki sayıyı result'tan sök
-                const numMatch = result.match(/(\d+)$/);
-                if (numMatch) {
-                    const numStr = numMatch[1];
-                    result = result.slice(0, result.length - numStr.length);
-                    // Sonraki rakamları oku
-                    i++; // virgülü geç
-                    let rest = '';
-                    while (i < line.length && line[i] >= '0' && line[i] <= '9') {
-                        rest += line[i++];
-                    }
-                    result += '"' + numStr + ',' + rest + '"';
-                    continue;
-                }
+        if (ch === '"') inQuotes = !inQuotes;
+        else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
+        else current += ch;
+    }
+    result.push(current); return result;
+}
             }
         }
         result += ch;
@@ -206,14 +182,6 @@ function preprocessCSVLine(line) {
     return result;
 }
 
-function parseCSVLine(line) {
-    const preprocessed = preprocessCSVLine(line);
-    const result = []; let current = '', inQuotes = false;
-    for (let i = 0; i < preprocessed.length; i++) {
-        const ch = preprocessed[i];
-        if (ch === '"') inQuotes = !inQuotes;
-        else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
-        else current += ch;
     }
     result.push(current); return result;
 }
