@@ -13,7 +13,7 @@ function initCsvUpload() {
         status.style.color = '#888';
         try {
             const text = await file.text();
-            const lines = text.split('\n').filter(l => l.trim());
+            const lines = text.split(/\r?\n/).filter(l => l.trim());
             if (lines.length < 2) { status.textContent = '❌ Geçersiz CSV'; status.style.color = '#ef4444'; return; }
 
             const headers = parseCSVLine(lines[0]);
@@ -164,10 +164,53 @@ function initCsvUpload() {
     });
 }
 
-function parseCSVLine(line) {
-    const result = []; let current = '', inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
+// ===== CSV SATIR PARSE - ONDALIK VİRGÜL DESTEKLİ =====
+// Tırnaksız ondalık virgülleri (örn: 3,27) kolon virgülüyle karıştırmamak için
+// satırı önce ön işlemden geçirir: digit,digit → "digit,digit"
+function preprocessCSVLine(line) {
+    let result = '';
+    let inQuotes = false;
+    let i = 0;
+    while (i < line.length) {
         const ch = line[i];
+        if (ch === '"') {
+            inQuotes = !inQuotes;
+            result += ch;
+            i++;
+            continue;
+        }
+        // Tırnak dışında virgül ve her iki yanı rakamsa → ondalık virgül
+        if (!inQuotes && ch === ',') {
+            const nextCh = line[i + 1];
+            const prevCh = result.length > 0 ? result[result.length - 1] : '';
+            if (prevCh >= '0' && prevCh <= '9' && nextCh >= '0' && nextCh <= '9') {
+                // Önceki sayıyı result'tan sök
+                const numMatch = result.match(/(\d+)$/);
+                if (numMatch) {
+                    const numStr = numMatch[1];
+                    result = result.slice(0, result.length - numStr.length);
+                    // Sonraki rakamları oku
+                    i++; // virgülü geç
+                    let rest = '';
+                    while (i < line.length && line[i] >= '0' && line[i] <= '9') {
+                        rest += line[i++];
+                    }
+                    result += '"' + numStr + ',' + rest + '"';
+                    continue;
+                }
+            }
+        }
+        result += ch;
+        i++;
+    }
+    return result;
+}
+
+function parseCSVLine(line) {
+    const preprocessed = preprocessCSVLine(line);
+    const result = []; let current = '', inQuotes = false;
+    for (let i = 0; i < preprocessed.length; i++) {
+        const ch = preprocessed[i];
         if (ch === '"') inQuotes = !inQuotes;
         else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
         else current += ch;
@@ -355,9 +398,8 @@ function buildTrendHtml(match) {
     </div>`;
 }
 
-// ===== YENİ: KORNER BİLGİ BLOĞU =====
+// ===== KORNER BİLGİ BLOĞU =====
 function buildCornerInfoHtml(match) {
-    // csv_data string olarak gelebilir, parse et
     let csv = match.csv_data;
     if (typeof csv === 'string') {
         try { csv = JSON.parse(csv); } catch(e) { csv = null; }
@@ -369,10 +411,8 @@ function buildCornerInfoHtml(match) {
     const over95  = csv.avg_corners_95;
     const over105 = csv.avg_corners_105;
 
-    // En az bir veri yoksa bloğu gösterme
     if (avg == null && over85 == null && over95 == null && over105 == null) return '';
 
-    // Ortalama kornere göre bar rengi
     function cornerBarColor(val) {
         if (val == null) return '#3a3a5a';
         if (val >= 10) return '#22c55e';
@@ -380,7 +420,6 @@ function buildCornerInfoHtml(match) {
         return '#60a5fa';
     }
 
-    // Yüzde oranını göster (0–1 arası geliyorsa ×100)
     function fmtPct(val) {
         if (val == null) return '—';
         const v = val > 1 ? val : val * 100;
@@ -391,11 +430,9 @@ function buildCornerInfoHtml(match) {
         return val != null ? parseFloat(val).toFixed(1) : '—';
     }
 
-    // Bar genişliği: ortalama korner max ~14 kabul edelim
     const barWidth = avg != null ? Math.min(100, (avg / 14) * 100).toFixed(1) : 0;
     const barColor = cornerBarColor(avg);
 
-    // Over oranları için renk
     function pctColor(val) {
         if (val == null) return '#555';
         const v = val > 1 ? val : val * 100;
@@ -424,7 +461,6 @@ function buildCornerInfoHtml(match) {
         <div style="font-size:10px;color:#3b82f6;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">
             🚩 KORNER İSTATİSTİKLERİ
         </div>
-
         ${avg != null ? `
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <span style="font-size:11px;color:#555;">Ort. Korner</span>
@@ -435,7 +471,6 @@ function buildCornerInfoHtml(match) {
                 <span style="font-size:13px;font-weight:800;color:${barColor};min-width:28px;text-align:right;">${fmtNum(avg)}</span>
             </div>
         </div>` : ''}
-
         ${thresholds.length > 0 ? `
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
             ${thresholdHtml}
@@ -503,7 +538,6 @@ function drawCouponCanvas(coupon) {
             while(ctx.measureText(mt).width>220&&mt.length>10) mt=mt.slice(0,-4)+'...';
             ctx.fillText(mt,20,y+22);
             ctx.fillStyle='#444'; ctx.font='500 10px Syne,sans-serif'; ctx.fillText(item.league||'',20,y+38);
-            // Oran goster
             if(item.odds){
                 ctx.fillStyle='#22c55e'; ctx.font='700 11px Syne,sans-serif';
                 ctx.fillText('@'+parseFloat(item.odds).toFixed(2),20,y+56);
@@ -516,7 +550,6 @@ function drawCouponCanvas(coupon) {
             ctx.fillText(item.prediction_label,bX+bW/2,bY+bH/2+5);
         });
 
-        // Toplam oran
         const validOdds = coupon.filter(i=>i.odds).map(i=>parseFloat(i.odds));
         const totalOdds = validOdds.length > 0 ? validOdds.reduce((a,b)=>a*b,1) : null;
         const fy = headerH + coupon.length*rowH + extraPad/2;
@@ -827,7 +860,7 @@ function createMatchCard(match) {
     const over25=match.over25_pct||0,ht2g=match.ht2g_pct||0,btts=match.btts_pct||0;
     const trendHtml=buildTrendHtml(match);
     const valueBetsHtml=buildValueBetsHtml(match);
-    const cornerInfoHtml=buildCornerInfoHtml(match);   // ← YENİ
+    const cornerInfoHtml=buildCornerInfoHtml(match);
     return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
             <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${match.home_team.replace(/'/g,"\\'")}','${match.away_team.replace(/'/g,"\\'")}' )"
