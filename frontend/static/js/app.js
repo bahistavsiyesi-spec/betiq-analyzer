@@ -174,18 +174,6 @@ function parseCSVLine(line) {
     }
     result.push(current); return result;
 }
-            }
-        }
-        result += ch;
-        i++;
-    }
-    return result;
-}
-
-    }
-    result.push(current); return result;
-}
-
 function findCol(headers, names) {
     for (const name of names) {
         const idx = headers.findIndex(h => h.trim().replace(/^"|"$/g, '').toLowerCase() === name.toLowerCase());
