@@ -1,4 +1,3 @@
-
 from flask import Flask, render_template, jsonify, request
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
@@ -124,7 +123,6 @@ def api_stats_overview():
                 COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
-            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
         ''')
         row = dict(cur.fetchone())
         total = row['total'] or 0
@@ -155,7 +153,6 @@ def api_stats_daily():
                 SUM(r.over25_correct) as cover25,
                 SUM(r.btts_correct) as cbtts
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
             GROUP BY a.analysis_date ORDER BY a.analysis_date DESC LIMIT 30
         ''')
         rows = [dict(r) for r in cur.fetchall()]
@@ -189,7 +186,6 @@ def api_stats_by_category():
                 SUM(r.ht_correct) as cht
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
-            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
         ''')
         row = dict(cur.fetchone())
         total = row['total'] or 0
@@ -221,7 +217,6 @@ def api_stats_by_league():
                 COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
                 SUM(r.ht_correct) as cht
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
             GROUP BY a.league HAVING COUNT(*) >= 3 ORDER BY COUNT(*) DESC
         ''')
         rows = [dict(r) for r in cur.fetchall()]
@@ -284,7 +279,6 @@ def api_stats_best_worst_days():
         cur.execute('''
             SELECT a.analysis_date, COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-            WHERE a.confidence IN ('Y\u00fcksek', '\u00c7ok Y\u00fcksek', 'Yuksek', 'Cok Yuksek')
             GROUP BY a.analysis_date HAVING COUNT(*) >= 2
             ORDER BY (SUM(r.pred_1x2_correct)::float / COUNT(*)) DESC
         ''')
@@ -469,7 +463,6 @@ def api_coupon_today():
         if not matches:
             return jsonify({"status": "error", "message": "Analiz bulunamadi"}), 404
 
-        # Min/max parametreleri: ?min=3&max=5
         min_count = int(request.args.get('min', 3))
         max_count = int(request.args.get('max', 5))
         min_count = max(2, min(min_count, 8))
@@ -477,12 +470,11 @@ def api_coupon_today():
 
         MIN_PCT = 70
 
-        # Tur oncelik sirasi: IY 0.5 Ust > 2.5 Ust > KG Var > 1X2 > 2.5 Alt > KG Yok
         TYPE_PRIORITY = {
             'IY 0.5 Ust': 6, '2.5 Ust': 5, 'KG Var': 4,
             '1X2': 3, '2.5 Alt': 2, 'KG Yok': 1,
         }
-        MAX_PER_TYPE = 2  # Ayni turden max 2 tahmin
+        MAX_PER_TYPE = 2
 
         all_candidates = []
         for m in matches:
@@ -525,14 +517,12 @@ def api_coupon_today():
         if not all_candidates:
             return jsonify({"status": "error", "message": "Kriterlere uyan tahmin bulunamadi"}), 404
 
-        # Sirala: guven > tur onceligi > yuzde
         all_candidates.sort(key=lambda x: (x['conf_score'], TYPE_PRIORITY.get(x['type'], 0), x['pct']), reverse=True)
 
-        # Cesitlilik filtresi
         coupon = []
         type_counts = {}
         used_combos = set()
-        used_match_ids = set()  # Ayni mactan sadece 1 tahmin
+        used_match_ids = set()
 
         for c in all_candidates:
             if len(coupon) >= max_count:
@@ -541,7 +531,6 @@ def api_coupon_today():
             match_id = c['match'].get('id')
             combo = f"{match_id}_{t}"
 
-            # Ayni mac zaten kuponda var mi?
             if match_id in used_match_ids:
                 continue
             if combo in used_combos:
@@ -553,7 +542,6 @@ def api_coupon_today():
             used_match_ids.add(match_id)
             m = c['match']
 
-            # Tahmin turune gore odds sec
             odds_map = {
                 'IY 0.5 Ust': 'odds_ht_over05',
                 '2.5 Ust':    'odds_over25',
@@ -614,7 +602,6 @@ def api_coupon_today():
                 vb_raw = m.get('value_bets')
                 vb_list = _json.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
 
-                # Value bets'ten odds bul
                 for vb in vb_list:
                     label = str(vb.get('label', ''))
                     if label.replace('Over 2.5', '2.5 Ust').replace('KG Var', 'KG Var') in t or t in label:
@@ -622,7 +609,6 @@ def api_coupon_today():
                         if odds_val:
                             break
 
-                # Önce analyses içindeki csv_data'dan dene
                 if not odds_val:
                     odds_key = odds_map.get(t)
                     analysis_csv = m.get('csv_data')
@@ -634,7 +620,6 @@ def api_coupon_today():
                     if odds_key and analysis_csv:
                         odds_val = _extract_odds_from_csv(analysis_csv, odds_key)
 
-                # Son fallback: pending_matches csv_data'dan dene
                 if not odds_val:
                     odds_key = odds_map.get(t)
                     if odds_key:
