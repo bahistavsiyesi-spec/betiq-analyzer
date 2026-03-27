@@ -112,7 +112,7 @@ function initCsvUpload() {
                 }
                 function sf(ci) {
                     if (ci === -1 || !cols[ci]) return null;
-                    const v = parseFloat(cols[ci].trim().replace(/^"|"$/g, ''));
+                    const v = parseFloat(cols[ci].trim().replace(/^"|"$/g, '').replace(',', '.'));
                     return isNaN(v) ? null : v;
                 }
                 const csv_data = {
