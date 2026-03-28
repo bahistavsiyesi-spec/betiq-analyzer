@@ -731,7 +731,8 @@ def get_team_standing_apifootball(team_name, league_name, season=2024):
                         'goal_diff': team.get('goalsDiff', 0),
                     })
         _apifootball_standings_cache[cache_key] = {'date': today, 'data': standings}
-        logger.info('API-Football standings cached: league ' + str(league_id) + ', ' + str(len(standings)) + ' teams')
+        team_names = [s['team'] for s in standings[:6]]
+        logger.info('API-Football standings cached: league ' + str(league_id) + ', ' + str(len(standings)) + ' teams: ' + str(team_names))
         return _find_team_in_apifootball_standings(team_name, standings)
     except Exception as e:
         logger.warning('API-Football standings parse failed: ' + str(e))
