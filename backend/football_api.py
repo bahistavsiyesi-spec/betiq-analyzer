@@ -620,3 +620,119 @@ def get_standings(league_code, season=2024):
     if not result:
         return []
     return result
+
+
+# API-Football
+API_FOOTBALL_KEY = os.environ.get('API_FOOTBALL_KEY', '')
+API_FOOTBALL_BASE = 'https://v3.football.api-sports.io'
+API_FOOTBALL_HEADERS = {'x-apisports-key': API_FOOTBALL_KEY}
+
+API_FOOTBALL_LEAGUE_MAP = {
+    'super lig': 203, 'turkey': 203,
+    'tff first league': 204,
+    'pro league': 144, 'belgian pro league': 144, 'first division a': 144, 'belgium': 144,
+    'premiership': 179, 'scottish premiership': 179, 'scotland': 179,
+    'scottish championship': 180, 'scottish league one': 181,
+    'austrian bundesliga': 218, 'austria': 218,
+    'a-league': 188, 'a league': 188, 'australia': 188,
+    'a-league women': 189, 'a league women': 189,
+    'national league': 39,
+    'league one': 41, 'efl league one': 41,
+    'league two': 42, 'efl league two': 42,
+    'championship': 40, 'efl championship': 40,
+    'superliga': 119, 'danish superliga': 119,
+    'eliteserien': 103,
+    'allsvenskan': 113,
+    'swiss super league': 207,
+    'ekstraklasa': 106,
+    'greek super league': 197,
+}
+
+_apifootball_standings_cache = {}
+
+
+def _get_api_football(endpoint, params={}):
+    if not API_FOOTBALL_KEY:
+        return None
+    try:
+        resp = requests.get(
+            API_FOOTBALL_BASE + '/' + endpoint,
+            headers=API_FOOTBALL_HEADERS,
+            params=params,
+            timeout=15
+        )
+        if resp.status_code == 429:
+            logger.warning('API-Football rate limit hit')
+            return None
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logger.error('API-Football request failed: ' + str(e))
+        return None
+
+
+def _find_league_id(league_name):
+    league_lower = league_name.lower()
+    for key, lid in API_FOOTBALL_LEAGUE_MAP.items():
+        if key in league_lower or league_lower in key:
+            return lid
+    return None
+
+
+def _find_team_in_apifootball_standings(team_name, standings):
+    if not standings:
+        return None
+    team_norm = normalize_name(team_name)
+    for s in standings:
+        s_norm = normalize_name(s['team'])
+        if team_norm in s_norm or s_norm in team_norm:
+            logger.info('API-Football standing: ' + s['team'] + ' -> ' + str(s['position']) + '. sira, ' + str(s['points']) + ' puan')
+            return s
+    return None
+
+
+def get_team_standing_apifootball(team_name, league_name, season=2024):
+    if not API_FOOTBALL_KEY:
+        return None
+    league_id = _find_league_id(league_name)
+    if not league_id:
+        logger.info('API-Football: league ID not found for ' + league_name)
+        return None
+
+    cache_key = str(league_id) + '_' + str(season)
+    today = date.today()
+    if cache_key in _apifootball_standings_cache:
+        cached = _apifootball_standings_cache[cache_key]
+        if cached['date'] == today:
+            return _find_team_in_apifootball_standings(team_name, cached['data'])
+
+    result = _get_api_football('standings', {'league': league_id, 'season': season})
+    if not result or not result.get('response'):
+        result = _get_api_football('standings', {'league': league_id, 'season': 2025})
+        if not result or not result.get('response'):
+            logger.warning('API-Football standings empty for league ' + str(league_id))
+            return None
+
+    try:
+        standings = []
+        for entry in result['response']:
+            for group in entry.get('league', {}).get('standings', []):
+                for team in group:
+                    standings.append({
+                        'position': team.get('rank'),
+                        'team': team.get('team', {}).get('name', ''),
+                        'played': team.get('all', {}).get('played', 0),
+                        'points': team.get('points', 0),
+                        'won': team.get('all', {}).get('win', 0),
+                        'draw': team.get('all', {}).get('draw', 0),
+                        'lost': team.get('all', {}).get('lose', 0),
+                        'goals_for': team.get('all', {}).get('goals', {}).get('for', 0),
+                        'goals_against': team.get('all', {}).get('goals', {}).get('against', 0),
+                        'goal_diff': team.get('goalsDiff', 0),
+                    })
+        _apifootball_standings_cache[cache_key] = {'date': today, 'data': standings}
+        logger.info('API-Football standings cached: league ' + str(league_id) + ', ' + str(len(standings)) + ' teams')
+        return _find_team_in_apifootball_standings(team_name, standings)
+    except Exception as e:
+        logger.warning('API-Football standings parse failed: ' + str(e))
+        return None
