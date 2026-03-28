@@ -517,12 +517,91 @@ def api_coupon_today():
         if not all_candidates:
             return jsonify({"status": "error", "message": "Kriterlere uyan tahmin bulunamadi"}), 404
 
+        # ── Yüksek güven + value bet olan maçları önce kupona ekle ──────────────
+        priority_items = []
+        import json as _json_vb
+        high_conf_matches = [
+            m for m in matches
+            if m.get('confidence', '') in ('Yuksek', 'Cok Yuksek', 'Yüksek', 'Çok Yüksek')
+        ]
+        for m in high_conf_matches:
+            try:
+                vb_raw = m.get('value_bets')
+                vb_list = _json_vb.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
+                if not vb_list:
+                    continue
+                # En iyi value bet'i al
+                best_vb = max(vb_list, key=lambda v: v.get('diff', 0))
+                label = best_vb.get('label', '')
+                # Label'dan tip ve tahmin belirle
+                if '1X2 (Ev)' in label:
+                    vb_type = '1X2'
+                    vb_label = f"{m['home_team']} Kazanir"
+                elif '1X2 (Deplasman)' in label:
+                    vb_type = '1X2'
+                    vb_label = f"{m['away_team']} Kazanir"
+                elif '1X2 (Beraberlik)' in label:
+                    vb_type = '1X2'
+                    vb_label = 'Beraberlik'
+                elif 'Over 2.5' in label:
+                    vb_type = '2.5 Ust'
+                    vb_label = '2.5 Gol Ustu'
+                elif 'KG Var' in label:
+                    vb_type = 'KG Var'
+                    vb_label = 'KG Var'
+                elif 'İY 0.5 Üst' in label or 'IY 0.5' in label:
+                    vb_type = 'IY 0.5 Ust'
+                    vb_label = 'IY 0.5 Ustu'
+                else:
+                    continue
+                conf = m.get('confidence', 'Orta')
+                conf_score = 4 if conf in ('Cok Yuksek', 'Çok Yüksek') else 3
+                priority_items.append({
+                    'type': vb_type,
+                    'label': vb_label,
+                    'pct': best_vb.get('our_pct', 75),
+                    'conf_score': conf_score + 1,  # öncelik için +1
+                    'match': m,
+                    'odds': best_vb.get('odds'),
+                    'is_priority': True,
+                })
+            except Exception:
+                continue
+        # ─────────────────────────────────────────────────────────────────────
+
         all_candidates.sort(key=lambda x: (x['conf_score'], TYPE_PRIORITY.get(x['type'], 0), x['pct']), reverse=True)
 
         coupon = []
         type_counts = {}
         used_combos = set()
         used_match_ids = set()
+
+        # Önce priority item'ları ekle
+        for c in priority_items:
+            if len(coupon) >= max_count:
+                break
+            match_id = c['match'].get('id')
+            if match_id in used_match_ids:
+                continue
+            t = c['type']
+            if type_counts.get(t, 0) >= MAX_PER_TYPE:
+                continue
+            type_counts[t] = type_counts.get(t, 0) + 1
+            used_match_ids.add(match_id)
+            m = c['match']
+            coupon.append({
+                'home_team': m['home_team'],
+                'away_team': m['away_team'],
+                'league': m.get('league', ''),
+                'match_time': m.get('match_time', ''),
+                'prediction_type': c['type'],
+                'prediction_label': c['label'],
+                'pct': round(c['pct']),
+                'confidence': m.get('confidence', 'Orta'),
+                'analysis_id': m.get('id'),
+                'odds': round(float(c['odds']), 2) if c.get('odds') else None,
+            })
+            logger.info(f"Kupon priority: {m['home_team']} vs {m['away_team']} → {c['type']} (value bet)")
 
         for c in all_candidates:
             if len(coupon) >= max_count:
