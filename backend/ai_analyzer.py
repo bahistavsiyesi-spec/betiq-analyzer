@@ -554,19 +554,33 @@ def build_prompt(home_team, away_team, league, match_time,
 
     confidence_rules = '''
 ── Güven Seviyesi Belirleme Kuralları (ZORUNLU) ──
-VERİ KAYNAĞI ÖNCELİĞİ: 1.CSV xG  2.Form trendi  3.Ev/dep istatistik  4.Puan durumu
+TEMEL PRENSİP: Güven seviyesi KAZANMA ihtimalini gösterir — gol sayısını değil.
+xG yüksek olan takım çok gol atabilir ama kaybedebilir. Bu yüzden güveni xG belirlemez.
 
-KURAL 1 — CSV xG YOKSA maksimum güven "Orta"dır
-KURAL 2 — CSV xG VARSA:
-  "Çok Yüksek": xG + form + ev/dep + puan → HEPSİ aynı tarafı gösteriyor
-  "Yüksek"    : xG var + 3 kaynaktan en az 2'si aynı yönde
-  "Orta"      : xG var ama kaynaklar çelişkili
-  "Düşük"     : veriler tamamen çelişkili
-KURAL 3 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
+KARAR FAKTÖRLERÜ:
+  1. Piyasa beklentisi (bahisçi oranları) — en güvenilir gösterge
+  2. Güncel form (son dönem performansı)
+  3. Ev sahibi avantajı
+  4. H2H geçmişi
 
-Mevcut veri durumu:
-''' + f'''  - CSV xG: {"VAR ✓" if has_xg else "YOK ✗ → max güven Orta"}
-  - Form trendi: {"VAR ✓" if has_form else "YOK ✗"}
+KURAL 1 — "Çok Yüksek":
+  Piyasa NET favori (>%15 fark) VE güncel form da aynı tarafı gösteriyorsa
+
+KURAL 2 — "Yüksek":
+  Piyasa hafif favori VE güncel form destekliyorsa
+  VEYA piyasa net favori ama form nötrse
+
+KURAL 3 — "Orta":
+  Piyasa ve form çelişkili VEYA dengeli maç
+
+KURAL 4 — "Düşük":
+  Tüm göstergeler belirsiz, hazırlık/kupa maçı
+
+KURAL 5 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
+
+''' + f'''Mevcut veri durumu:
+  - Piyasa analizi: {"VAR ✓" if home_implied else "YOK ✗"}
+  - Güncel form (PPG): {"VAR ✓" if ppg_favors else "YOK ✗"}
   - Ev/dep istatistik: {"VAR ✓" if has_venue_stats else "YOK ✗"}
   - Puan durumu: {"VAR ✓" if has_standing else "YOK ✗"}
 ── Güven Kuralları Sonu ──
@@ -1104,11 +1118,52 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         logger.info(f'Value bets {home_team} vs {away_team}: {[v["label"] + " +" + str(v["diff"]) + "%" for v in value_bets]}')
 
     confidence = result.get('confidence', 'Orta')
-    has_xg = csv_data and csv_data.get('home_xg') and csv_data.get('away_xg')
 
-    if not has_xg and confidence in ('Yüksek', 'Çok Yüksek'):
-        confidence = 'Orta'
-        logger.info(f'Confidence capped to Orta (no CSV xG): {home_team} vs {away_team}')
+    # Güven seviyesini bahisçi+PPG uyumuna göre kontrol et (xG tabanlı değil)
+    # odds_favors ve ppg_favors build_prompt içinde hesaplandı ama burada yeniden hesaplayalım
+    _conf_odds_favors = None
+    _conf_ppg_favors = None
+    if csv_data:
+        try:
+            h_o = float(csv_data.get('odds_home') or 0)
+            a_o = float(csv_data.get('odds_away') or 0)
+            if h_o > 1 and a_o > 1:
+                h_imp = round(1/h_o*100, 1)
+                a_imp = round(1/a_o*100, 1)
+                d = h_imp - a_imp
+                if d > 15: _conf_odds_favors = '1'
+                elif d < -15: _conf_odds_favors = '2'
+                elif d > 5: _conf_odds_favors = '1_soft'
+                elif d < -5: _conf_odds_favors = '2_soft'
+                else: _conf_odds_favors = 'X'
+        except: pass
+        try:
+            ch = float(csv_data.get('current_home_ppg') or 0)
+            ca = float(csv_data.get('current_away_ppg') or 0)
+            if ch > 0 or ca > 0:
+                pd = ch - ca
+                if pd > 0.5: _conf_ppg_favors = '1'
+                elif pd < -0.5: _conf_ppg_favors = '2'
+                else: _conf_ppg_favors = 'X'
+        except: pass
+
+    # Kupa/hazırlık maçlarında max Orta
+    match_type = detect_match_importance(league)
+    if 'Kupa' in match_type or 'Hazirlik' in match_type:
+        if confidence in ('Yüksek', 'Çok Yüksek'):
+            confidence = 'Orta'
+            logger.info(f'Confidence capped to Orta (cup/friendly): {home_team} vs {away_team}')
+    else:
+        # Piyasa net favori + PPG aynı yönde → Yüksek/Çok Yüksek onaylanır
+        odds_side = _conf_odds_favors.replace('_soft', '') if _conf_odds_favors else None
+        if confidence in ('Yüksek', 'Çok Yüksek'):
+            if odds_side and _conf_ppg_favors and odds_side == _conf_ppg_favors and odds_side != 'X':
+                pass  # onaylandı
+            elif _conf_odds_favors in ('1', '2') and not _conf_ppg_favors:
+                pass  # piyasa net favori, PPG yok, kabul et
+            else:
+                confidence = 'Orta'
+                logger.info(f'Confidence capped to Orta (odds/ppg not aligned): {home_team} vs {away_team}')
 
     over25_pct = float(result.get('over25_pct', 50))
     btts_pct = float(result.get('btts_pct', 40))
