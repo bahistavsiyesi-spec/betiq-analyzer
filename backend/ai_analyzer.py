@@ -89,6 +89,28 @@ def build_csv_section(home_team, away_team, csv_data):
         lines.append('Puan/Maç Ortalaması (pre-match):')
         if hppg is not None: lines.append(f'  - {home_team}: {hppg} puan/maç')
         if appg is not None: lines.append(f'  - {away_team}: {appg} puan/maç')
+
+    # ── YENİ: Güncel PPG (sezon içi form trendi) ──────────────────────────────
+    curr_hppg = csv_data.get('current_home_ppg')
+    curr_appg = csv_data.get('current_away_ppg')
+    if curr_hppg is not None or curr_appg is not None:
+        lines.append('Güncel Puan/Maç (sezon içi):')
+        if curr_hppg is not None: lines.append(f'  - {home_team}: {curr_hppg} puan/maç (güncel)')
+        if curr_appg is not None: lines.append(f'  - {away_team}: {curr_appg} puan/maç (güncel)')
+        if curr_hppg and hppg:
+            try:
+                diff = round(float(curr_hppg) - float(hppg), 2)
+                trend = 'form YUKSELIYOR' if diff > 0.2 else ('form DUSUYOR' if diff < -0.2 else 'form STABIL')
+                lines.append(f'  - {home_team} trend: {trend} (fark: {diff:+.2f})')
+            except: pass
+        if curr_appg and appg:
+            try:
+                diff = round(float(curr_appg) - float(appg), 2)
+                trend = 'form YUKSELIYOR' if diff > 0.2 else ('form DUSUYOR' if diff < -0.2 else 'form STABIL')
+                lines.append(f'  - {away_team} trend: {trend} (fark: {diff:+.2f})')
+            except: pass
+    # ─────────────────────────────────────────────────────────────────────────
+
     gol_lines = []
     for key, label in [('avg_goals','Ort. gol/maç'),('over05_avg','Over 0.5 %'),('over15_avg','Over 1.5 %'),('over25_avg','Over 2.5 %'),('over35_avg','Over 3.5 %'),('over45_avg','Over 4.5 %')]:
         v = csv_data.get(key)
@@ -110,6 +132,16 @@ def build_csv_section(home_team, away_team, csv_data):
         lines.append('İlk Yarı İstatistikleri (CSV):')
         if ht05 is not None: lines.append(f'  - İlk yarı Over 0.5 (gol olan maç %): %{ht05}')
         if ht15 is not None: lines.append(f'  - İlk yarı Over 1.5 %: %{ht15}')
+
+    # ── YENİ: 2. Yarı istatistikleri ─────────────────────────────────────────
+    ht2_05 = csv_data.get('ht2_over05_avg')
+    ht2_15 = csv_data.get('ht2_over15_avg')
+    if ht2_05 is not None or ht2_15 is not None:
+        lines.append('2. Yarı İstatistikleri (CSV):')
+        if ht2_05 is not None: lines.append(f'  - 2. yarı gol olan maç %: %{ht2_05}')
+        if ht2_15 is not None: lines.append(f'  - 2. yarı Over 1.5 %: %{ht2_15}')
+    # ─────────────────────────────────────────────────────────────────────────
+
     corn_lines = []
     for key, label in [('avg_corners','Ort. korner/maç'),('avg_corners_85','Over 8.5 korner %'),('avg_corners_95','Over 9.5 korner %'),('avg_corners_105','Over 10.5 korner %')]:
         v = csv_data.get(key)
@@ -288,6 +320,24 @@ def build_prompt(home_team, away_team, league, match_time,
             hints.append(f'KG VAR için CSV ortalaması %{csv_data["btts_avg"]} — btts_pct için temel referans')
         if csv_data.get('ht_over05_avg'):
             hints.append(f'İlk yarı gol için CSV ortalaması %{csv_data["ht_over05_avg"]} — ht2g_pct için temel referans')
+        # ── YENİ: Güncel PPG ve 2. yarı ipuçları ─────────────────────────────
+        if csv_data.get('current_home_ppg') and csv_data.get('home_ppg'):
+            try:
+                diff = float(csv_data['current_home_ppg']) - float(csv_data['home_ppg'])
+                if abs(diff) > 0.2:
+                    trend = 'form yukarı' if diff > 0 else 'form aşağı'
+                    hints.append(f'{home_team} güncel PPG farkı {diff:+.2f} → {trend} — form momentumu dikkate al')
+            except: pass
+        if csv_data.get('current_away_ppg') and csv_data.get('away_ppg'):
+            try:
+                diff = float(csv_data['current_away_ppg']) - float(csv_data['away_ppg'])
+                if abs(diff) > 0.2:
+                    trend = 'form yukarı' if diff > 0 else 'form aşağı'
+                    hints.append(f'{away_team} güncel PPG farkı {diff:+.2f} → {trend} — form momentumu dikkate al')
+            except: pass
+        if csv_data.get('ht2_over05_avg'):
+            hints.append(f'2. yarı gol ihtimali %{csv_data["ht2_over05_avg"]} — maçın ikinci yarısı baskı göstergesi')
+        # ─────────────────────────────────────────────────────────────────────
         if hints:
             csv_hint = '\nCSV Veri Önceliklendirmesi:\n' + '\n'.join(f'- {h}' for h in hints) + '\n'
 
@@ -298,7 +348,6 @@ def build_prompt(home_team, away_team, league, match_time,
     has_venue_stats = has_venue
     has_standing = bool(home_standing or away_standing)
 
-    # CSV sapma kuralları — yüzdeler için
     over25_csv = csv_data.get('over25_avg') if csv_data else None
     btts_csv = csv_data.get('btts_avg') if csv_data else None
     ht_csv = csv_data.get('ht_over05_avg') if csv_data else None
@@ -336,7 +385,6 @@ def build_prompt(home_team, away_team, league, match_time,
 
     pct_rules += '── Yüzde Kuralları Sonu ──\n'
 
-    # Şut kuralları
     shot_rules = ''
     if home_shot_stats or away_shot_stats:
         h_on = home_shot_stats.get('shots_on_target_avg', 0) if home_shot_stats else 0
@@ -377,7 +425,6 @@ def build_prompt(home_team, away_team, league, match_time,
 
         shot_rules += '── Şut Kuralları Sonu ──\n'
 
-    # Taraf tahmini kuralları
     hxg = csv_data.get('home_xg') if csv_data else None
     axg = csv_data.get('away_xg') if csv_data else None
     xg_diff = round(float(hxg) - float(axg), 2) if (hxg and axg) else None
@@ -416,7 +463,6 @@ def build_prompt(home_team, away_team, league, match_time,
     prediction_rules += '  ❌ YANLIŞ: xG eşit diye otomatik X verme — form farkı varsa forma göre tahmin yap!\n\n'
     prediction_rules += '── Taraf Kuralları Sonu ──\n'
 
-    # Güven kuralları
     confidence_rules = '''
 ── Güven Seviyesi Belirleme Kuralları (ZORUNLU) ──
 VERİ KAYNAĞI ÖNCELİĞİ: 1.CSV xG  2.Form trendi  3.Ev/dep istatistik  4.Puan durumu
@@ -664,7 +710,6 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
             return '3-2' if btts >= 60 else '4-1'
         if pred_1x2 == '2':
             return '2-3' if btts >= 60 else '1-4'
-        # X → 5 gollü beraberlik pratikte olmaz, en yakın eşit skor
         return '3-2'
 
     # 3.5 ÜST → 4+ gol
@@ -673,9 +718,8 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
             return '3-1' if btts >= 50 else '4-0'
         if pred_1x2 == '2':
             return '1-3' if btts >= 50 else '0-4'
-        return '2-2'  # X → 4 gollü beraberlik ✅
+        return '2-2'
 
-    # ŞUT BASKISI yüksek ama CSV over35 net değilse → 3 gol bandına zorla
     if pressure == 3 and (o35 is None or o35 < 55):
         if pred_1x2 == '1':
             return '2-1' if btts >= 50 else '3-0'
@@ -689,7 +733,6 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
             return '2-1' if btts >= 55 else '3-0'
         if pred_1x2 == '2':
             return '1-2' if btts >= 55 else '0-3'
-        # X → DÜZELTİLDİ: beraberlik skoru döndür
         return '2-2' if btts >= 55 else '1-1'
 
     # KRİTİK FIX → 3.5 düşükse 4 gollü skor YASAK
@@ -698,15 +741,13 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
             return '2-1' if btts >= 50 else '2-0'
         if pred_1x2 == '2':
             return '1-2' if btts >= 50 else '0-2'
-        return '1-1'  # X ✅
+        return '1-1'
 
-    # 2.5 ÜST yüksek ama 3.5 ÜST net değilse 3 gol bandında kal
     if o25 >= 70:
         if pred_1x2 == '1':
             return '2-1' if btts >= 55 else '3-0'
         if pred_1x2 == '2':
             return '1-2' if btts >= 55 else '0-3'
-        # X → DÜZELTİLDİ: over2.5 yüksekken daha golcü beraberlik
         return '2-2' if btts >= 55 else '1-1'
 
     # 2.5 ALT eğilimli maç
@@ -715,7 +756,6 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
             return '1-0'
         if pred_1x2 == '2':
             return '0-1'
-        # X → az gollü maçta 0-0 daha tutarlı
         return '0-0'
 
     # Orta bölge fallback
@@ -723,7 +763,7 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
         return '2-0' if btts < 45 else '2-1'
     if pred_1x2 == '2':
         return '0-2' if btts < 45 else '1-2'
-    return '1-1'  # X ✅
+    return '1-1'
 
 
 def _parse_score(score_text):
@@ -783,13 +823,10 @@ def _is_ht_ft_consistent(ht_score_text, ft_score_text):
     ft = _parse_score(ft_score_text)
     if not ht or not ft:
         return False
-
     ht_home, ht_away = ht
     ft_home, ft_away = ft
-
     if ht_home > ft_home or ht_away > ft_away:
         return False
-
     return True
 
 
@@ -966,16 +1003,13 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     if value_bets:
         logger.info(f'Value bets {home_team} vs {away_team}: {[v["label"] + " +" + str(v["diff"]) + "%" for v in value_bets]}')
 
-    # Python tarafında güven ve yüzde sınırlarını garantile
     confidence = result.get('confidence', 'Orta')
     has_xg = csv_data and csv_data.get('home_xg') and csv_data.get('away_xg')
 
-    # CSV yoksa güveni Orta ile sınırla
     if not has_xg and confidence in ('Yüksek', 'Çok Yüksek'):
         confidence = 'Orta'
         logger.info(f'Confidence capped to Orta (no CSV xG): {home_team} vs {away_team}')
 
-    # CSV varsa yüzdeleri sınırla
     over25_pct = float(result.get('over25_pct', 50))
     btts_pct = float(result.get('btts_pct', 40))
     ht2g_pct = float(result.get('ht2g_pct', 40))
@@ -1010,30 +1044,26 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     # ── Şut bazlı yüzde düzeltmesi ───────────────────────────────────────────
     pressure, shot_dominant = _shot_pressure_score(home_shot_stats, away_shot_stats)
     if pressure is not None:
-        # over25_pct düzeltmesi
         if pressure == 0:
-            # Düşük baskılı maç → over25 fazla iyimserse kır (max -6)
             if over25_pct > 58:
                 adj = min(6, over25_pct - 52)
                 logger.info(f'Shot pressure=0: over25_pct {over25_pct}→{over25_pct - adj} (düşük baskı)')
                 over25_pct -= adj
         elif pressure == 3:
-            # Yüksek baskılı maç → over25 fazla kötümserse yükselt (max +6)
             if over25_pct < 52:
                 adj = min(6, 58 - over25_pct)
                 logger.info(f'Shot pressure=3: over25_pct {over25_pct}→{over25_pct + adj} (yüksek baskı)')
                 over25_pct += adj
 
-        # btts_pct düzeltmesi: her iki takım da yüksek isabetli şut üretiyorsa btts güçlenir
         h_on = _safe_float(home_shot_stats.get('shots_on_target_avg') if home_shot_stats else None) or 0
         a_on = _safe_float(away_shot_stats.get('shots_on_target_avg') if away_shot_stats else None) or 0
         if h_on >= 4.5 and a_on >= 4.5 and btts_pct < 60:
             adj = min(5, 65 - btts_pct)
-            logger.info(f'Shot both-teams-high SOT: btts_pct {btts_pct}→{btts_pct + adj} (h_on={h_on} a_on={a_on})')
+            logger.info(f'Shot both-teams-high SOT: btts_pct {btts_pct}→{btts_pct + adj}')
             btts_pct += adj
         elif h_on <= 2.5 and a_on <= 2.5 and btts_pct > 45:
             adj = min(5, btts_pct - 40)
-            logger.info(f'Shot both-teams-low SOT: btts_pct {btts_pct}→{btts_pct - adj} (h_on={h_on} a_on={a_on})')
+            logger.info(f'Shot both-teams-low SOT: btts_pct {btts_pct}→{btts_pct - adj}')
             btts_pct -= adj
     # ─────────────────────────────────────────────────────────────────────────
 
