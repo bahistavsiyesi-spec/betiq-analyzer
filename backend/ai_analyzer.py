@@ -429,39 +429,119 @@ def build_prompt(home_team, away_team, league, match_time,
     axg = csv_data.get('away_xg') if csv_data else None
     xg_diff = round(float(hxg) - float(axg), 2) if (hxg and axg) else None
 
+    # ── Odds implied probability hesapla ────────────────────────────────────
+    home_implied = None
+    away_implied = None
+    odds_favors = None
+    if csv_data:
+        try:
+            h_odds = float(csv_data.get('odds_home') or 0)
+            a_odds = float(csv_data.get('odds_away') or 0)
+            if h_odds > 1 and a_odds > 1:
+                home_implied = round(1 / h_odds * 100, 1)
+                away_implied = round(1 / a_odds * 100, 1)
+                imp_diff = home_implied - away_implied
+                if imp_diff > 15:
+                    odds_favors = '1'  # ev sahibi güçlü favori
+                elif imp_diff < -15:
+                    odds_favors = '2'  # deplasman güçlü favori
+                elif imp_diff > 5:
+                    odds_favors = '1_soft'  # ev sahibi hafif favori
+                elif imp_diff < -5:
+                    odds_favors = '2_soft'  # deplasman hafif favori
+                else:
+                    odds_favors = 'X'  # dengeli
+        except: pass
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── Güncel PPG farkı hesapla ──────────────────────────────────────────────
+    ppg_favors = None
+    if csv_data:
+        try:
+            ch = float(csv_data.get('current_home_ppg') or 0)
+            ca = float(csv_data.get('current_away_ppg') or 0)
+            if ch > 0 or ca > 0:
+                ppg_diff = ch - ca
+                if ppg_diff > 0.5:
+                    ppg_favors = '1'
+                elif ppg_diff < -0.5:
+                    ppg_favors = '2'
+                else:
+                    ppg_favors = 'X'
+        except: pass
+    # ─────────────────────────────────────────────────────────────────────────
+
     prediction_rules = '\n── Taraf Tahmini Kuralları (ZORUNLU) ──\n'
+    prediction_rules += 'KARAR HİYERARŞİSİ (öncelik sırası):\n'
+    prediction_rules += '  1. Bahisçi oranı (piyasa konsensüsü) — en güvenilir gösterge\n'
+    prediction_rules += '  2. Güncel PPG (sezon içi form trendi)\n'
+    prediction_rules += '  3. xG farkı (tehlike göstergesi, KAZANMA değil GOL beklentisi)\n'
+    prediction_rules += '  4. Ev sahibi avantajı\n'
+    prediction_rules += '  5. H2H geçmişi\n\n'
+    prediction_rules += '⚠️ xG yüksek = çok gol atabilir, ama KAZANIR anlamına gelmez!\n'
+    prediction_rules += '⚠️ Bahisçi + PPG aynı tarafı gösteriyorsa, xG tek başına bunu geçemez.\n\n'
     prediction_rules += 'prediction_1x2 ve güven seviyesi belirlenirken aşağıdaki kurallara KESINLIKLE uy:\n\n'
 
-    if xg_diff is not None:
-        prediction_rules += f'xG Durumu: {home_team}={hxg} xG, {away_team}={axg} xG, fark={abs(xg_diff)} ({home_team if xg_diff > 0 else away_team} üstün)\n\n'
-        prediction_rules += 'xG farkına göre tahmin zorunluluğu:\n'
-        prediction_rules += f'  - xG farkı > 0.8 → güçlü taraf kesin favori, "1" veya "2" ver\n'
-        prediction_rules += f'  - xG farkı 0.4-0.8 → hafif favori, form + puan durumu belirler\n'
-        prediction_rules += f'  - xG farkı < 0.4 → dengeli maç, ÖNCE forma bak, form belirleyiciyse forma göre tahmin ver\n\n'
-        if abs(xg_diff) < 0.4:
-            prediction_rules += f'  ⚠️ Bu maçta xG farkı {abs(xg_diff)} — DÜŞÜK.\n'
-            prediction_rules += f'  Önce forma bak:\n'
-            prediction_rules += f'  - Bir takım 3+ maç farkla daha iyi formdaysa → o takımı seç ("1" veya "2")\n'
-            prediction_rules += f'  - Formlar benzer veya belirsizse → "X" ver\n'
-            prediction_rules += f'  - Ev sahibi belirgin üstünse → "1" ver, beraberliğe kaçma\n\n'
-        elif abs(xg_diff) < 0.8:
-            dominant = home_team if xg_diff > 0 else away_team
-            pred_val = "1" if xg_diff > 0 else "2"
-            prediction_rules += f'  ⚠️ Bu maçta xG farkı {abs(xg_diff)} — ORTA. {dominant} hafif favori ({pred_val})\n'
-            prediction_rules += f'  Form veya puan durumu desteklemiyorsa güveni "Orta" tut\n\n'
+    # Odds analizi
+    if home_implied and away_implied:
+        prediction_rules += f'Bahisçi Oranı Analizi: {home_team} implied %{home_implied} | {away_team} implied %{away_implied}\n'
+        imp_diff = home_implied - away_implied
+        if abs(imp_diff) > 15:
+            fav = home_team if imp_diff > 0 else away_team
+            fav_val = "1" if imp_diff > 0 else "2"
+            prediction_rules += f'  → Piyasa NET favori: {fav} ({fav_val}) — %{abs(imp_diff):.0f} fark\n'
+            prediction_rules += f'  → Bu tarafı desteklemeyen veriler zayıf kalır\n\n'
+        elif abs(imp_diff) > 5:
+            fav = home_team if imp_diff > 0 else away_team
+            fav_val = "1" if imp_diff > 0 else "2"
+            prediction_rules += f'  → Piyasa hafif favori: {fav} ({fav_val}) — diğer verilerle teyit et\n\n'
         else:
-            dominant = home_team if xg_diff > 0 else away_team
-            pred_val = "1" if xg_diff > 0 else "2"
-            prediction_rules += f'  ✓ Bu maçta xG farkı {abs(xg_diff)} — YÜKSEK. {dominant} net favori ({pred_val})\n\n'
+            prediction_rules += f'  → Piyasa dengeli — form ve xG belirleyici\n\n'
+
+    # PPG analizi
+    if ppg_favors:
+        ch = float(csv_data.get('current_home_ppg') or 0) if csv_data else 0
+        ca = float(csv_data.get('current_away_ppg') or 0) if csv_data else 0
+        prediction_rules += f'Güncel PPG: {home_team}={ch} | {away_team}={ca}\n'
+        if ppg_favors == '1':
+            prediction_rules += f'  → {home_team} güncel formda belirgin üstün\n\n'
+        elif ppg_favors == '2':
+            prediction_rules += f'  → {away_team} güncel formda belirgin üstün\n\n'
+        else:
+            prediction_rules += f'  → PPG dengeli\n\n'
+
+    if xg_diff is not None:
+        prediction_rules += f'xG Durumu: {home_team}={hxg} xG, {away_team}={axg} xG, fark={abs(xg_diff)} ({home_team if xg_diff > 0 else away_team} daha tehlikeli)\n'
+        prediction_rules += f'  ⚠️ xG = GOL BEKLENTİSİ, KAZANMA ihtimali değil!\n\n'
+        prediction_rules += 'xG tek başına tahmin kuralı:\n'
+        prediction_rules += f'  - xG farkı > 0.8 VE bahisçi + PPG destekliyorsa → güçlü favori\n'
+        prediction_rules += f'  - xG farkı > 0.8 AMA bahisçi karşı tarafı gösteriyorsa → bahisçiye uyu\n'
+        prediction_rules += f'  - xG farkı 0.4-0.8 → hafif gösterge, bahisçi + PPG belirler\n'
+        prediction_rules += f'  - xG farkı < 0.4 → göz ardı et, diğer faktörler belirler\n\n'
     else:
-        prediction_rules += 'xG verisi yok — form trendi + ev/dep istatistik + puan durumu belirler\n\n'
+        prediction_rules += 'xG verisi yok — bahisçi + PPG + ev/dep istatistik belirler\n\n'
+
+    # Kombinasyon kuralları
+    prediction_rules += 'Kombinasyon karar kuralları (ZORUNLU):\n'
+    if odds_favors and odds_favors != 'X' and ppg_favors and ppg_favors != 'X':
+        odds_side = odds_favors.replace('_soft', '')
+        if odds_side == ppg_favors:
+            fav_name = home_team if odds_side == '1' else away_team
+            prediction_rules += f'  ✓ BAHİSÇİ + PPG AYNI TARAF ({fav_name}) → {odds_side} seç, güven yüksek\n'
+        else:
+            fav_odds = home_team if odds_side == '1' else away_team
+            fav_ppg = home_team if ppg_favors == '1' else away_team
+            prediction_rules += f'  ⚠️ Çelişki: Bahisçi={fav_odds}, PPG={fav_ppg} — bahisçiye ağırlık ver\n'
+    prediction_rules += '  - Bahisçi net favori (>%15 fark) → o tarafı seç, xG tek başına geçemez\n'
+    prediction_rules += '  - Bahisçi + PPG aynı yönde → güvenle o tarafı seç\n'
+    prediction_rules += '  - Sadece xG yüksek ama bahisçi karşı tarafta → bahisçiye uyu\n'
+    prediction_rules += '  - Tüm göstergeler çelişkili → "X" ver\n\n'
 
     prediction_rules += 'Beraberlik (X) ne zaman verilmeli:\n'
-    prediction_rules += '  - xG farkı < 0.4 VE formlar gerçekten benzer (2 maçtan az fark)\n'
+    prediction_rules += '  - Bahisçi dengeli VE xG farkı < 0.4 VE PPG benzer\n'
     prediction_rules += '  - Her iki takım da tutarsız form gösteriyorsa\n'
-    prediction_rules += '  - Puan durumu kritik değil VE ev sahibi avantajı belirgin değilse\n'
-    prediction_rules += '  ❌ YANLIŞ: xG eşit diye otomatik X verme — form farkı varsa forma göre tahmin yap!\n\n'
-    prediction_rules += '── Taraf Kuralları Sonu ──\n'
+    prediction_rules += '  ❌ YANLIŞ: xG eşit diye otomatik X verme!\n\n'
+    prediction_rules += '── Taraf Kuralları Sonu ──\n
 
     confidence_rules = '''
 ── Güven Seviyesi Belirleme Kuralları (ZORUNLU) ──
