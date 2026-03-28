@@ -12,6 +12,9 @@ from backend.football_api import (
     get_team_standing,
     get_todays_fixtures,
     teams_match,
+    is_turkish_superlig_team,
+    get_team_last_matches_apifootball,
+    get_h2h_apifootball,
 )
 
 logger = logging.getLogger(__name__)
@@ -225,6 +228,17 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     home_matches = get_team_last_matches(home_name, last=10)
     away_matches = get_team_last_matches(away_name, last=10)
     h2h = get_h2h(home_name, away_name, last=5)
+
+    # Türkiye Süper Lig fallback — football-data.org'da yok
+    if not home_matches and is_turkish_superlig_team(home_name):
+        home_matches = get_team_last_matches_apifootball(home_name) or []
+        logger.info(f'API-Football matches fallback: {home_name} -> {len(home_matches)} mac')
+    if not away_matches and is_turkish_superlig_team(away_name):
+        away_matches = get_team_last_matches_apifootball(away_name) or []
+        logger.info(f'API-Football matches fallback: {away_name} -> {len(away_matches)} mac')
+    if not h2h and (is_turkish_superlig_team(home_name) or is_turkish_superlig_team(away_name)):
+        h2h = get_h2h_apifootball(home_name, away_name) or []
+        logger.info(f'API-Football H2H fallback: {home_name} vs {away_name} -> {len(h2h)} mac')
 
     home_form = extract_form_from_fixtures(home_matches or [], home_name)
     away_form = extract_form_from_fixtures(away_matches or [], away_name)
