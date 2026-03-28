@@ -746,3 +746,138 @@ def get_team_standing_apifootball(team_name, league_name, season=2024):
     except Exception as e:
         logger.warning('API-Football standings parse failed: ' + str(e))
         return None
+
+
+# ─── API-Football Son Maçlar + H2H (Türkiye Süper Lig) ───────────────────────
+
+_apifootball_team_id_cache = {}
+_apifootball_fixtures_cache = {}
+
+TURKISH_SUPER_LIG_ID = 203
+TURKISH_SUPER_LIG_SEASON = 2025
+
+
+def _get_apifootball_team_id(team_name, league_id=203, season=2025):
+    cache_key = normalize_name(team_name)
+    if cache_key in _apifootball_team_id_cache:
+        return _apifootball_team_id_cache[cache_key]
+
+    result = _get_api_football('teams', {'name': team_name, 'league': league_id, 'season': season})
+    if result and result.get('response'):
+        for entry in result['response']:
+            team_id = entry.get('team', {}).get('id')
+            name = entry.get('team', {}).get('name', '')
+            if team_id:
+                _apifootball_team_id_cache[cache_key] = team_id
+                logger.info('API-Football team ID: ' + name + ' -> ' + str(team_id))
+                return team_id
+
+    # Fuzzy search - isim tam eşleşmezse kısa adla dene
+    short_name = team_name.split()[0]
+    if short_name != team_name:
+        result2 = _get_api_football('teams', {'name': short_name, 'league': league_id, 'season': season})
+        if result2 and result2.get('response'):
+            for entry in result2['response']:
+                team_id = entry.get('team', {}).get('id')
+                name = entry.get('team', {}).get('name', '')
+                if team_id:
+                    _apifootball_team_id_cache[cache_key] = team_id
+                    logger.info('API-Football team ID (fuzzy): ' + name + ' -> ' + str(team_id))
+                    return team_id
+
+    _apifootball_team_id_cache[cache_key] = None
+    logger.info('API-Football team ID not found: ' + team_name)
+    return None
+
+
+def _convert_apifootball_fixture(fixture, team_name):
+    try:
+        home_name = fixture['teams']['home']['name']
+        away_name = fixture['teams']['away']['name']
+        home_goals = fixture['goals']['home']
+        away_goals = fixture['goals']['away']
+        if home_goals is None or away_goals is None:
+            return None
+        return {
+            'teams': {
+                'home': {'name': home_name, 'id': fixture['teams']['home']['id']},
+                'away': {'name': away_name, 'id': fixture['teams']['away']['id']},
+            },
+            'goals': {'home': int(home_goals), 'away': int(away_goals)}
+        }
+    except Exception:
+        return None
+
+
+def get_team_last_matches_apifootball(team_name, league_id=203, season=2025, last=10):
+    if not API_FOOTBALL_KEY:
+        return []
+
+    team_id = _get_apifootball_team_id(team_name, league_id, season)
+    if not team_id:
+        return []
+
+    result = _get_api_football('fixtures', {
+        'team': team_id,
+        'league': league_id,
+        'season': season,
+        'last': last,
+        'status': 'FT'
+    })
+
+    if not result or not result.get('response'):
+        return []
+
+    matches = []
+    for fix in result['response']:
+        converted = _convert_apifootball_fixture(fix, team_name)
+        if converted:
+            matches.append(converted)
+
+    logger.info('API-Football last matches: ' + team_name + ' -> ' + str(len(matches)) + ' mac')
+    return matches
+
+
+def get_h2h_apifootball(team1_name, team2_name, league_id=203, season=2025, last=5):
+    if not API_FOOTBALL_KEY:
+        return []
+
+    team1_id = _get_apifootball_team_id(team1_name, league_id, season)
+    team2_id = _get_apifootball_team_id(team2_name, league_id, season)
+
+    if not team1_id or not team2_id:
+        return []
+
+    result = _get_api_football('fixtures/headtohead', {
+        'h2h': str(team1_id) + '-' + str(team2_id),
+        'last': last
+    })
+
+    if not result or not result.get('response'):
+        return []
+
+    matches = []
+    for fix in result['response']:
+        converted = _convert_apifootball_fixture(fix, team1_name)
+        if converted:
+            matches.append(converted)
+
+    logger.info('API-Football H2H: ' + team1_name + ' vs ' + team2_name + ' -> ' + str(len(matches)) + ' mac')
+    return matches
+
+
+def is_turkish_superlig_team(team_name):
+    turkish_teams = [
+        'galatasaray', 'fenerbahce', 'fenerbahçe', 'besiktas', 'beşiktaş',
+        'trabzonspor', 'basaksehir', 'başakşehir', 'sivasspor', 'konyaspor',
+        'alanyaspor', 'antalyaspor', 'kayserispor', 'rizespor', 'gaziantep',
+        'hatayspor', 'kasimpasa', 'kasımpaşa', 'eyupspor', 'eyüpspor',
+        'goztepe', 'göztepe', 'bodrumspor', 'samsunspor', 'ankaragucu', 'ankaragücü',
+        'keciorengucu', 'keçiörengücü', 'adana demirspor', 'istanbulspor',
+        'umraniyespor', 'ümraniyespor', 'giresunspor',
+    ]
+    name_lower = team_name.lower()
+    for t in turkish_teams:
+        if t in name_lower or name_lower in t:
+            return True
+    return False
