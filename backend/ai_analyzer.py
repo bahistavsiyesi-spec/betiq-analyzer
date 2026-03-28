@@ -541,7 +541,7 @@ def build_prompt(home_team, away_team, league, match_time,
     prediction_rules += '  - Bahisçi dengeli VE xG farkı < 0.4 VE PPG benzer\n'
     prediction_rules += '  - Her iki takım da tutarsız form gösteriyorsa\n'
     prediction_rules += '  ❌ YANLIŞ: xG eşit diye otomatik X verme!\n\n'
-    prediction_rules += '── Taraf Kuralları Sonu ──\n
+    prediction_rules += '── Taraf Kuralları Sonu ──\n'
 
     confidence_rules = '''
 ── Güven Seviyesi Belirleme Kuralları (ZORUNLU) ──
