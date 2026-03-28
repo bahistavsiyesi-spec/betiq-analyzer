@@ -718,13 +718,10 @@ def get_team_standing_apifootball(team_name, league_name, season=2024):
         if cached['date'] == today:
             return _find_team_in_apifootball_standings(team_name, cached['data'])
 
-    # Önce 2025 dene, sonra 2024
     result = _get_api_football('standings', {'league': league_id, 'season': 2025})
     if not result or not result.get('response'):
-        result = _get_api_football('standings', {'league': league_id, 'season': 2024})
-        if not result or not result.get('response'):
-            logger.warning('API-Football standings empty for league ' + str(league_id))
-            return None
+        logger.warning('API-Football standings empty for league ' + str(league_id))
+        return None
 
     try:
         standings = []
