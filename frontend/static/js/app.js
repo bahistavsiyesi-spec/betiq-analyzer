@@ -362,6 +362,27 @@ function buildTrendHtml(match) {
     </div>`;
 }
 
+// ===== ANALİZ YORUMU BLOĞU =====
+function buildReasoningHtml(match) {
+    let reasoning = null;
+    try { reasoning = match.reasoning ? JSON.parse(match.reasoning) : null; } catch(e) {}
+    if (!reasoning || reasoning.length === 0) return '';
+
+    const icons = ['🏠', '✈️', '📊', '🚩', '⏱️'];
+    const items = reasoning.map((r, i) => {
+        const icon = icons[i] || '•';
+        return `<div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">
+            <span style="font-size:12px;flex-shrink:0;margin-top:1px;">${icon}</span>
+            <span style="font-size:11px;color:#aaa;line-height:1.5;">${r}</span>
+        </div>`;
+    }).join('');
+
+    return `<div style="margin-top:10px;padding:10px 12px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
+        <div style="font-size:10px;color:#6366f1;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">🤖 AI ANALİZ YORUMU</div>
+        ${items}
+    </div>`;
+}
+
 // ===== KORNER BİLGİ BLOĞU =====
 function buildCornerInfoHtml(match) {
     let csv = match.csv_data;
@@ -825,6 +846,7 @@ function createMatchCard(match) {
     const trendHtml=buildTrendHtml(match);
     const valueBetsHtml=buildValueBetsHtml(match);
     const cornerInfoHtml=buildCornerInfoHtml(match);
+    const reasoningHtml=buildReasoningHtml(match);
     return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
             <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${match.home_team.replace(/'/g,"\\'")}','${match.away_team.replace(/'/g,"\\'")}' )"
@@ -858,6 +880,7 @@ function createMatchCard(match) {
         ${valueBetsHtml}
         ${trendHtml}
         ${cornerInfoHtml}
+        ${reasoningHtml}
     </div>`;
 }
 
