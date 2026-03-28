@@ -281,21 +281,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
             except Exception as e:
                 logger.warning('Standings failed: ' + str(e))
 
-        # football-data.org bulamazsa API-Football'a fallback
-        if not home_standing or not away_standing:
-            try:
-                from backend.football_api import get_team_standing_apifootball
-                league_name = fixture['league']['name']
-                if not home_standing:
-                    home_standing = get_team_standing_apifootball(home_name, league_name)
-                    if home_standing:
-                        logger.info(f'API-Football Standing {home_name}: {home_standing["position"]}. sira, {home_standing["points"]} puan')
-                if not away_standing:
-                    away_standing = get_team_standing_apifootball(away_name, league_name)
-                    if away_standing:
-                        logger.info(f'API-Football Standing {away_name}: {away_standing["position"]}. sira, {away_standing["points"]} puan')
-            except Exception as e:
-                logger.warning('API-Football standings fallback failed: ' + str(e))
+        # API-Football standings kaldırıldı — free plan 2025 sezonunu desteklemiyor
 
     home_shot_stats = None
     away_shot_stats = None
