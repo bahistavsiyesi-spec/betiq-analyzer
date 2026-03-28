@@ -628,25 +628,33 @@ API_FOOTBALL_BASE = 'https://v3.football.api-sports.io'
 API_FOOTBALL_HEADERS = {'x-apisports-key': API_FOOTBALL_KEY}
 
 API_FOOTBALL_LEAGUE_MAP = {
-    'super lig': 203, 'turkey': 203,
-    'tff first league': 204,
+    # Türkiye
+    'super lig': 203, 'turkey': 203, 'super lig': 203,
+    '1. lig': 204, 'tff first league': 204, 'tff 1. lig': 204,
+    # Belçika
     'pro league': 144, 'belgian pro league': 144, 'first division a': 144, 'belgium': 144,
+    'challenger pro league': 145, 'first division b': 145,
+    # İskoçya
     'premiership': 179, 'scottish premiership': 179, 'scotland': 179,
     'scottish championship': 180, 'scottish league one': 181,
+    # Avusturya
     'austrian bundesliga': 218, 'austria': 218,
+    # Avustralya
     'a-league': 188, 'a league': 188, 'australia': 188,
-    'a-league women': 189, 'a league women': 189,
-    'national league': 197,
+    'a-league women': 190, 'a league women': 190,
+    # İngiltere
+    'national league': 43,
     'league one': 41, 'efl league one': 41,
     'league two': 42, 'efl league two': 42,
     'championship': 40, 'efl championship': 40,
     'premier league': 39,
+    # Diğer
     'superliga': 119, 'danish superliga': 119,
     'eliteserien': 103,
     'allsvenskan': 113,
     'swiss super league': 207,
     'ekstraklasa': 106,
-    'greek super league': 197,
+    'greek super league': 233,
 }
 
 _apifootball_standings_cache = {}
