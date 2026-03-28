@@ -1147,6 +1147,20 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             btts_pct -= adj
     # ─────────────────────────────────────────────────────────────────────────
 
+    # ── xG-BTTS tutarlılık kontrolü ──────────────────────────────────────────
+    if csv_data:
+        hxg_val = _safe_float(csv_data.get('home_xg'))
+        axg_val = _safe_float(csv_data.get('away_xg'))
+        btts_base_val = _safe_float(csv_data.get('btts_avg'))
+        if hxg_val is not None and axg_val is not None:
+            if hxg_val >= 1.0 and axg_val >= 1.0:
+                # Her iki takım da gol beklentisi yüksek — BTTS min %50 olmalı
+                # Ama CSV btts_avg zaten >= 50 ise dokunma
+                if (btts_base_val is None or btts_base_val < 50) and btts_pct < 50:
+                    logger.info(f'xG-BTTS fix: her iki xG>=1.0 ({hxg_val}/{axg_val}), btts_pct {btts_pct}→50')
+                    btts_pct = 50
+    # ─────────────────────────────────────────────────────────────────────────
+
     # Tutarlılık garantisi — clamp sonrası çelişkileri düzelt
     if btts_pct > 60 and over25_pct < 45:
         logger.info(f'Consistency fix: btts={btts_pct}>60 but over25={over25_pct}<45 → over25 set to 45')
