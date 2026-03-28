@@ -295,7 +295,9 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
         logger.info(
             f'CSV data: xG={csv_data.get("home_xg")}/{csv_data.get("away_xg")} '
             f'BTTS%={csv_data.get("btts_avg")} Over25%={csv_data.get("over25_avg")} '
-            f'IY05%={csv_data.get("ht_over05_avg")} AvgGoals={csv_data.get("avg_goals")}'
+            f'IY05%={csv_data.get("ht_over05_avg")} AvgGoals={csv_data.get("avg_goals")} '
+            f'CurrPPG={csv_data.get("current_home_ppg")}/{csv_data.get("current_away_ppg")} '
+            f'HT2={csv_data.get("ht2_over05_avg")}'
         )
 
     return analyze_with_claude(
