@@ -264,6 +264,19 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
             logger.warning('Standings failed: ' + str(e))
     elif is_youth_match:
         logger.info(f'Youth match — standings skipped: {home_name} vs {away_name}')
+    else:
+        # Büyük lig değil — API-Football fallback
+        try:
+            from backend.football_api import get_team_standing_apifootball
+            league_name = fixture['league']['name']
+            home_standing = get_team_standing_apifootball(home_name, league_name)
+            away_standing = get_team_standing_apifootball(away_name, league_name)
+            if home_standing:
+                logger.info(f'API-Football Standing {home_name}: {home_standing["position"]}. sira, {home_standing["points"]} puan')
+            if away_standing:
+                logger.info(f'API-Football Standing {away_name}: {away_standing["position"]}. sira, {away_standing["points"]} puan')
+        except Exception as e:
+            logger.warning('API-Football standings fallback failed: ' + str(e))
 
     home_shot_stats = None
     away_shot_stats = None
