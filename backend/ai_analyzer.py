@@ -338,6 +338,15 @@ def build_prompt(home_team, away_team, league, match_time,
         if csv_data.get('ht2_over05_avg'):
             hints.append(f'2. yarı gol ihtimali %{csv_data["ht2_over05_avg"]} — maçın ikinci yarısı baskı göstergesi')
         # ─────────────────────────────────────────────────────────────────────
+        # xG-BTTS fix uyarısı: her iki xG >= 1.0 ise btts min %50 olacak
+        hxg_hint = csv_data.get('home_xg')
+        axg_hint = csv_data.get('away_xg')
+        btts_hint = csv_data.get('btts_avg')
+        if hxg_hint and axg_hint and btts_hint:
+            try:
+                if float(hxg_hint) >= 1.0 and float(axg_hint) >= 1.0 and float(btts_hint) < 50:
+                    hints.append(f'Her iki takım da yüksek gol tehlikesi yarattığından karşılıklı gol ihtimali en az %50 olarak değerlendiriliyor (ham veri %{btts_hint} olsa da)')
+            except: pass
         if hints:
             csv_hint = '\nCSV Veri Önceliklendirmesi:\n' + '\n'.join(f'- {h}' for h in hints) + '\n'
 
