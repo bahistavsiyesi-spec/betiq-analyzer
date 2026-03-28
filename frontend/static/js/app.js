@@ -531,7 +531,14 @@ function drawCouponCanvas(coupon) {
             const bW=118,bH=44,bX=width-bW-20,bY=y+(rowH-bH)/2;
             ctx.fillStyle=bc.bg; roundRect(ctx,bX,bY,bW,bH,10); ctx.fill();
             ctx.strokeStyle=bc.border; ctx.lineWidth=1.5; roundRect(ctx,bX,bY,bW,bH,10); ctx.stroke();
-            ctx.fillStyle=bc.text; ctx.font='700 13px Syne,sans-serif'; ctx.textAlign='center';
+            ctx.fillStyle=bc.text; ctx.textAlign='center';
+            // Font boyutunu metne göre otomatik küçült
+            let fontSize=13;
+            ctx.font=`700 ${fontSize}px Syne,sans-serif`;
+            while(ctx.measureText(item.prediction_label).width>bW-10&&fontSize>8){
+                fontSize--;
+                ctx.font=`700 ${fontSize}px Syne,sans-serif`;
+            }
             ctx.fillText(item.prediction_label,bX+bW/2,bY+bH/2+5);
         });
 
