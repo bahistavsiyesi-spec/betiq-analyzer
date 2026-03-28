@@ -1,4 +1,5 @@
 import requests
+import time
 import os
 import logging
 import csv
@@ -664,6 +665,7 @@ def _get_api_football(endpoint, params={}):
     if not API_FOOTBALL_KEY:
         return None
     try:
+        time.sleep(1)  # saniyede 1 istek sınırı
         resp = requests.get(
             API_FOOTBALL_BASE + '/' + endpoint,
             headers=API_FOOTBALL_HEADERS,
@@ -672,6 +674,7 @@ def _get_api_football(endpoint, params={}):
         )
         if resp.status_code == 429:
             logger.warning('API-Football rate limit hit')
+            time.sleep(3)
             return None
         resp.raise_for_status()
         return resp.json()
@@ -715,9 +718,10 @@ def get_team_standing_apifootball(team_name, league_name, season=2024):
         if cached['date'] == today:
             return _find_team_in_apifootball_standings(team_name, cached['data'])
 
-    result = _get_api_football('standings', {'league': league_id, 'season': season})
+    # Önce 2025 dene, sonra 2024
+    result = _get_api_football('standings', {'league': league_id, 'season': 2025})
     if not result or not result.get('response'):
-        result = _get_api_football('standings', {'league': league_id, 'season': 2025})
+        result = _get_api_football('standings', {'league': league_id, 'season': 2024})
         if not result or not result.get('response'):
             logger.warning('API-Football standings empty for league ' + str(league_id))
             return None
