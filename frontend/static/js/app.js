@@ -296,12 +296,17 @@ async function downloadCard(matchId, homeTeam, awayTeam) {
     const card=document.getElementById(`matchcard-${matchId}`); if(!card) return;
     const btn=document.getElementById(`dlbtn-${matchId}`);
     if(btn){btn.textContent='⏳';btn.disabled=true;}
+    // İndirme sırasında butonları gizle
+    const btns = card.querySelectorAll('button');
+    btns.forEach(b => b.style.display='none');
     try {
-        const canvas=await html2canvas(card,{scale:3,backgroundColor:null,useCORS:true,logging:false});
+        const canvas=await html2canvas(card,{scale:4,backgroundColor:null,useCORS:true,logging:false});
         const link=document.createElement('a');
         link.download=`${homeTeam}_vs_${awayTeam}.png`.replace(/\s+/g,'_');
         link.href=canvas.toDataURL('image/png'); link.click();
     } catch(e){alert('Indirme hatasi: '+e.message);}
+    // Butonları geri getir
+    btns.forEach(b => b.style.display='');
     if(btn){btn.textContent='📸';btn.disabled=false;}
 }
 
