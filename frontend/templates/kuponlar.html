@@ -22,7 +22,7 @@
         .coupon-card { background:#12121f; border:1px solid #1e1e3a; border-radius:16px; overflow:hidden; }
         .coupon-card.won { border-color:#22c55e55; }
         .coupon-card.lost { border-color:#ef444455; }
-        .coupon-header { padding:14px 16px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e1e3a; }
+        .coupon-header { padding:14px 16px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e1e3a; gap:8px; }
         .coupon-date { font-size:13px; color:#888; font-weight:600; }
         .coupon-status { font-size:11px; font-weight:800; padding:4px 12px; border-radius:20px; }
         .status-won { background:#22c55e22; color:#22c55e; }
@@ -38,10 +38,12 @@
         .item-right { display:flex; align-items:center; gap:8px; }
         .item-pred { font-size:11px; font-weight:700; color:#a78bfa; background:#2a1a4e; padding:3px 8px; border-radius:6px; white-space:nowrap; }
         .item-result { font-size:18px; }
-        .coupon-footer { padding:12px 16px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid #1e1e3a; }
+        .coupon-footer { padding:12px 16px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid #1e1e3a; gap:8px; }
         .coupon-score { font-size:12px; color:#555; }
         .download-btn { padding:8px 16px; border-radius:8px; border:none; background:#7c3aed; color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
         .download-btn:hover { background:#6d28d9; }
+        .delete-btn { padding:8px 12px; border-radius:8px; border:1px solid #ef444444; background:transparent; color:#ef4444; font-size:12px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+        .delete-btn:hover { background:#ef444422; }
         .no-coupons { text-align:center; padding:60px 20px; color:#444; font-size:14px; }
         .no-coupons a { color:#7c3aed; text-decoration:none; font-weight:600; }
     </style>
@@ -61,24 +63,19 @@
         try {
             const resp = await fetch('/api/coupon/list');
             const coupons = await resp.json();
-
             const won = coupons.filter(c => c.won === 1).length;
             const lost = coupons.filter(c => c.status === 'completed' && c.won === 0).length;
             const pending = coupons.filter(c => c.status === 'pending').length;
-
             document.getElementById('summaryBar').innerHTML = `
                 <div class="summary-box"><div class="val val-won">${won}</div><div class="lbl">Kazandı ✅</div></div>
                 <div class="summary-box"><div class="val val-lost">${lost}</div><div class="lbl">Kaybetti ❌</div></div>
-                <div class="summary-box"><div class="val val-pending">${pending}</div><div class="lbl">Bekliyor ⏳</div></div>
-            `;
-
+                <div class="summary-box"><div class="val val-pending">${pending}</div><div class="lbl">Bekliyor ⏳</div></div>`;
             if (!coupons.length) {
                 document.getElementById('couponsList').innerHTML = `
                     <div class="no-coupons">🎫<br><br>Henüz kaydedilmiş kupon yok.<br><br>
                     <a href="/">Ana sayfadan kupon oluştur</a></div>`;
                 return;
             }
-
             document.getElementById('couponsList').innerHTML = coupons.map(c => buildCouponCard(c)).join('');
         } catch(e) {
             document.getElementById('couponsList').innerHTML = `<div class="no-coupons">❌ Yükleme hatası: ${e.message}</div>`;
@@ -94,7 +91,6 @@
             : isCompleted
             ? '<span class="coupon-status status-lost">❌ KAYBETTİ</span>'
             : '<span class="coupon-status status-pending">⏳ Bekliyor</span>';
-
         const items = (c.items || []).map(item => {
             const res = item.result;
             const itemClass = res === true ? 'item-won' : res === false ? 'item-lost' : '';
@@ -110,15 +106,16 @@
                 </div>
             </div>`;
         }).join('');
-
         const scoreText = isCompleted || c.correct_items > 0
             ? `${c.correct_items}/${c.total_items} tahmin tuttu`
             : `${c.total_items} tahmin`;
-
         return `<div class="coupon-card ${cardClass}" id="coupon-${c.id}">
             <div class="coupon-header">
                 <span class="coupon-date">📅 ${c.coupon_date}</span>
-                ${statusHtml}
+                <div style="display:flex;align-items:center;gap:8px;">
+                    ${statusHtml}
+                    <button class="delete-btn" onclick="deleteCoupon(${c.id})" title="Kuponu Sil">🗑️</button>
+                </div>
             </div>
             <div class="coupon-items">${items}</div>
             <div class="coupon-footer">
@@ -126,6 +123,22 @@
                 <button class="download-btn" onclick="downloadCouponCard(${c.id}, '${c.coupon_date}')">📸 PNG İndir</button>
             </div>
         </div>`;
+    }
+
+    async function deleteCoupon(id) {
+        if (!confirm('Bu kuponu silmek istediğine emin misin?')) return;
+        try {
+            const resp = await fetch(`/api/coupon/delete/${id}`, { method: 'DELETE' });
+            const data = await resp.json();
+            if (data.status === 'success') {
+                document.getElementById(`coupon-${id}`)?.remove();
+                loadCoupons();
+            } else {
+                alert('Silme hatası: ' + data.message);
+            }
+        } catch(e) {
+            alert('Hata: ' + e.message);
+        }
     }
 
     async function downloadCouponCard(id, date) {
