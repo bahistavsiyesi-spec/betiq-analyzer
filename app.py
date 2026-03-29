@@ -118,22 +118,30 @@ def api_stats_overview():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
             SELECT COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2,
-                SUM(r.over25_correct) as cover25, SUM(r.btts_correct) as cbtts,
-                SUM(r.score_correct) as cscore, SUM(r.ht_correct) as cht,
-                COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht
+                SUM(r.score_correct) as cscore,
+                -- Sadece eşik üzeri (%65+) tahminleri say
+                COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
+                SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
+                COUNT(CASE WHEN a.btts_pct >= 65 THEN 1 END) as total_btts,
+                SUM(CASE WHEN a.btts_pct >= 65 THEN r.btts_correct ELSE 0 END) as cbtts,
+                COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
+                SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
         ''')
         row = dict(cur.fetchone())
         total = row['total'] or 0
+        total_over25 = row['total_over25'] or 0
+        total_btts = row['total_btts'] or 0
+        total_ht = row['total_ht'] or 0
         result = {
             'total': total,
             '1x2': {'correct': row['c1x2'] or 0, 'pct': round((row['c1x2'] or 0)/total*100) if total else 0},
-            'over25': {'correct': row['cover25'] or 0, 'pct': round((row['cover25'] or 0)/total*100) if total else 0},
-            'btts': {'correct': row['cbtts'] or 0, 'pct': round((row['cbtts'] or 0)/total*100) if total else 0},
+            'over25': {'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
+            'btts': {'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
             'score': {'correct': row['cscore'] or 0, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
-            'ht': {'correct': row['cht'] or 0, 'total': row['total_ht'] or 0,
-                   'pct': round((row['cht'] or 0)/(row['total_ht'] or 1)*100) if row['total_ht'] else 0},
+            'ht': {'correct': row['cht'] or 0, 'total': total_ht,
+                   'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
         }
         cur.close(); conn.close()
         return jsonify(result)
@@ -180,22 +188,27 @@ def api_stats_by_category():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
             SELECT COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2,
-                SUM(r.over25_correct) as cover25, SUM(r.btts_correct) as cbtts,
                 SUM(r.score_correct) as cscore,
-                COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
-                SUM(r.ht_correct) as cht
+                COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
+                SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
+                COUNT(CASE WHEN a.btts_pct >= 65 THEN 1 END) as total_btts,
+                SUM(CASE WHEN a.btts_pct >= 65 THEN r.btts_correct ELSE 0 END) as cbtts,
+                COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
+                SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
         ''')
         row = dict(cur.fetchone())
         total = row['total'] or 0
+        total_over25 = row['total_over25'] or 0
+        total_btts = row['total_btts'] or 0
         total_ht = row['total_ht'] or 0
         categories = [
             {'name': '1X2', 'correct': row['c1x2'] or 0, 'total': total, 'pct': round((row['c1x2'] or 0)/total*100) if total else 0},
-            {'name': '2.5 Ust/Alt', 'correct': row['cover25'] or 0, 'total': total, 'pct': round((row['cover25'] or 0)/total*100) if total else 0},
-            {'name': 'KG Var/Yok', 'correct': row['cbtts'] or 0, 'total': total, 'pct': round((row['cbtts'] or 0)/total*100) if total else 0},
+            {'name': '2.5 Ust (%65+)', 'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
+            {'name': 'KG Var (%65+)', 'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
             {'name': 'Skor', 'correct': row['cscore'] or 0, 'total': total, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
-            {'name': 'IY 0.5 Ust', 'correct': row['cht'] or 0, 'total': total_ht, 'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
+            {'name': 'IY 0.5 Ust (%65+)', 'correct': row['cht'] or 0, 'total': total_ht, 'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
         ]
         cur.close(); conn.close()
         return jsonify(categories)
