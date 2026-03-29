@@ -352,45 +352,6 @@ def api_stats_combo_bets():
         import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        combos = [
-            ('2.5 Ust + KG Var',  'a.over25_pct >= 65 AND a.btts_pct >= 65',  'r.over25_correct = 1 AND r.btts_correct = 1'),
-            ('2.5 Ust + IY 0.5',  'a.over25_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL',  'r.over25_correct = 1 AND r.ht_correct = 1'),
-            ('KG Var + IY 0.5',   'a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL',   'r.btts_correct = 1 AND r.ht_correct = 1'),
-        ]
-
-        result = []
-        for label, where, both_correct in combos:
-            cur.execute(f'''
-                SELECT COUNT(*) as total,
-                       SUM(CASE WHEN {both_correct} THEN 1 ELSE 0 END) as correct
-                FROM analyses a
-                JOIN match_results r ON a.id = r.analysis_id
-                WHERE {where}
-            ''')
-            row = dict(cur.fetchone())
-            total = row['total'] or 0
-            correct = row['correct'] or 0
-            result.append({
-                'label': label,
-                'total': total,
-                'correct': correct,
-                'pct': round(correct / total * 100) if total > 0 else 0,
-            })
-
-        cur.close(); conn.close()
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Stats combo bets error: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/stats/combo-bets')
-def api_stats_combo_bets():
-    try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
             SELECT
                 -- 2.5 Ust + KG Var
