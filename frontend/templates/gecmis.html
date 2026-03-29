@@ -254,15 +254,28 @@
         }
 
         function renderSummary(matches) {
+            const THRESH = 65;
             const withResults = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
-            const withHt = withResults.filter(m => m.ht_home_score !== null && m.ht_home_score !== undefined);
             document.getElementById('totalMatches').textContent = matches.length;
             if (withResults.length > 0) {
-                document.getElementById('correct1x2').textContent = `${Math.round(withResults.filter(m=>m.pred_1x2_correct).length/withResults.length*100)}%`;
-                document.getElementById('correctOver25').textContent = `${Math.round(withResults.filter(m=>m.over25_correct).length/withResults.length*100)}%`;
-                document.getElementById('correctBtts').textContent = `${Math.round(withResults.filter(m=>m.btts_correct).length/withResults.length*100)}%`;
+                // 1X2: sadece Yüksek/Çok Yüksek güvenli maçlar
+                const highConf = withResults.filter(m => ['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence));
+                document.getElementById('correct1x2').textContent = highConf.length > 0
+                    ? `${Math.round(highConf.filter(m=>m.pred_1x2_correct).length/highConf.length*100)}%` : '-';
+                // 2.5 Üst: sadece %65+
+                const over25Eligible = withResults.filter(m => (m.over25_pct||0) >= THRESH);
+                document.getElementById('correctOver25').textContent = over25Eligible.length > 0
+                    ? `${Math.round(over25Eligible.filter(m=>m.over25_correct).length/over25Eligible.length*100)}%` : '-';
+                // KG Var: sadece %65+
+                const bttsEligible = withResults.filter(m => (m.btts_pct||0) >= THRESH);
+                document.getElementById('correctBtts').textContent = bttsEligible.length > 0
+                    ? `${Math.round(bttsEligible.filter(m=>m.btts_correct).length/bttsEligible.length*100)}%` : '-';
+                // İY 0.5 Üst: sadece %65+ ve İY skoru girilmiş
+                const htEligible = withResults.filter(m => (m.ht2g_pct||0) >= THRESH && m.ht_home_score !== null && m.ht_home_score !== undefined);
+                document.getElementById('correctHt').textContent = htEligible.length > 0
+                    ? `${Math.round(htEligible.filter(m=>m.ht_correct).length/htEligible.length*100)}%` : '-';
+                // Skor: tüm maçlar
                 document.getElementById('correctScore').textContent = withResults.filter(m=>m.score_correct).length;
-                document.getElementById('correctHt').textContent = withHt.length > 0 ? `${Math.round(withHt.filter(m=>m.ht_correct).length/withHt.length*100)}%` : '-';
             } else {
                 ['correct1x2','correctOver25','correctBtts','correctScore','correctHt'].forEach(id => document.getElementById(id).textContent = '-');
             }
