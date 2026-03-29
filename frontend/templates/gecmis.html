@@ -308,18 +308,32 @@
                     </div>
                 </div>`;
 
+            const THRESHOLD = 65;
+            const over25AboveThreshold = (m.over25_pct || 0) >= THRESHOLD;
+            const bttsAboveThreshold = (m.btts_pct || 0) >= THRESHOLD;
+            const htAboveThreshold = (m.ht2g_pct || 0) >= THRESHOLD;
+
+            function thresholdTick(aboveThreshold, correct) {
+                if (!aboveThreshold) return '<span style="color:#555;font-size:11px;">—</span>';
+                return correct ? '✅' : '❌';
+            }
+            function thresholdNote(aboveThreshold) {
+                if (!aboveThreshold) return ' <span style="font-size:10px;color:#555;">(eşik altı)</span>';
+                return '';
+            }
+
             const htPredHtml = hasHt ? `
                 <div class="pred-item">
-                    <span class="tick">${m.ht_correct ? '✅' : '❌'}</span>
+                    <span class="tick">${thresholdTick(htAboveThreshold, m.ht_correct)}</span>
                     <span class="pred-label">İY 0.5 Üst:</span>
-                    <span class="pred-value">%${Math.round(m.ht2g_pct || 0)} → İY ${m.ht_home_score}-${m.ht_away_score}</span>
+                    <span class="pred-value">%${Math.round(m.ht2g_pct || 0)} → İY ${m.ht_home_score}-${m.ht_away_score}${thresholdNote(htAboveThreshold)}</span>
                 </div>` : '';
 
             const predsHtml = hasResult ? `
                 <div class="result-preds">
                     <div class="pred-item"><span class="tick">${m.pred_1x2_correct?'✅':'❌'}</span><span class="pred-label">1X2:</span><span class="pred-value">${predText} → ${m.actual_1x2}</span></div>
-                    <div class="pred-item"><span class="tick">${m.over25_correct?'✅':'❌'}</span><span class="pred-label">2.5 Gol:</span><span class="pred-value">%${Math.round(m.over25_pct)} → ${m.actual_over25?'Üstü':'Altı'}</span></div>
-                    <div class="pred-item"><span class="tick">${m.btts_correct?'✅':'❌'}</span><span class="pred-label">KG Var:</span><span class="pred-value">%${Math.round(m.btts_pct)} → ${m.actual_btts?'Var':'Yok'}</span></div>
+                    <div class="pred-item"><span class="tick">${thresholdTick(over25AboveThreshold, m.over25_correct)}</span><span class="pred-label">2.5 Gol:</span><span class="pred-value">%${Math.round(m.over25_pct)} → ${m.actual_over25?'Üstü':'Altı'}${thresholdNote(over25AboveThreshold)}</span></div>
+                    <div class="pred-item"><span class="tick">${thresholdTick(bttsAboveThreshold, m.btts_correct)}</span><span class="pred-label">KG Var:</span><span class="pred-value">%${Math.round(m.btts_pct)} → ${m.actual_btts?'Var':'Yok'}${thresholdNote(bttsAboveThreshold)}</span></div>
                     ${htPredHtml}
                     <div class="pred-item"><span class="tick">${m.score_correct?'✅':'❌'}</span><span class="pred-label">Skor:</span><span class="pred-value">${m.predicted_score||'?-?'}</span></div>
                     <div class="pred-item"><span class="tick">—</span><span class="pred-label">Tahmini İY:</span><span class="pred-value">${m.predicted_ht_score||'?-?'}</span></div>
@@ -359,12 +373,19 @@
             const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
             const pred = m.prediction_1x2 || '?';
             const predText = { '1': '1 (Ev)', 'X': 'Beraberlik', '2': '2 (Dep)' }[pred] || pred;
+            const THRESH = 65;
+            const o25above = (m.over25_pct||0) >= THRESH;
+            const btabove  = (m.btts_pct||0)   >= THRESH;
+            const htabove  = (m.ht2g_pct||0)   >= THRESH;
+            function sTick(above, correct) { return above ? (correct ? '✅' : '❌') : '—'; }
+            function sVal(above, val, suffix) { return above ? val+suffix : val+' <span style="font-size:9px;color:#555;">(eşik altı)</span>'; }
+
             const stats = hasResult ? `
                 <div class="share-card-stats">
                     <div class="share-stat"><span class="share-stat-tick">${m.pred_1x2_correct?'✅':'❌'}</span><div class="share-stat-info"><div class="share-stat-label">1X2 TAHMİN</div><div class="share-stat-value">${predText} → ${m.actual_1x2||'?'}</div></div></div>
-                    <div class="share-stat"><span class="share-stat-tick">${m.over25_correct?'✅':'❌'}</span><div class="share-stat-info"><div class="share-stat-label">2.5 GOL ÜSTÜ</div><div class="share-stat-value">%${Math.round(m.over25_pct||0)} → ${m.actual_over25?'Üstü':'Altı'}</div></div></div>
-                    <div class="share-stat"><span class="share-stat-tick">${m.btts_correct?'✅':'❌'}</span><div class="share-stat-info"><div class="share-stat-label">KG VAR (BTTS)</div><div class="share-stat-value">%${Math.round(m.btts_pct||0)} → ${m.actual_btts?'Var':'Yok'}</div></div></div>
-                    <div class="share-stat"><span class="share-stat-tick">${hasHt?(m.ht_correct?'✅':'❌'):'—'}</span><div class="share-stat-info"><div class="share-stat-label">İY 0.5 ÜST</div><div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}${hasHt?' → İY '+m.ht_home_score+'-'+m.ht_away_score:''}</div></div></div>
+                    <div class="share-stat"><span class="share-stat-tick">${sTick(o25above, m.over25_correct)}</span><div class="share-stat-info"><div class="share-stat-label">2.5 GOL ÜSTÜ</div><div class="share-stat-value">${sVal(o25above, '%'+Math.round(m.over25_pct||0)+' → '+(m.actual_over25?'Üstü':'Altı'), '')}</div></div></div>
+                    <div class="share-stat"><span class="share-stat-tick">${sTick(btabove, m.btts_correct)}</span><div class="share-stat-info"><div class="share-stat-label">KG VAR (BTTS)</div><div class="share-stat-value">${sVal(btabove, '%'+Math.round(m.btts_pct||0)+' → '+(m.actual_btts?'Var':'Yok'), '')}</div></div></div>
+                    <div class="share-stat"><span class="share-stat-tick">${hasHt?sTick(htabove,m.ht_correct):'—'}</span><div class="share-stat-info"><div class="share-stat-label">İY 0.5 ÜST</div><div class="share-stat-value">${hasHt?sVal(htabove,'%'+Math.round(m.ht2g_pct||0)+' → İY '+m.ht_home_score+'-'+m.ht_away_score,''):'%'+Math.round(m.ht2g_pct||0)}</div></div></div>
                 </div>` : `
                 <div class="share-pending-badge">⏳ Sonuç Henüz Girilmedi</div>
                 <div class="share-card-stats" style="margin-top:8px;">
