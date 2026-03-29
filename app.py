@@ -346,6 +346,100 @@ def api_stats_value_bets():
         logger.error(f"Stats value bets error: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/stats/combo-bets')
+def api_stats_combo_bets():
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        combos = [
+            ('2.5 Ust + KG Var',  'a.over25_pct >= 65 AND a.btts_pct >= 65',  'r.over25_correct = 1 AND r.btts_correct = 1'),
+            ('2.5 Ust + IY 0.5',  'a.over25_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL',  'r.over25_correct = 1 AND r.ht_correct = 1'),
+            ('KG Var + IY 0.5',   'a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL',   'r.btts_correct = 1 AND r.ht_correct = 1'),
+        ]
+
+        result = []
+        for label, where, both_correct in combos:
+            cur.execute(f'''
+                SELECT COUNT(*) as total,
+                       SUM(CASE WHEN {both_correct} THEN 1 ELSE 0 END) as correct
+                FROM analyses a
+                JOIN match_results r ON a.id = r.analysis_id
+                WHERE {where}
+            ''')
+            row = dict(cur.fetchone())
+            total = row['total'] or 0
+            correct = row['correct'] or 0
+            result.append({
+                'label': label,
+                'total': total,
+                'correct': correct,
+                'pct': round(correct / total * 100) if total > 0 else 0,
+            })
+
+        cur.close(); conn.close()
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Stats combo bets error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/stats/combo-bets')
+def api_stats_combo_bets():
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            SELECT
+                -- 2.5 Ust + KG Var
+                COUNT(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 THEN 1 END) as total_o25_btts,
+                SUM(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 THEN
+                    CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 THEN 1 ELSE 0 END
+                END) as correct_o25_btts,
+                -- 2.5 Ust + IY 0.5 Ust
+                COUNT(CASE WHEN a.over25_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_o25_ht,
+                SUM(CASE WHEN a.over25_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
+                    CASE WHEN r.over25_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
+                END) as correct_o25_ht,
+                -- KG Var + IY 0.5 Ust
+                COUNT(CASE WHEN a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_btts_ht,
+                SUM(CASE WHEN a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
+                    CASE WHEN r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
+                END) as correct_btts_ht,
+                -- 2.5 Ust + KG Var + IY 0.5 Ust (uc lu)
+                COUNT(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_all3,
+                SUM(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
+                    CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
+                END) as correct_all3
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+        ''')
+        row = dict(cur.fetchone())
+        cur.close(); conn.close()
+
+        def combo(total_key, correct_key, label):
+            t = row[total_key] or 0
+            c = row[correct_key] or 0
+            return {
+                'label': label,
+                'total': t,
+                'correct': c,
+                'pct': round(c/t*100) if t else 0
+            }
+
+        result = [
+            combo('total_o25_btts', 'correct_o25_btts', '2.5 Üst + KG Var'),
+            combo('total_o25_ht',   'correct_o25_ht',   '2.5 Üst + İY 0.5 Üst'),
+            combo('total_btts_ht',  'correct_btts_ht',  'KG Var + İY 0.5 Üst'),
+            combo('total_all3',     'correct_all3',     '2.5 Üst + KG Var + İY 0.5 Üst'),
+        ]
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Stats combo bets error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/stats/calibration')
 def api_stats_calibration():
     try:
