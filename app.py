@@ -271,16 +271,44 @@ def api_stats_by_confidence():
             GROUP BY a.confidence ORDER BY COUNT(*) DESC
         ''')
         rows = [dict(r) for r in cur.fetchall()]
-        order = ['Cok Yuksek', 'Yuksek', 'Orta', 'Dusuk']
-        rows.sort(key=lambda x: order.index(x['confidence']) if x['confidence'] in order else 99)
-        result = []
+
+        # Türkçe/ASCII varyantlarını normalize et
+        def normalize_conf(c):
+            c = (c or '').strip()
+            mapping = {
+                'Çok Yüksek': 'Çok Yüksek', 'Cok Yuksek': 'Çok Yüksek',
+                'Çok yüksek': 'Çok Yüksek', 'cok yuksek': 'Çok Yüksek',
+                'Yüksek': 'Yüksek', 'Yuksek': 'Yüksek',
+                'yüksek': 'Yüksek', 'yuksek': 'Yüksek',
+                'Orta': 'Orta', 'orta': 'Orta',
+                'Düşük': 'Düşük', 'Dusuk': 'Düşük',
+                'düşük': 'Düşük', 'dusuk': 'Düşük',
+            }
+            return mapping.get(c, c)
+
+        # Normalize edip birleştir
+        merged = {}
         for r in rows:
-            t = r['total'] or 0
+            key = normalize_conf(r['confidence'])
+            if key not in merged:
+                merged[key] = {'confidence': key, 'total': 0, 'c1x2': 0, 'cover25': 0, 'cbtts': 0}
+            merged[key]['total']   += r['total'] or 0
+            merged[key]['c1x2']    += r['c1x2'] or 0
+            merged[key]['cover25'] += r['cover25'] or 0
+            merged[key]['cbtts']   += r['cbtts'] or 0
+
+        order = ['Çok Yüksek', 'Yüksek', 'Orta', 'Düşük']
+        result = []
+        for key in order:
+            if key not in merged:
+                continue
+            m = merged[key]
+            t = m['total'] or 0
             result.append({
-                'confidence': r['confidence'], 'total': t,
-                'pct_1x2': round((r['c1x2'] or 0)/t*100) if t else 0,
-                'pct_over25': round((r['cover25'] or 0)/t*100) if t else 0,
-                'pct_btts': round((r['cbtts'] or 0)/t*100) if t else 0,
+                'confidence': m['confidence'], 'total': t,
+                'pct_1x2': round(m['c1x2']/t*100) if t else 0,
+                'pct_over25': round(m['cover25']/t*100) if t else 0,
+                'pct_btts': round(m['cbtts']/t*100) if t else 0,
             })
         cur.close(); conn.close()
         return jsonify(result)
