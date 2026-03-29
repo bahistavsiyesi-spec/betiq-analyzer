@@ -11,7 +11,6 @@
         .stats-container { max-width: 960px; margin: 0 auto; padding: 20px; }
         .back-btn { display: inline-flex; align-items: center; gap: 8px; color: #7c3aed; text-decoration: none; font-weight: 600; margin-bottom: 20px; font-size: 14px; }
         .back-btn:hover { color: #a855f7; }
-
         .overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 28px; }
         .overview-card { background: #12121f; border: 1px solid #2a2a3e; border-radius: 12px; padding: 16px; text-align: center; }
         .overview-card .ov-value { font-size: 28px; font-weight: 800; color: #7c3aed; }
@@ -20,14 +19,11 @@
         .overview-card.yellow .ov-value { color: #f59e0b; }
         .overview-card.blue .ov-value { color: #3b82f6; }
         .overview-card.pink .ov-value { color: #ec4899; }
-
         .section { margin-bottom: 32px; }
         .section-title { font-size: 14px; font-weight: 700; color: #7c3aed; letter-spacing: 0.5px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
         .section-title::after { content: ''; flex: 1; height: 1px; background: #1e1e3a; }
-
         .chart-box { background: #12121f; border: 1px solid #2a2a3e; border-radius: 14px; padding: 20px; margin-bottom: 16px; }
         .chart-box canvas { max-height: 260px; }
-
         .cat-table { width: 100%; border-collapse: collapse; }
         .cat-table th { font-size: 11px; color: #555; text-align: left; padding: 8px 12px; border-bottom: 1px solid #1e1e3a; }
         .cat-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #111; }
@@ -39,7 +35,6 @@
         .pct-high { color: #22c55e; }
         .pct-mid  { color: #f59e0b; }
         .pct-low  { color: #ef4444; }
-
         .day-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .day-card { background: #12121f; border: 1px solid #2a2a3e; border-radius: 12px; padding: 16px; }
         .day-card h4 { font-size: 12px; margin-bottom: 12px; }
@@ -49,14 +44,12 @@
         .day-item:last-child { border-bottom: none; }
         .day-date { color: #aaa; }
         .day-pct { font-weight: 700; }
-
         .league-grid { display: grid; gap: 10px; }
         .league-row { background: #12121f; border: 1px solid #2a2a3e; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .league-name { font-size: 13px; font-weight: 700; color: #fff; flex: 1; min-width: 120px; }
         .league-stat { text-align: center; min-width: 60px; }
         .league-stat .ls-val { font-size: 14px; font-weight: 700; }
         .league-stat .ls-lbl { font-size: 10px; color: #555; }
-
         .conf-grid { display: grid; gap: 10px; }
         .conf-row { background: #12121f; border: 1px solid #2a2a3e; border-radius: 10px; padding: 14px 16px; }
         .conf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -68,7 +61,6 @@
         .conf-stats { display: flex; gap: 16px; flex-wrap: wrap; }
         .conf-stat { font-size: 12px; color: #666; }
         .conf-stat span { color: #fff; font-weight: 700; }
-
         .vb-grid { display: grid; gap: 10px; }
         .vb-row { background: #12121f; border: 1px solid #2a1a4e; border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .vb-label { font-size: 13px; font-weight: 700; color: #a78bfa; flex: 1; min-width: 120px; }
@@ -77,9 +69,28 @@
         .vb-stat .vb-lbl { font-size: 10px; color: #555; margin-top: 2px; }
         .vb-bar-wrap { background: #0d0d1a; border-radius: 4px; height: 6px; flex: 1; min-width: 80px; }
         .vb-bar-fill { height: 6px; border-radius: 4px; }
-
+        .calib-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .calib-card { background: #0d0d1a; border: 1px solid #1e1e3a; border-radius: 10px; padding: 14px; }
+        .calib-bucket { font-size: 11px; color: #555; margin-bottom: 8px; font-weight: 600; }
+        .calib-actual { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+        .calib-bar { background: #111; border-radius: 4px; height: 5px; margin-bottom: 8px; overflow: hidden; }
+        .calib-bar-fill { height: 5px; border-radius: 4px; }
+        .calib-meta { display: flex; justify-content: space-between; font-size: 10px; }
+        .calib-diff { font-weight: 700; }
+        .calib-count { color: #444; }
+        .calib-empty { opacity: 0.3; }
         .no-data { text-align: center; padding: 40px; color: #444; font-size: 13px; }
         .loading { text-align: center; padding: 40px; color: #555; }
+        .calib-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 4px; }
+        .calib-card { background: #0d0d1a; border: 1px solid #1e1e3a; border-radius: 10px; padding: 14px; }
+        .calib-card.calib-empty { opacity: 0.35; }
+        .calib-bucket { font-size: 11px; color: #555; margin-bottom: 8px; font-weight: 600; }
+        .calib-actual { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+        .calib-bar { background: #111; border-radius: 4px; height: 5px; margin-bottom: 8px; overflow: hidden; }
+        .calib-bar-fill { height: 5px; border-radius: 4px; }
+        .calib-meta { display: flex; justify-content: space-between; align-items: center; font-size: 10px; }
+        .calib-diff { font-weight: 700; }
+        .calib-count { color: #444; }
     </style>
 </head>
 <body>
@@ -87,174 +98,114 @@
         <header class="app-header">
             <div class="header-content">
                 <div class="logo">
-                    <span class="logo-icon">⚡</span>
+                    <span class="logo-icon">&#9889;</span>
                     <span class="logo-text">BetIQ</span>
                     <span class="logo-sub">ANALYZER</span>
                 </div>
                 <nav style="display:flex;gap:8px;align-items:center;">
-                    <a href="/" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🏠 Ana Sayfa</a>
-                    <a href="/gecmis" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">📅 Geçmiş</a>
-                    <a href="/istatistik" style="padding:7px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;text-decoration:none;">📊 İstatistik</a>
-                    <a href="/kuponlar" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🎫 Kuponlar</a>
+                    <a href="/" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">&#127968; Ana Sayfa</a>
+                    <a href="/gecmis" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">&#128197; Gecmis</a>
+                    <a href="/istatistik" style="padding:7px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;text-decoration:none;">&#128202; Istatistik</a>
+                    <a href="/kuponlar" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">&#127915; Kuponlar</a>
                 </nav>
             </div>
         </header>
         <main class="main-content">
             <div class="stats-container">
-                <h2 style="color:#fff; margin-bottom:20px;">📊 İstatistikler</h2>
+                <h2 style="color:#fff; margin-bottom:20px;">&#128202; Istatistikler</h2>
 
                 <div class="section">
-                    <div class="section-title">🏆 Genel Özet</div>
-                    <div class="overview-grid" id="overviewGrid">
-                        <div class="loading">Yükleniyor...</div>
-                    </div>
+                    <div class="section-title">&#127942; Genel Ozet</div>
+                    <div class="overview-grid" id="overviewGrid"><div class="loading">Yukleniyor...</div></div>
                 </div>
 
                 <div class="section">
-                    <div class="section-title">📈 Günlük Başarı Trendi (Son 30 Gün)</div>
-                    <div class="chart-box">
-                        <canvas id="dailyChart"></canvas>
-                    </div>
+                    <div class="section-title">&#128200; Gunluk Basari Trendi (Son 30 Gun)</div>
+                    <div class="chart-box"><canvas id="dailyChart"></canvas></div>
                 </div>
 
                 <div class="section">
-                    <div class="section-title">🎯 Tahmin Türüne Göre Başarı</div>
+                    <div class="section-title">&#127919; Tahmin Turune Gore Basari</div>
                     <div class="chart-box">
                         <table class="cat-table" id="categoryTable">
-                            <thead>
-                                <tr>
-                                    <th>Tahmin Türü</th>
-                                    <th>Doğru / Toplam</th>
-                                    <th>Başarı</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="categoryBody">
-                                <tr><td colspan="4" class="loading">Yükleniyor...</td></tr>
-                            </tbody>
+                            <thead><tr><th>Tahmin Turu</th><th>Dogru / Toplam</th><th>Basari</th><th></th></tr></thead>
+                            <tbody id="categoryBody"><tr><td colspan="4" class="loading">Yukleniyor...</td></tr></tbody>
                         </table>
                     </div>
                 </div>
 
                 <div class="section">
-                    <div class="section-title">💎 Value Bet Performansı</div>
+                    <div class="section-title">&#128142; Value Bet Performansi</div>
                     <div class="chart-box">
-                        <div id="valueBetInfo" style="font-size:11px;color:#555;margin-bottom:12px;">
-                            Skor girilen maçlardaki value bet önerilerinin gerçek başarı oranı.
+                        <div style="font-size:11px;color:#555;margin-bottom:12px;">Skor girilen maclardan value bet basari orani.</div>
+                        <div class="vb-grid" id="valueBetGrid"><div class="loading">Yukleniyor...</div></div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">&#128269; Tahmin Kalibrasyonu</div>
+                    <div class="chart-box">
+                        <div style="font-size:11px;color:#555;margin-bottom:16px;">
+                            "%70 dedigimizde gercekte kac kez dogru cikti?" - Sistem guvenilirlik analizi.
+                            Ideal: tahmin edilen % ile gercek % birbirine yakin olmali.
                         </div>
-                        <div class="vb-grid" id="valueBetGrid">
-                            <div class="loading">Yükleniyor...</div>
-                        </div>
+                        <div id="calibrationContent"><div class="loading">Yukleniyor...</div></div>
                     </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:32px;" class="two-col-section">
                     <div>
-                        <div class="section-title">💎 Güven Seviyesine Göre</div>
-                        <div class="conf-grid" id="confidenceGrid">
-                            <div class="loading">Yükleniyor...</div>
-                        </div>
+                        <div class="section-title">&#128142; Guven Seviyesine Gore</div>
+                        <div class="conf-grid" id="confidenceGrid"><div class="loading">Yukleniyor...</div></div>
                     </div>
                     <div>
-                        <div class="section-title">🌍 Lig Bazında Başarı</div>
-                        <div class="league-grid" id="leagueGrid">
-                            <div class="loading">Yükleniyor...</div>
-                        </div>
+                        <div class="section-title">&#127758; Lig Bazinda Basari</div>
+                        <div class="league-grid" id="leagueGrid"><div class="loading">Yukleniyor...</div></div>
                     </div>
                 </div>
 
                 <div class="section">
-                    <div class="section-title">🏅 En İyi & En Kötü Günler</div>
-                    <div class="day-cards" id="dayCards">
-                        <div class="loading">Yükleniyor...</div>
-                    </div>
+                    <div class="section-title">&#127885; En Iyi & En Kotu Gunler</div>
+                    <div class="day-cards" id="dayCards"><div class="loading">Yukleniyor...</div></div>
                 </div>
-
             </div>
         </main>
     </div>
 
     <script>
         let dailyChartInstance = null;
-
-        function pctColor(pct) {
-            if (pct >= 60) return 'pct-high';
-            if (pct >= 40) return 'pct-mid';
-            return 'pct-low';
-        }
-
-        function formatDate(d) {
-            const [y, m, day] = d.split('-');
-            return `${day}/${m}`;
-        }
+        function pctColor(pct) { return pct >= 60 ? 'pct-high' : pct >= 40 ? 'pct-mid' : 'pct-low'; }
+        function formatDate(d) { const [y,m,day]=d.split('-'); return day+'/'+m; }
 
         async function loadOverview() {
             const resp = await fetch('/api/stats/overview');
             const d = await resp.json();
             if (d.error) { document.getElementById('overviewGrid').innerHTML = '<div class="no-data">Veri yok</div>'; return; }
-
             document.getElementById('overviewGrid').innerHTML = `
-                <div class="overview-card">
-                    <div class="ov-value">${d.total}</div>
-                    <div class="ov-label">Toplam Sonuç</div>
-                </div>
-                <div class="overview-card green">
-                    <div class="ov-value">%${d['1x2'].pct}</div>
-                    <div class="ov-label">1X2 Başarı</div>
-                </div>
-                <div class="overview-card yellow">
-                    <div class="ov-value">%${d.over25.pct}</div>
-                    <div class="ov-label">2.5 Üst/Alt</div>
-                </div>
-                <div class="overview-card blue">
-                    <div class="ov-value">%${d.btts.pct}</div>
-                    <div class="ov-label">KG Var/Yok</div>
-                </div>
-                <div class="overview-card pink">
-                    <div class="ov-value">%${d.ht.pct}</div>
-                    <div class="ov-label">İY 0.5 Üst</div>
-                </div>
-                <div class="overview-card">
-                    <div class="ov-value">${d.score.correct}</div>
-                    <div class="ov-label">Skor Doğru</div>
-                </div>
-            `;
+                <div class="overview-card"><div class="ov-value">${d.total}</div><div class="ov-label">Toplam Sonuc</div></div>
+                <div class="overview-card green"><div class="ov-value">%${d['1x2'].pct}</div><div class="ov-label">1X2 Basari</div></div>
+                <div class="overview-card yellow"><div class="ov-value">%${d.over25.pct}</div><div class="ov-label">2.5 Ust/Alt</div></div>
+                <div class="overview-card blue"><div class="ov-value">%${d.btts.pct}</div><div class="ov-label">KG Var/Yok</div></div>
+                <div class="overview-card pink"><div class="ov-value">%${d.ht.pct}</div><div class="ov-label">IY 0.5 Ust</div></div>
+                <div class="overview-card"><div class="ov-value">${d.score.correct}</div><div class="ov-label">Skor Dogru</div></div>`;
         }
 
         async function loadDailyChart() {
             const resp = await fetch('/api/stats/daily');
             const data = await resp.json();
             if (!data.length) return;
-
             const labels = data.map(d => formatDate(d.date));
-            const pct1x2 = data.map(d => d.pct_1x2);
-            const pctOver = data.map(d => d.pct_over25);
-            const pctBtts = data.map(d => d.pct_btts);
-
             if (dailyChartInstance) dailyChartInstance.destroy();
-
             const ctx = document.getElementById('dailyChart').getContext('2d');
             dailyChartInstance = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels,
-                    datasets: [
-                        { label: '1X2 %', data: pct1x2, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.08)', tension: 0.4, fill: true, pointRadius: 3 },
-                        { label: '2.5 Üst %', data: pctOver, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.05)', tension: 0.4, fill: false, pointRadius: 3 },
-                        { label: 'KG %', data: pctBtts, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.05)', tension: 0.4, fill: false, pointRadius: 3 },
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { labels: { color: '#888', font: { size: 11 } } },
-                        tooltip: { mode: 'index', intersect: false }
-                    },
-                    scales: {
-                        x: { ticks: { color: '#555', font: { size: 10 } }, grid: { color: '#111' } },
-                        y: { ticks: { color: '#555', font: { size: 10 }, callback: v => v + '%' }, grid: { color: '#111' }, min: 0, max: 100 }
-                    }
-                }
+                data: { labels, datasets: [
+                    { label: '1X2 %', data: data.map(d=>d.pct_1x2), borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.08)', tension: 0.4, fill: true, pointRadius: 3 },
+                    { label: '2.5 Ust %', data: data.map(d=>d.pct_over25), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.05)', tension: 0.4, fill: false, pointRadius: 3 },
+                    { label: 'KG %', data: data.map(d=>d.pct_btts), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.05)', tension: 0.4, fill: false, pointRadius: 3 },
+                ]},
+                options: { responsive: true, plugins: { legend: { labels: { color: '#888', font: { size: 11 } } }, tooltip: { mode: 'index', intersect: false } },
+                    scales: { x: { ticks: { color: '#555', font: { size: 10 } }, grid: { color: '#111' } }, y: { ticks: { color: '#555', font: { size: 10 }, callback: v => v+'%' }, grid: { color: '#111' }, min: 0, max: 100 } } }
             });
         }
 
@@ -262,19 +213,13 @@
             const resp = await fetch('/api/stats/by-category');
             const data = await resp.json();
             if (!data.length) { document.getElementById('categoryBody').innerHTML = '<tr><td colspan="4" class="no-data">Veri yok</td></tr>'; return; }
-
             document.getElementById('categoryBody').innerHTML = data.map(c => `
                 <tr>
                     <td class="cat-name">${c.name}</td>
                     <td style="color:#666;">${c.correct} / ${c.total}</td>
                     <td class="cat-pct ${pctColor(c.pct)}">%${c.pct}</td>
-                    <td>
-                        <div class="cat-bar-wrap">
-                            <div class="cat-bar-fill" style="width:${c.pct}%; background:${c.pct >= 60 ? '#22c55e' : c.pct >= 40 ? '#f59e0b' : '#ef4444'};"></div>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
+                    <td><div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${c.pct}%;background:${c.pct>=60?'#22c55e':c.pct>=40?'#f59e0b':'#ef4444'};"></div></div></td>
+                </tr>`).join('');
         }
 
         async function loadValueBets() {
@@ -282,37 +227,64 @@
             try {
                 const resp = await fetch('/api/stats/value-bets');
                 const data = await resp.json();
-
-                if (!data || data.error || data.length === 0) {
-                    container.innerHTML = '<div class="no-data">Henüz veri yok — skor girildikçe burada görünecek</div>';
-                    return;
-                }
-
+                if (!data || data.error || data.length === 0) { container.innerHTML = '<div class="no-data">Henuz veri yok</div>'; return; }
                 container.innerHTML = data.map(v => {
                     const barColor = v.pct >= 60 ? '#22c55e' : v.pct >= 40 ? '#f59e0b' : '#ef4444';
-                    return `
-                    <div class="vb-row">
-                        <div class="vb-label">💎 ${v.label}</div>
-                        <div class="vb-stat">
-                            <div class="vb-val" style="color:#666;">${v.correct}/${v.total}</div>
-                            <div class="vb-lbl">Sonuç</div>
-                        </div>
-                        <div class="vb-stat">
-                            <div class="vb-val ${pctColor(v.pct)}">%${v.pct}</div>
-                            <div class="vb-lbl">Başarı</div>
-                        </div>
-                        <div class="vb-stat">
-                            <div class="vb-val" style="color:#a78bfa;">+${v.avg_diff}%</div>
-                            <div class="vb-lbl">Ort. Fark</div>
-                        </div>
-                        <div class="vb-bar-wrap">
-                            <div class="vb-bar-fill" style="width:${v.pct}%;background:${barColor};"></div>
-                        </div>
+                    return `<div class="vb-row">
+                        <div class="vb-label">&#128142; ${v.label}</div>
+                        <div class="vb-stat"><div class="vb-val" style="color:#666;">${v.correct}/${v.total}</div><div class="vb-lbl">Sonuc</div></div>
+                        <div class="vb-stat"><div class="vb-val ${pctColor(v.pct)}">%${v.pct}</div><div class="vb-lbl">Basari</div></div>
+                        <div class="vb-stat"><div class="vb-val" style="color:#a78bfa;">+${v.avg_diff}%</div><div class="vb-lbl">Ort. Fark</div></div>
+                        <div class="vb-bar-wrap"><div class="vb-bar-fill" style="width:${v.pct}%;background:${barColor};"></div></div>
                     </div>`;
                 }).join('');
-            } catch(e) {
-                container.innerHTML = '<div class="no-data">Yüklenemedi</div>';
-            }
+            } catch(e) { container.innerHTML = '<div class="no-data">Yuklenemedi</div>'; }
+        }
+
+        async function loadCalibration() {
+            const container = document.getElementById('calibrationContent');
+            try {
+                const resp = await fetch('/api/stats/calibration');
+                const data = await resp.json();
+                if (data.error) { container.innerHTML = '<div class="no-data">Veri yok</div>'; return; }
+                const types = [
+                    { key: 'over25', label: '2.5 Gol Ustu', color: '#22c55e' },
+                    { key: 'btts',   label: 'KG Var',       color: '#f59e0b' },
+                    { key: 'ht2g',   label: 'IY 0.5 Ust',  color: '#a78bfa' },
+                ];
+                let html = '';
+                for (const type of types) {
+                    const buckets = data[type.key] || [];
+                    const hasData = buckets.some(b => b.total > 0);
+                    if (!hasData) continue;
+                    html += '<div style="margin-bottom:20px;">';
+                    html += '<div style="font-size:12px;font-weight:700;color:'+type.color+';margin-bottom:10px;">'+type.label+'</div>';
+                    html += '<div class="calib-grid">';
+                    for (const b of buckets) {
+                        if (b.total === 0) {
+                            html += '<div class="calib-card calib-empty"><div class="calib-bucket">%'+b.bucket+'</div><div style="font-size:11px;color:#333;">Veri yok</div></div>';
+                            continue;
+                        }
+                        const actual = b.actual_pct;
+                        const predicted = b.predicted;
+                        const diff = actual - predicted;
+                        const absDiff = Math.abs(diff);
+                        const diffColor = absDiff <= 5 ? '#22c55e' : absDiff <= 15 ? '#f59e0b' : '#ef4444';
+                        const diffLabel = absDiff <= 5 ? 'İyi kalibre' : absDiff <= 15 ? 'Sapma var' : 'Buyuk sapma';
+                        const diffText = diff > 0 ? '+'+diff+'%' : diff+'%';
+                        html += '<div class="calib-card">';
+                        html += '<div class="calib-bucket">Tahmin: %'+b.bucket+'</div>';
+                        html += '<div class="calib-actual" style="color:'+type.color+'">%'+actual+'</div>';
+                        html += '<div class="calib-bar"><div class="calib-bar-fill" style="width:'+actual+'%;background:'+type.color+';"></div></div>';
+                        html += '<div class="calib-meta">';
+                        html += '<span class="calib-count">'+b.total+' mac</span>';
+                        html += '<span class="calib-diff" style="color:'+diffColor+'">'+diffText+' '+diffLabel+'</span>';
+                        html += '</div></div>';
+                    }
+                    html += '</div></div>';
+                }
+                container.innerHTML = html || '<div class="no-data">Henuz yeterli veri yok</div>';
+            } catch(e) { container.innerHTML = '<div class="no-data">Yuklenemedi</div>'; }
         }
 
         async function loadConfidence() {
@@ -320,110 +292,57 @@
             const data = await resp.json();
             const container = document.getElementById('confidenceGrid');
             if (!data.length) { container.innerHTML = '<div class="no-data">Veri yok</div>'; return; }
-
-            const badgeClass = { 'Çok Yüksek': 'conf-cok-yuksek', 'Yüksek': 'conf-yuksek', 'Orta': 'conf-orta', 'Düşük': 'conf-dusuk' };
-
+            const badgeClass = { 'Çok Yüksek': 'conf-cok-yuksek', 'Yüksek': 'conf-yuksek', 'Orta': 'conf-orta', 'Düşük': 'conf-dusuk', 'Cok Yuksek': 'conf-cok-yuksek', 'Yuksek': 'conf-yuksek', 'Dusuk': 'conf-dusuk' };
             container.innerHTML = data.map(c => `
                 <div class="conf-row">
                     <div class="conf-header">
-                        <span class="conf-badge ${badgeClass[c.confidence] || 'conf-orta'}">${c.confidence}</span>
-                        <span style="font-size:12px; color:#555;">${c.total} maç</span>
+                        <span class="conf-badge ${badgeClass[c.confidence]||'conf-orta'}">${c.confidence}</span>
+                        <span style="font-size:12px;color:#555;">${c.total} mac</span>
                     </div>
                     <div class="conf-stats">
                         <div class="conf-stat">1X2: <span class="${pctColor(c.pct_1x2)}">%${c.pct_1x2}</span></div>
                         <div class="conf-stat">2.5: <span class="${pctColor(c.pct_over25)}">%${c.pct_over25}</span></div>
                         <div class="conf-stat">KG: <span class="${pctColor(c.pct_btts)}">%${c.pct_btts}</span></div>
                     </div>
-                </div>
-            `).join('');
+                </div>`).join('');
         }
 
         async function loadLeagues() {
             const resp = await fetch('/api/stats/by-league');
             const data = await resp.json();
             const container = document.getElementById('leagueGrid');
-            if (!data.length) { container.innerHTML = '<div class="no-data">Veri yok (min 3 maç gerekli)</div>'; return; }
-
+            if (!data.length) { container.innerHTML = '<div class="no-data">Veri yok (min 3 mac gerekli)</div>'; return; }
             container.innerHTML = data.map(l => `
                 <div class="league-row">
                     <div class="league-name">${l.league}</div>
-                    <div class="league-stat">
-                        <div class="ls-val ${pctColor(l.pct_1x2)}">${l.pct_1x2}%</div>
-                        <div class="ls-lbl">1X2</div>
-                    </div>
-                    <div class="league-stat">
-                        <div class="ls-val ${pctColor(l.pct_over25)}">${l.pct_over25}%</div>
-                        <div class="ls-lbl">2.5</div>
-                    </div>
-                    <div class="league-stat">
-                        <div class="ls-val ${pctColor(l.pct_btts)}">${l.pct_btts}%</div>
-                        <div class="ls-lbl">KG</div>
-                    </div>
-                    ${l.total_ht > 0 ? `<div class="league-stat">
-                        <div class="ls-val ${pctColor(l.pct_ht)}">${l.pct_ht}%</div>
-                        <div class="ls-lbl">IY 0.5</div>
-                    </div>` : ''}
-                    <div class="league-stat" style="color:#444; font-size:11px;">${l.total} maç</div>
-                </div>
-            `).join('');
+                    <div class="league-stat"><div class="ls-val ${pctColor(l.pct_1x2)}">${l.pct_1x2}%</div><div class="ls-lbl">1X2</div></div>
+                    <div class="league-stat"><div class="ls-val ${pctColor(l.pct_over25)}">${l.pct_over25}%</div><div class="ls-lbl">2.5</div></div>
+                    <div class="league-stat"><div class="ls-val ${pctColor(l.pct_btts)}">${l.pct_btts}%</div><div class="ls-lbl">KG</div></div>
+                    ${l.total_ht > 0 ? '<div class="league-stat"><div class="ls-val '+pctColor(l.pct_ht)+'">'+l.pct_ht+'%</div><div class="ls-lbl">IY 0.5</div></div>' : ''}
+                    <div class="league-stat" style="color:#444;font-size:11px;">${l.total} mac</div>
+                </div>`).join('');
         }
 
         async function loadBestWorst() {
             const resp = await fetch('/api/stats/best-worst-days');
             const data = await resp.json();
             const container = document.getElementById('dayCards');
-
-            if (!data.best || !data.best.length) {
-                container.innerHTML = '<div class="no-data">Veri yok (min 2 maçlı gün gerekli)</div>';
-                return;
-            }
-
-            const bestHtml = data.best.map(d => `
-                <div class="day-item">
-                    <span class="day-date">${formatDate(d.date)}</span>
-                    <span>${d.correct}/${d.total} maç</span>
-                    <span class="day-pct pct-high">%${d.pct}</span>
-                </div>
-            `).join('');
-
-            const worstHtml = data.worst.map(d => `
-                <div class="day-item">
-                    <span class="day-date">${formatDate(d.date)}</span>
-                    <span>${d.correct}/${d.total} maç</span>
-                    <span class="day-pct pct-low">%${d.pct}</span>
-                </div>
-            `).join('');
-
+            if (!data.best || !data.best.length) { container.innerHTML = '<div class="no-data">Veri yok (min 2 macli gun gerekli)</div>'; return; }
+            const bestHtml = data.best.map(d => `<div class="day-item"><span class="day-date">${formatDate(d.date)}</span><span>${d.correct}/${d.total} mac</span><span class="day-pct pct-high">%${d.pct}</span></div>`).join('');
+            const worstHtml = data.worst.map(d => `<div class="day-item"><span class="day-date">${formatDate(d.date)}</span><span>${d.correct}/${d.total} mac</span><span class="day-pct pct-low">%${d.pct}</span></div>`).join('');
             container.innerHTML = `
-                <div class="day-card">
-                    <h4 class="best">🏆 En İyi Günler (1X2)</h4>
-                    ${bestHtml || '<div class="no-data">Veri yok</div>'}
-                </div>
-                <div class="day-card">
-                    <h4 class="worst">📉 En Kötü Günler (1X2)</h4>
-                    ${worstHtml || '<div class="no-data">Veri yok</div>'}
-                </div>
-            `;
+                <div class="day-card"><h4 class="best">En Iyi Gunler (1X2)</h4>${bestHtml||'<div class="no-data">Veri yok</div>'}</div>
+                <div class="day-card"><h4 class="worst">En Kotu Gunler (1X2)</h4>${worstHtml||'<div class="no-data">Veri yok</div>'}</div>`;
         }
 
         function handleResize() {
             const twoCol = document.querySelector('.two-col-section');
-            if (twoCol) {
-                twoCol.style.gridTemplateColumns = window.innerWidth < 640 ? '1fr' : '1fr 1fr';
-            }
+            if (twoCol) twoCol.style.gridTemplateColumns = window.innerWidth < 640 ? '1fr' : '1fr 1fr';
         }
         window.addEventListener('resize', handleResize);
         handleResize();
 
-        Promise.all([
-            loadOverview(),
-            loadDailyChart(),
-            loadCategories(),
-            loadValueBets(),
-            loadConfidence(),
-            loadLeagues(),
-            loadBestWorst(),
-        ]);
+        Promise.all([loadOverview(), loadDailyChart(), loadCategories(), loadValueBets(), loadCalibration(), loadConfidence(), loadLeagues(), loadBestWorst()]);
     </script>
 </body>
 </html>
