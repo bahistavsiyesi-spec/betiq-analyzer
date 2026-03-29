@@ -119,8 +119,8 @@ def api_stats_overview():
         cur.execute('''
             SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
                 -- Sadece Yüksek/Çok Yüksek güvenli maçlar için 1X2
-                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek') THEN 1 END) as total_1x2,
-                SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
+                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
+                SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
                 -- Sadece eşik üzeri (%65+) tahminleri say
                 COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
                 SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
@@ -191,8 +191,8 @@ def api_stats_by_category():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
             SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
-                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek') THEN 1 END) as total_1x2,
-                SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
+                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
+                SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
                 COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
                 SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
                 COUNT(CASE WHEN a.btts_pct >= 65 THEN 1 END) as total_btts,
