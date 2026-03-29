@@ -300,6 +300,86 @@ def api_stats_value_bets():
         logger.error(f"Stats value bets error: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/stats/calibration')
+def api_stats_calibration():
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Her tahmin tipi için yüzde gruplarına göre gerçek başarı oranı
+        buckets = [
+            (65, 70, '65-70'),
+            (70, 80, '70-80'),
+            (80, 90, '80-90'),
+            (90, 101, '90+'),
+        ]
+
+        result = {'over25': [], 'btts': [], 'ht2g': []}
+
+        for low, high, label in buckets:
+            # Over 2.5 kalibrasyonu
+            cur.execute('''
+                SELECT COUNT(*) as total, SUM(r.over25_correct) as correct
+                FROM analyses a
+                JOIN match_results r ON a.id = r.analysis_id
+                WHERE a.over25_pct >= %s AND a.over25_pct < %s
+            ''', (low, high))
+            row = dict(cur.fetchone())
+            total = row['total'] or 0
+            correct = row['correct'] or 0
+            result['over25'].append({
+                'bucket': label,
+                'predicted': round((low + min(high, 100)) / 2),
+                'total': total,
+                'correct': correct,
+                'actual_pct': round(correct / total * 100) if total > 0 else None
+            })
+
+            # BTTS kalibrasyonu
+            cur.execute('''
+                SELECT COUNT(*) as total, SUM(r.btts_correct) as correct
+                FROM analyses a
+                JOIN match_results r ON a.id = r.analysis_id
+                WHERE a.btts_pct >= %s AND a.btts_pct < %s
+            ''', (low, high))
+            row = dict(cur.fetchone())
+            total = row['total'] or 0
+            correct = row['correct'] or 0
+            result['btts'].append({
+                'bucket': label,
+                'predicted': round((low + min(high, 100)) / 2),
+                'total': total,
+                'correct': correct,
+                'actual_pct': round(correct / total * 100) if total > 0 else None
+            })
+
+            # IY 0.5 Üst kalibrasyonu
+            cur.execute('''
+                SELECT COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total,
+                       SUM(CASE WHEN r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as correct
+                FROM analyses a
+                JOIN match_results r ON a.id = r.analysis_id
+                WHERE a.ht2g_pct >= %s AND a.ht2g_pct < %s
+            ''', (low, high))
+            row = dict(cur.fetchone())
+            total = row['total'] or 0
+            correct = row['correct'] or 0
+            result['ht2g'].append({
+                'bucket': label,
+                'predicted': round((low + min(high, 100)) / 2),
+                'total': total,
+                'correct': correct,
+                'actual_pct': round(correct / total * 100) if total > 0 else None
+            })
+
+        cur.close()
+        conn.close()
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Stats calibration error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 # Analiz
 @app.route('/api/analyze/selected', methods=['POST'])
@@ -763,6 +843,20 @@ def api_coupon_list():
     except Exception as e:
         logger.error(f"Coupon list error: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/coupon/delete/<int:coupon_id>', methods=['DELETE'])
+def api_coupon_delete(coupon_id):
+    try:
+        import psycopg2
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        cur = conn.cursor()
+        cur.execute('DELETE FROM coupons WHERE id = %s', (coupon_id,))
+        conn.commit()
+        cur.close(); conn.close()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Coupon delete error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/coupon/update/<date_str>', methods=['POST'])
 def api_coupon_update(date_str):
