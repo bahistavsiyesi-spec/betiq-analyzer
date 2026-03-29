@@ -117,8 +117,10 @@ def api_stats_overview():
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
-            SELECT COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2,
-                SUM(r.score_correct) as cscore,
+            SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
+                -- Sadece Yüksek/Çok Yüksek güvenli maçlar için 1X2
+                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek') THEN 1 END) as total_1x2,
+                SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
                 -- Sadece eşik üzeri (%65+) tahminleri say
                 COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
                 SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
@@ -131,12 +133,13 @@ def api_stats_overview():
         ''')
         row = dict(cur.fetchone())
         total = row['total'] or 0
+        total_1x2 = row['total_1x2'] or 0
         total_over25 = row['total_over25'] or 0
         total_btts = row['total_btts'] or 0
         total_ht = row['total_ht'] or 0
         result = {
             'total': total,
-            '1x2': {'correct': row['c1x2'] or 0, 'pct': round((row['c1x2'] or 0)/total*100) if total else 0},
+            '1x2': {'correct': row['c1x2'] or 0, 'total': total_1x2, 'pct': round((row['c1x2'] or 0)/total_1x2*100) if total_1x2 else 0},
             'over25': {'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
             'btts': {'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
             'score': {'correct': row['cscore'] or 0, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
@@ -187,8 +190,9 @@ def api_stats_by_category():
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
-            SELECT COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2,
-                SUM(r.score_correct) as cscore,
+            SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
+                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek') THEN 1 END) as total_1x2,
+                SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
                 COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
                 SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
                 COUNT(CASE WHEN a.btts_pct >= 65 THEN 1 END) as total_btts,
@@ -200,11 +204,12 @@ def api_stats_by_category():
         ''')
         row = dict(cur.fetchone())
         total = row['total'] or 0
+        total_1x2 = row['total_1x2'] or 0
         total_over25 = row['total_over25'] or 0
         total_btts = row['total_btts'] or 0
         total_ht = row['total_ht'] or 0
         categories = [
-            {'name': '1X2', 'correct': row['c1x2'] or 0, 'total': total, 'pct': round((row['c1x2'] or 0)/total*100) if total else 0},
+            {'name': '1X2 (Y/ÇY)', 'correct': row['c1x2'] or 0, 'total': total_1x2, 'pct': round((row['c1x2'] or 0)/total_1x2*100) if total_1x2 else 0},
             {'name': '2.5 Ust (%65+)', 'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
             {'name': 'KG Var (%65+)', 'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
             {'name': 'Skor', 'correct': row['cscore'] or 0, 'total': total, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
