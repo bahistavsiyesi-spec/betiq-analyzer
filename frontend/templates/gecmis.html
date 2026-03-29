@@ -9,10 +9,59 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         .gecmis-container { max-width: 900px; margin: 0 auto; padding: 20px; }
-        .date-selector { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
-        .date-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid #333; background: #1a1a2e; color: #aaa; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.2s; }
-        .date-btn:hover { border-color: #7c3aed; color: #fff; }
-        .date-btn.active { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+
+        /* ─── Takvim Picker ─────────────────────────────────────────── */
+        .date-picker-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .date-picker-label {
+            font-size: 13px;
+            color: #666;
+            white-space: nowrap;
+        }
+        .date-picker-input {
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            background: #1a1a2e;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+            color-scheme: dark;
+        }
+        .date-picker-input:focus { border-color: #7c3aed; }
+        .date-nav-btn {
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #1a1a2e;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .date-nav-btn:hover { border-color: #7c3aed; color: #fff; }
+        .date-display {
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            min-width: 120px;
+            text-align: center;
+        }
+        .available-dates-hint {
+            font-size: 11px;
+            color: #555;
+            margin-top: 4px;
+        }
+
         .summary-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; padding: 16px; background: #1a1a2e; border-radius: 12px; border: 1px solid #333; }
         .summary-item { text-align: center; }
         .summary-item .s-value { font-size: 22px; font-weight: 800; color: #7c3aed; }
@@ -47,102 +96,35 @@
         .save-msg { font-size: 12px; color: #22c55e; margin-left: 8px; }
         .btn-report { padding: 10px 20px; border-radius: 10px; border: none; background: #7c3aed; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.2s; margin-bottom: 20px; }
         .btn-report:hover { background: #a855f7; }
-        .ht-divider { width: 100%; font-size: 11px; color: #555; margin: 6px 0 2px 0; }
         .btn-share { padding: 5px 12px; border-radius: 8px; border: 1px solid #7c3aed; background: transparent; color: #7c3aed; font-size: 11px; cursor: pointer; font-family: inherit; margin-top: 10px; margin-left: 8px; transition: all 0.2s; }
         .btn-share:hover { background: #7c3aed; color: #fff; }
-
-        /* ─── Paylaşım Kartı (Instagram 1:1) ─────────────────────────── */
         .share-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; }
         .share-overlay.active { display: flex; }
         .share-modal { background: #0d0d1a; border-radius: 16px; padding: 24px; max-width: 500px; width: 90%; }
         .share-modal h3 { color: #fff; margin-bottom: 16px; font-size: 15px; }
         .share-card-wrap { display: flex; justify-content: center; margin-bottom: 16px; }
-
-        /* Kare kart - 1:1 */
-        .share-card {
-            width: 400px;
-            height: 400px;
-            background: linear-gradient(135deg, #0d0d1a 0%, #1a0a2e 100%);
-            border-radius: 16px;
-            padding: 28px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            font-family: 'Syne', sans-serif;
-            position: relative;
-            overflow: hidden;
-            border: 1px solid #2a1a4e;
-        }
-        .share-card::before {
-            content: '';
-            position: absolute;
-            top: -60px; right: -60px;
-            width: 180px; height: 180px;
-            background: radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%);
-        }
+        .share-card { width: 400px; height: 400px; background: linear-gradient(135deg, #0d0d1a 0%, #1a0a2e 100%); border-radius: 16px; padding: 28px; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Syne', sans-serif; position: relative; overflow: hidden; border: 1px solid #2a1a4e; }
+        .share-card::before { content: ''; position: absolute; top: -60px; right: -60px; width: 180px; height: 180px; background: radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%); }
         .share-card-header { display: flex; justify-content: space-between; align-items: center; }
-        .share-card-logo { font-size: 13px; font-weight: 800; color: #7c3aed; letter-spacing: 1px; }
         .share-card-league { font-size: 11px; color: #666; background: #1a1a2e; padding: 4px 10px; border-radius: 20px; }
-        .share-card-teams {
-            text-align: center;
-            padding: 8px 0;
-        }
-        .share-card-teams .teams-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-        }
+        .share-card-teams { text-align: center; padding: 8px 0; }
+        .share-card-teams .teams-row { display: flex; align-items: center; justify-content: center; gap: 12px; }
         .share-team-name { font-size: 18px; font-weight: 800; color: #fff; flex: 1; }
         .share-team-name.home { text-align: right; }
         .share-team-name.away { text-align: left; }
         .share-vs { font-size: 13px; color: #555; font-weight: 600; flex-shrink: 0; }
-        .share-result-score {
-            font-size: 36px; font-weight: 800;
-            color: #7c3aed;
-            text-align: center;
-            margin: 4px 0;
-            letter-spacing: 2px;
-        }
+        .share-result-score { font-size: 36px; font-weight: 800; color: #7c3aed; text-align: center; margin: 4px 0; letter-spacing: 2px; }
         .share-ht-score { font-size: 12px; color: #555; text-align: center; }
-        .share-card-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        .share-stat {
-            background: rgba(124,58,237,0.1);
-            border: 1px solid rgba(124,58,237,0.2);
-            border-radius: 10px;
-            padding: 10px 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .share-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .share-stat { background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2); border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
         .share-stat-tick { font-size: 16px; line-height: 1; }
         .share-stat-info { flex: 1; }
         .share-stat-label { font-size: 10px; color: #666; }
         .share-stat-value { font-size: 13px; font-weight: 700; color: #fff; }
-        .share-card-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-top: 1px solid #2a2a3e;
-            padding-top: 10px;
-        }
+        .share-card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #2a2a3e; padding-top: 10px; }
         .share-footer-pred { font-size: 11px; color: #888; }
         .share-footer-pred span { color: #7c3aed; font-weight: 700; }
-        .share-footer-watermark { font-size: 11px; color: #444; font-weight: 600; }
-        .share-pending-badge {
-            background: rgba(245,158,11,0.15);
-            border: 1px solid rgba(245,158,11,0.3);
-            color: #f59e0b;
-            border-radius: 8px;
-            padding: 8px 16px;
-            font-size: 13px;
-            font-weight: 600;
-            text-align: center;
-        }
+        .share-pending-badge { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #f59e0b; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; text-align: center; }
         .share-modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
         .btn-download { padding: 10px 20px; border-radius: 10px; border: none; background: #7c3aed; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
         .btn-close-share { padding: 10px 20px; border-radius: 10px; border: 1px solid #333; background: transparent; color: #aaa; font-size: 13px; cursor: pointer; font-family: inherit; }
@@ -164,11 +146,17 @@
                 <a href="/" class="back-btn">← Ana Sayfa</a>
                 <h2 style="color:#fff; margin-bottom:20px;">📅 Geçmiş Analizler</h2>
 
-                <div class="date-selector" id="dateSelector">
-                    <span style="color:#666; font-size:13px;">Tarih yükleniyor...</span>
+                <!-- Takvim Picker -->
+                <div class="date-picker-wrap">
+                    <span class="date-picker-label">Tarih seç:</span>
+                    <button class="date-nav-btn" onclick="navigateDate(-1)">◀</button>
+                    <input type="date" class="date-picker-input" id="datePicker" onchange="loadDate(this.value)">
+                    <button class="date-nav-btn" onclick="navigateDate(1)">▶</button>
+                    <span class="date-display" id="dateDisplay">—</span>
                 </div>
+                <div class="available-dates-hint" id="availableDatesHint"></div>
 
-                <div id="summaryBar" style="display:none;" class="summary-bar">
+                <div id="summaryBar" style="display:none; margin-top:16px;" class="summary-bar">
                     <div class="summary-item"><div class="s-value" id="totalMatches">0</div><div class="s-label">Toplam Maç</div></div>
                     <div class="summary-item"><div class="s-value" id="correct1x2">0%</div><div class="s-label">1X2 Doğru</div></div>
                     <div class="summary-item"><div class="s-value" id="correctOver25">0%</div><div class="s-label">2.5 Üstü</div></div>
@@ -177,19 +165,18 @@
                     <div class="summary-item"><div class="s-value" id="correctScore">0</div><div class="s-label">Skor Doğru</div></div>
                 </div>
 
-                <div id="reportBtnWrapper" style="display:none;">
+                <div id="reportBtnWrapper" style="display:none; margin-top:16px;">
                     <button class="btn-report" onclick="sendReport()">📊 Telegram'a Rapor Gönder</button>
                     <span id="reportMsg" style="font-size:13px; margin-left:10px;"></span>
                 </div>
 
-                <div id="matchesContainer">
+                <div id="matchesContainer" style="margin-top:16px;">
                     <div class="no-data">Yukarıdan bir tarih seç</div>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Paylaşım Overlay -->
     <div class="share-overlay" id="shareOverlay" onclick="closeShare(event)">
         <div class="share-modal" onclick="event.stopPropagation()">
             <h3>📸 Instagram / X Paylaşım Kartı</h3>
@@ -207,26 +194,60 @@
         let currentDate = null;
         let currentMatches = [];
         let shareMatchData = null;
+        let availableDates = [];
 
         async function loadDates() {
             const resp = await fetch('/api/dates');
-            const dates = await resp.json();
-            const selector = document.getElementById('dateSelector');
-            if (!dates.length) { selector.innerHTML = '<span style="color:#666;">Henüz analiz yapılmadı.</span>'; return; }
-            selector.innerHTML = dates.map(d => `<button class="date-btn" onclick="loadDate('${d}')">${formatDate(d)}</button>`).join('');
-            loadDate(dates[0]);
+            availableDates = await resp.json();
+            if (!availableDates.length) {
+                document.getElementById('availableDatesHint').textContent = 'Henüz analiz yapılmadı.';
+                return;
+            }
+            // En son tarihi seç
+            const latest = availableDates[0];
+            document.getElementById('datePicker').value = latest;
+            document.getElementById('datePicker').max = latest;
+            document.getElementById('datePicker').min = availableDates[availableDates.length - 1];
+            updateAvailableHint();
+            loadDate(latest);
+        }
+
+        function updateAvailableHint() {
+            const count = availableDates.length;
+            const oldest = availableDates[availableDates.length - 1];
+            document.getElementById('availableDatesHint').textContent =
+                `${count} günlük analiz mevcut (${formatDate(oldest)} - ${formatDate(availableDates[0])})`;
+        }
+
+        function navigateDate(dir) {
+            if (!availableDates.length) return;
+            const current = document.getElementById('datePicker').value;
+            const idx = availableDates.indexOf(current);
+            // dir=-1 → önceki gün (daha eski), dir=1 → sonraki gün (daha yeni)
+            // availableDates[0] en yeni, son eleman en eski
+            const newIdx = idx - dir;
+            if (newIdx >= 0 && newIdx < availableDates.length) {
+                const newDate = availableDates[newIdx];
+                document.getElementById('datePicker').value = newDate;
+                loadDate(newDate);
+            }
         }
 
         async function loadDate(date) {
+            if (!date) return;
             currentDate = date;
-            document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === formatDate(date)));
+            document.getElementById('datePicker').value = date;
+            document.getElementById('dateDisplay').textContent = formatDate(date);
             document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Yükleniyor...</div>';
             document.getElementById('summaryBar').style.display = 'none';
             document.getElementById('reportBtnWrapper').style.display = 'none';
             const resp = await fetch(`/api/matches/date/${date}`);
             const matches = await resp.json();
             currentMatches = matches;
-            if (!matches.length) { document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Bu tarihte analiz bulunamadı.</div>'; return; }
+            if (!matches.length) {
+                document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Bu tarihte analiz bulunamadı.</div>';
+                return;
+            }
             renderSummary(matches);
             renderMatches(matches);
             document.getElementById('reportBtnWrapper').style.display = 'block';
@@ -325,7 +346,6 @@
                 </div>`;
         }
 
-        // ─── Paylaşım Kartı ────────────────────────────────────────────
         function openShare(matchId) {
             const m = currentMatches.find(x => x.id === matchId);
             if (!m) return;
@@ -339,70 +359,24 @@
             const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
             const pred = m.prediction_1x2 || '?';
             const predText = { '1': '1 (Ev)', 'X': 'Beraberlik', '2': '2 (Dep)' }[pred] || pred;
-
             const stats = hasResult ? `
                 <div class="share-card-stats">
-                    <div class="share-stat">
-                        <span class="share-stat-tick">${m.pred_1x2_correct ? '✅' : '❌'}</span>
-                        <div class="share-stat-info">
-                            <div class="share-stat-label">1X2 TAHMİN</div>
-                            <div class="share-stat-value">${predText} → ${m.actual_1x2 || '?'}</div>
-                        </div>
-                    </div>
-                    <div class="share-stat">
-                        <span class="share-stat-tick">${m.over25_correct ? '✅' : '❌'}</span>
-                        <div class="share-stat-info">
-                            <div class="share-stat-label">2.5 GOL ÜSTÜ</div>
-                            <div class="share-stat-value">%${Math.round(m.over25_pct||0)} → ${m.actual_over25 ? 'Üstü' : 'Altı'}</div>
-                        </div>
-                    </div>
-                    <div class="share-stat">
-                        <span class="share-stat-tick">${m.btts_correct ? '✅' : '❌'}</span>
-                        <div class="share-stat-info">
-                            <div class="share-stat-label">KG VAR (BTTS)</div>
-                            <div class="share-stat-value">%${Math.round(m.btts_pct||0)} → ${m.actual_btts ? 'Var' : 'Yok'}</div>
-                        </div>
-                    </div>
-                    <div class="share-stat">
-                        <span class="share-stat-tick">${hasHt ? (m.ht_correct ? '✅' : '❌') : '—'}</span>
-                        <div class="share-stat-info">
-                            <div class="share-stat-label">İY 0.5 ÜST</div>
-                            <div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}${hasHt ? ' → İY ' + m.ht_home_score + '-' + m.ht_away_score : ''}</div>
-                        </div>
-                    </div>
+                    <div class="share-stat"><span class="share-stat-tick">${m.pred_1x2_correct?'✅':'❌'}</span><div class="share-stat-info"><div class="share-stat-label">1X2 TAHMİN</div><div class="share-stat-value">${predText} → ${m.actual_1x2||'?'}</div></div></div>
+                    <div class="share-stat"><span class="share-stat-tick">${m.over25_correct?'✅':'❌'}</span><div class="share-stat-info"><div class="share-stat-label">2.5 GOL ÜSTÜ</div><div class="share-stat-value">%${Math.round(m.over25_pct||0)} → ${m.actual_over25?'Üstü':'Altı'}</div></div></div>
+                    <div class="share-stat"><span class="share-stat-tick">${m.btts_correct?'✅':'❌'}</span><div class="share-stat-info"><div class="share-stat-label">KG VAR (BTTS)</div><div class="share-stat-value">%${Math.round(m.btts_pct||0)} → ${m.actual_btts?'Var':'Yok'}</div></div></div>
+                    <div class="share-stat"><span class="share-stat-tick">${hasHt?(m.ht_correct?'✅':'❌'):'—'}</span><div class="share-stat-info"><div class="share-stat-label">İY 0.5 ÜST</div><div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}${hasHt?' → İY '+m.ht_home_score+'-'+m.ht_away_score:''}</div></div></div>
                 </div>` : `
                 <div class="share-pending-badge">⏳ Sonuç Henüz Girilmedi</div>
                 <div class="share-card-stats" style="margin-top:8px;">
-                    <div class="share-stat">
-                        <div class="share-stat-info">
-                            <div class="share-stat-label">1X2 TAHMİN</div>
-                            <div class="share-stat-value">${predText}</div>
-                        </div>
-                    </div>
-                    <div class="share-stat">
-                        <div class="share-stat-info">
-                            <div class="share-stat-label">2.5 GOL</div>
-                            <div class="share-stat-value">%${Math.round(m.over25_pct||0)}</div>
-                        </div>
-                    </div>
-                    <div class="share-stat">
-                        <div class="share-stat-info">
-                            <div class="share-stat-label">KG VAR</div>
-                            <div class="share-stat-value">%${Math.round(m.btts_pct||0)}</div>
-                        </div>
-                    </div>
-                    <div class="share-stat">
-                        <div class="share-stat-info">
-                            <div class="share-stat-label">İY 0.5 ÜST</div>
-                            <div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}</div>
-                        </div>
-                    </div>
+                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">1X2 TAHMİN</div><div class="share-stat-value">${predText}</div></div></div>
+                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">2.5 GOL</div><div class="share-stat-value">%${Math.round(m.over25_pct||0)}</div></div></div>
+                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">KG VAR</div><div class="share-stat-value">%${Math.round(m.btts_pct||0)}</div></div></div>
+                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">İY 0.5 ÜST</div><div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}</div></div></div>
                 </div>`;
-
             document.getElementById('shareCard').innerHTML = `
                 <div class="share-card-header">
-                    <img src="/static/img/logo.png" alt="Logo" style="height:28px; object-fit:contain;" onerror="this.style.display='none'">
-                    <div class="share-card-league">${m.league || 'Lig'}</div>
+                    <img src="/static/img/logo.png" alt="Logo" style="height:28px;object-fit:contain;" onerror="this.style.display='none'">
+                    <div class="share-card-league">${m.league||'Lig'}</div>
                 </div>
                 <div class="share-card-teams">
                     <div class="teams-row">
@@ -410,53 +384,30 @@
                         <div class="share-vs">VS</div>
                         <div class="share-team-name away">${m.away_team}</div>
                     </div>
-                    ${hasResult ? `
-                        <div class="share-result-score">${m.home_score} — ${m.away_score}</div>
-                        ${hasHt ? `<div class="share-ht-score">İY: ${m.ht_home_score}-${m.ht_away_score}</div>` : ''}
-                    ` : ''}
+                    ${hasResult?`<div class="share-result-score">${m.home_score} — ${m.away_score}</div>${hasHt?`<div class="share-ht-score">İY: ${m.ht_home_score}-${m.ht_away_score}</div>`:'`'}`:''}
                 </div>
                 ${stats}
                 <div class="share-card-footer">
-                    <div class="share-footer-pred">Tahmin: <span>${predText}</span> &nbsp;|&nbsp; Güven: <span>${m.confidence || 'Orta'}</span></div>
-
+                    <div class="share-footer-pred">Tahmin: <span>${predText}</span> &nbsp;|&nbsp; Güven: <span>${m.confidence||'Orta'}</span></div>
                 </div>`;
         }
 
-        function closeShare(e) {
-            if (e.target === document.getElementById('shareOverlay')) closeShareModal();
-        }
-
-        function closeShareModal() {
-            document.getElementById('shareOverlay').classList.remove('active');
-        }
+        function closeShare(e) { if(e.target===document.getElementById('shareOverlay')) closeShareModal(); }
+        function closeShareModal() { document.getElementById('shareOverlay').classList.remove('active'); }
 
         async function downloadShareCard() {
             const card = document.getElementById('shareCard');
             const btn = document.querySelector('.btn-download');
-            btn.textContent = '⏳ Hazırlanıyor...';
-            btn.disabled = true;
-
+            btn.textContent = '⏳ Hazırlanıyor...'; btn.disabled = true;
             try {
-                const canvas = await html2canvas(card, {
-                    scale: 2,
-                    backgroundColor: null,
-                    useCORS: true,
-                    logging: false,
-                });
+                const canvas = await html2canvas(card,{scale:2,backgroundColor:null,useCORS:true,logging:false});
                 const link = document.createElement('a');
-                const name = shareMatchData ? `${shareMatchData.home_team}_vs_${shareMatchData.away_team}.png`.replace(/\s+/g, '_') : 'betiq_kart.png';
-                link.download = name;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-            } catch(e) {
-                alert('PNG oluşturulamadı: ' + e.message);
-            }
-
-            btn.textContent = '⬇️ PNG İndir';
-            btn.disabled = false;
+                const name = shareMatchData ? `${shareMatchData.home_team}_vs_${shareMatchData.away_team}.png`.replace(/\s+/g,'_') : 'betiq_kart.png';
+                link.download = name; link.href = canvas.toDataURL('image/png'); link.click();
+            } catch(e) { alert('PNG oluşturulamadı: '+e.message); }
+            btn.textContent = '⬇️ PNG İndir'; btn.disabled = false;
         }
 
-        // ─── Diğer fonksiyonlar ────────────────────────────────────────
         function toggleScoreForm(id) {
             const form = document.getElementById(`scoreForm-${id}`);
             form.style.display = form.style.display === 'none' ? 'block' : 'none';
@@ -468,33 +419,31 @@
             const hths = document.getElementById(`hths-${analysisId}`).value;
             const htas = document.getElementById(`htas-${analysisId}`).value;
             const msg = document.getElementById(`saveMsg-${analysisId}`);
-            if (isNaN(hs) || isNaN(as_)) { msg.textContent = '❌ Maç sonu skorunu gir!'; msg.style.color = '#ef4444'; return; }
+            if (isNaN(hs)||isNaN(as_)) { msg.textContent='❌ Maç sonu skorunu gir!'; msg.style.color='#ef4444'; return; }
             try {
-                const resp = await fetch('/api/results/manual', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ analysis_id: analysisId, home_score: hs, away_score: as_, ht_home_score: hths !== '' ? parseInt(hths) : null, ht_away_score: htas !== '' ? parseInt(htas) : null })
-                });
+                const resp = await fetch('/api/results/manual',{method:'POST',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({analysis_id:analysisId,home_score:hs,away_score:as_,ht_home_score:hths!==''?parseInt(hths):null,ht_away_score:htas!==''?parseInt(htas):null})});
                 const data = await resp.json();
-                if (data.status === 'success') { msg.textContent = '✅ Kaydedildi!'; msg.style.color = '#22c55e'; setTimeout(() => loadDate(currentDate), 1000); }
-                else { msg.textContent = '❌ Hata!'; msg.style.color = '#ef4444'; }
-            } catch (e) { msg.textContent = '❌ Hata!'; msg.style.color = '#ef4444'; }
+                if(data.status==='success'){msg.textContent='✅ Kaydedildi!';msg.style.color='#22c55e';setTimeout(()=>loadDate(currentDate),1000);}
+                else{msg.textContent='❌ Hata!';msg.style.color='#ef4444';}
+            } catch(e){msg.textContent='❌ Hata!';msg.style.color='#ef4444';}
         }
 
         async function sendReport() {
             const btn = document.querySelector('.btn-report');
             const msgEl = document.getElementById('reportMsg');
-            btn.disabled = true; btn.textContent = '⏳ Gönderiliyor...'; msgEl.textContent = '';
+            btn.disabled=true; btn.textContent='⏳ Gönderiliyor...'; msgEl.textContent='';
             try {
-                const resp = await fetch('/api/report/daily', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: currentDate }) });
+                const resp = await fetch('/api/report/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:currentDate})});
                 const data = await resp.json();
-                if (data.status === 'success') { msgEl.textContent = '✅ Rapor gönderildi!'; msgEl.style.color = '#22c55e'; }
-                else { msgEl.textContent = '❌ Hata!'; msgEl.style.color = '#ef4444'; }
-            } catch (e) { msgEl.textContent = '❌ Hata!'; msgEl.style.color = '#ef4444'; }
-            btn.disabled = false; btn.textContent = '📊 Telegram\'a Rapor Gönder';
+                if(data.status==='success'){msgEl.textContent='✅ Rapor gönderildi!';msgEl.style.color='#22c55e';}
+                else{msgEl.textContent='❌ Hata!';msgEl.style.color='#ef4444';}
+            } catch(e){msgEl.textContent='❌ Hata!';msgEl.style.color='#ef4444';}
+            btn.disabled=false; btn.textContent="📊 Telegram'a Rapor Gönder";
         }
 
-        function formatDate(d) { const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
-        function formatTime(dateStr) { try { const d = new Date(dateStr); return d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Istanbul'}); } catch { return '--:--'; } }
+        function formatDate(d) { const [y,m,day]=d.split('-'); return `${day}/${m}/${y}`; }
+        function formatTime(dateStr) { try{const d=new Date(dateStr);return d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Istanbul'});}catch{return '--:--';} }
 
         loadDates();
     </script>
