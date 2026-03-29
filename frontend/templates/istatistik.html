@@ -143,6 +143,26 @@
                 </div>
 
                 <div class="section">
+                    <div class="section-title">&#128279; Kombine Bahis Basarisi</div>
+                    <div class="chart-box">
+                        <div style="font-size:11px;color:#555;margin-bottom:12px;">
+                            Ayni macta iki tahmin birden esik ustundeyken ikisinin ayni anda tutma orani.
+                        </div>
+                        <div id="comboBetGrid"><div class="loading">Yukleniyor...</div></div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">&#128279; Kombine Bahis Basarisi</div>
+                    <div class="chart-box">
+                        <div style="font-size:11px;color:#555;margin-bottom:16px;">
+                            Ayni analiz kartinda her iki tahmin de %65+ oldugunda ikisi birden tutma orani.
+                        </div>
+                        <div id="comboBetsGrid"><div class="loading">Yukleniyor...</div></div>
+                    </div>
+                </div>
+
+                <div class="section">
                     <div class="section-title">&#128269; Tahmin Kalibrasyonu</div>
                     <div class="chart-box">
                         <div style="font-size:11px;color:#555;margin-bottom:16px;">
@@ -342,7 +362,36 @@
         window.addEventListener('resize', handleResize);
         handleResize();
 
-        Promise.all([loadOverview(), loadDailyChart(), loadCategories(), loadValueBets(), loadCalibration(), loadConfidence(), loadLeagues(), loadBestWorst()]);
+        async function loadComboBets() {
+            const container = document.getElementById('comboBetGrid');
+            try {
+                const resp = await fetch('/api/stats/combo-bets');
+                const data = await resp.json();
+                if (!data || data.error || data.length === 0) {
+                    container.innerHTML = '<div class="no-data">Henuz yeterli veri yok</div>';
+                    return;
+                }
+                container.innerHTML = data.map(c => {
+                    const barColor = c.pct >= 60 ? '#22c55e' : c.pct >= 40 ? '#f59e0b' : '#ef4444';
+                    return `<div class="vb-row">
+                        <div class="vb-label">&#128279; ${c.label}</div>
+                        <div class="vb-stat">
+                            <div class="vb-val" style="color:#666;">${c.correct}/${c.total}</div>
+                            <div class="vb-lbl">Sonuc</div>
+                        </div>
+                        <div class="vb-stat">
+                            <div class="vb-val ${pctColor(c.pct)}">%${c.pct}</div>
+                            <div class="vb-lbl">Basari</div>
+                        </div>
+                        <div class="vb-bar-wrap">
+                            <div class="vb-bar-fill" style="width:${c.pct}%;background:${barColor};"></div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch(e) { container.innerHTML = '<div class="no-data">Yuklenemedi</div>'; }
+        }
+
+        Promise.all([loadOverview(), loadDailyChart(), loadCategories(), loadValueBets(), loadComboBets(), loadCalibration(), loadConfidence(), loadLeagues(), loadBestWorst()]);
     </script>
 </body>
 </html>
