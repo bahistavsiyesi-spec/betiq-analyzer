@@ -53,6 +53,10 @@ def istatistik():
 def kuponlar():
     return render_template('kuponlar.html')
 
+@app.route('/debug')
+def debug():
+    return render_template('debug.html')
+
 
 # Fixtures
 @app.route('/api/fixtures/today')
@@ -118,10 +122,8 @@ def api_stats_overview():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
             SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
-                -- Sadece Yüksek/Çok Yüksek güvenli maçlar için 1X2
                 COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
                 SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
-                -- Sadece eşik üzeri (%65+) tahminleri say
                 COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
                 SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
                 COUNT(CASE WHEN a.btts_pct >= 65 THEN 1 END) as total_btts,
@@ -272,7 +274,6 @@ def api_stats_by_confidence():
         ''')
         rows = [dict(r) for r in cur.fetchall()]
 
-        # Türkçe/ASCII varyantlarını normalize et
         def normalize_conf(c):
             c = (c or '').strip()
             mapping = {
@@ -286,7 +287,6 @@ def api_stats_by_confidence():
             }
             return mapping.get(c, c)
 
-        # Normalize edip birleştir
         merged = {}
         for r in rows:
             key = normalize_conf(r['confidence'])
@@ -354,22 +354,18 @@ def api_stats_combo_bets():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
             SELECT
-                -- 2.5 Ust + KG Var
                 COUNT(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 THEN 1 END) as total_o25_btts,
                 SUM(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 THEN
                     CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 THEN 1 ELSE 0 END
                 END) as correct_o25_btts,
-                -- 2.5 Ust + IY 0.5 Ust
                 COUNT(CASE WHEN a.over25_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_o25_ht,
                 SUM(CASE WHEN a.over25_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
                     CASE WHEN r.over25_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
                 END) as correct_o25_ht,
-                -- KG Var + IY 0.5 Ust
                 COUNT(CASE WHEN a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_btts_ht,
                 SUM(CASE WHEN a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
                     CASE WHEN r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
                 END) as correct_btts_ht,
-                -- 2.5 Ust + KG Var + IY 0.5 Ust (uc lu)
                 COUNT(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_all3,
                 SUM(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
                     CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
@@ -383,12 +379,7 @@ def api_stats_combo_bets():
         def combo(total_key, correct_key, label):
             t = row[total_key] or 0
             c = row[correct_key] or 0
-            return {
-                'label': label,
-                'total': t,
-                'correct': c,
-                'pct': round(c/t*100) if t else 0
-            }
+            return {'label': label, 'total': t, 'correct': c, 'pct': round(c/t*100) if t else 0}
 
         result = [
             combo('total_o25_btts', 'correct_o25_btts', '2.5 Üst + KG Var'),
@@ -408,7 +399,6 @@ def api_stats_calibration():
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # Her tahmin tipi için yüzde gruplarına göre gerçek başarı oranı
         buckets = [
             (65, 70, '65-70'),
             (70, 80, '70-80'),
@@ -419,60 +409,39 @@ def api_stats_calibration():
         result = {'over25': [], 'btts': [], 'ht2g': []}
 
         for low, high, label in buckets:
-            # Over 2.5 kalibrasyonu
             cur.execute('''
                 SELECT COUNT(*) as total, SUM(r.over25_correct) as correct
-                FROM analyses a
-                JOIN match_results r ON a.id = r.analysis_id
+                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
                 WHERE a.over25_pct >= %s AND a.over25_pct < %s
             ''', (low, high))
             row = dict(cur.fetchone())
             total = row['total'] or 0
             correct = row['correct'] or 0
-            result['over25'].append({
-                'bucket': label,
-                'predicted': round((low + min(high, 100)) / 2),
-                'total': total,
-                'correct': correct,
-                'actual_pct': round(correct / total * 100) if total > 0 else None
-            })
+            result['over25'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
+                'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
 
-            # BTTS kalibrasyonu
             cur.execute('''
                 SELECT COUNT(*) as total, SUM(r.btts_correct) as correct
-                FROM analyses a
-                JOIN match_results r ON a.id = r.analysis_id
+                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
                 WHERE a.btts_pct >= %s AND a.btts_pct < %s
             ''', (low, high))
             row = dict(cur.fetchone())
             total = row['total'] or 0
             correct = row['correct'] or 0
-            result['btts'].append({
-                'bucket': label,
-                'predicted': round((low + min(high, 100)) / 2),
-                'total': total,
-                'correct': correct,
-                'actual_pct': round(correct / total * 100) if total > 0 else None
-            })
+            result['btts'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
+                'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
 
-            # IY 0.5 Üst kalibrasyonu
             cur.execute('''
                 SELECT COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total,
                        SUM(CASE WHEN r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as correct
-                FROM analyses a
-                JOIN match_results r ON a.id = r.analysis_id
+                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
                 WHERE a.ht2g_pct >= %s AND a.ht2g_pct < %s
             ''', (low, high))
             row = dict(cur.fetchone())
             total = row['total'] or 0
             correct = row['correct'] or 0
-            result['ht2g'].append({
-                'bucket': label,
-                'predicted': round((low + min(high, 100)) / 2),
-                'total': total,
-                'correct': correct,
-                'actual_pct': round(correct / total * 100) if total > 0 else None
-            })
+            result['ht2g'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
+                'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
 
         cur.close()
         conn.close()
@@ -698,7 +667,6 @@ def api_coupon_today():
         if not all_candidates:
             return jsonify({"status": "error", "message": "Kriterlere uyan tahmin bulunamadi"}), 404
 
-        # ── Yüksek güven + value bet olan maçları önce kupona ekle ──────────────
         priority_items = []
         import json as _json_vb
         high_conf_matches = [
@@ -711,44 +679,32 @@ def api_coupon_today():
                 vb_list = _json_vb.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
                 if not vb_list:
                     continue
-                # En iyi value bet'i al
                 best_vb = max(vb_list, key=lambda v: v.get('diff', 0))
                 label = best_vb.get('label', '')
-                # Label'dan tip ve tahmin belirle
                 if '1X2 (Ev)' in label:
-                    vb_type = '1X2'
-                    vb_label = f"{m['home_team']} Kazanir"
+                    vb_type = '1X2'; vb_label = f"{m['home_team']} Kazanir"
                 elif '1X2 (Deplasman)' in label:
-                    vb_type = '1X2'
-                    vb_label = f"{m['away_team']} Kazanir"
+                    vb_type = '1X2'; vb_label = f"{m['away_team']} Kazanir"
                 elif '1X2 (Beraberlik)' in label:
-                    vb_type = '1X2'
-                    vb_label = 'Beraberlik'
+                    vb_type = '1X2'; vb_label = 'Beraberlik'
                 elif 'Over 2.5' in label:
-                    vb_type = '2.5 Ust'
-                    vb_label = '2.5 Gol Ustu'
+                    vb_type = '2.5 Ust'; vb_label = '2.5 Gol Ustu'
                 elif 'KG Var' in label:
-                    vb_type = 'KG Var'
-                    vb_label = 'KG Var'
+                    vb_type = 'KG Var'; vb_label = 'KG Var'
                 elif 'İY 0.5 Üst' in label or 'IY 0.5' in label:
-                    vb_type = 'IY 0.5 Ust'
-                    vb_label = 'IY 0.5 Ustu'
+                    vb_type = 'IY 0.5 Ust'; vb_label = 'IY 0.5 Ustu'
                 else:
                     continue
                 conf = m.get('confidence', 'Orta')
                 conf_score = 4 if conf in ('Cok Yuksek', 'Çok Yüksek') else 3
                 priority_items.append({
-                    'type': vb_type,
-                    'label': vb_label,
+                    'type': vb_type, 'label': vb_label,
                     'pct': best_vb.get('our_pct', 75),
-                    'conf_score': conf_score + 1,  # öncelik için +1
-                    'match': m,
-                    'odds': best_vb.get('odds'),
-                    'is_priority': True,
+                    'conf_score': conf_score + 1, 'match': m,
+                    'odds': best_vb.get('odds'), 'is_priority': True,
                 })
             except Exception:
                 continue
-        # ─────────────────────────────────────────────────────────────────────
 
         all_candidates.sort(key=lambda x: (x['conf_score'], TYPE_PRIORITY.get(x['type'], 0), x['pct']), reverse=True)
 
@@ -757,58 +713,42 @@ def api_coupon_today():
         used_combos = set()
         used_match_ids = set()
 
-        # Önce priority item'ları ekle
         for c in priority_items:
-            if len(coupon) >= max_count:
-                break
+            if len(coupon) >= max_count: break
             match_id = c['match'].get('id')
-            if match_id in used_match_ids:
-                continue
+            if match_id in used_match_ids: continue
             t = c['type']
-            if type_counts.get(t, 0) >= MAX_PER_TYPE:
-                continue
+            if type_counts.get(t, 0) >= MAX_PER_TYPE: continue
             type_counts[t] = type_counts.get(t, 0) + 1
             used_match_ids.add(match_id)
             m = c['match']
             coupon.append({
-                'home_team': m['home_team'],
-                'away_team': m['away_team'],
-                'league': m.get('league', ''),
-                'match_time': m.get('match_time', ''),
-                'prediction_type': c['type'],
-                'prediction_label': c['label'],
-                'pct': round(c['pct']),
-                'confidence': m.get('confidence', 'Orta'),
+                'home_team': m['home_team'], 'away_team': m['away_team'],
+                'league': m.get('league', ''), 'match_time': m.get('match_time', ''),
+                'prediction_type': c['type'], 'prediction_label': c['label'],
+                'pct': round(c['pct']), 'confidence': m.get('confidence', 'Orta'),
                 'analysis_id': m.get('id'),
                 'odds': round(float(c['odds']), 2) if c.get('odds') else None,
             })
             logger.info(f"Kupon priority: {m['home_team']} vs {m['away_team']} → {c['type']} (value bet)")
 
         for c in all_candidates:
-            if len(coupon) >= max_count:
-                break
+            if len(coupon) >= max_count: break
             t = c['type']
             match_id = c['match'].get('id')
             combo = f"{match_id}_{t}"
-
-            if match_id in used_match_ids:
-                continue
-            if combo in used_combos:
-                continue
-            if type_counts.get(t, 0) >= MAX_PER_TYPE:
-                continue
+            if match_id in used_match_ids: continue
+            if combo in used_combos: continue
+            if type_counts.get(t, 0) >= MAX_PER_TYPE: continue
             type_counts[t] = type_counts.get(t, 0) + 1
             used_combos.add(combo)
             used_match_ids.add(match_id)
             m = c['match']
 
             odds_map = {
-                'IY 0.5 Ust': 'odds_ht_over05',
-                '2.5 Ust':    'odds_over25',
-                '2.5 Alt':    'odds_under25',
-                'KG Var':     'odds_btts_yes',
-                'KG Yok':     'odds_btts_no',
-                '1X2':        None,
+                'IY 0.5 Ust': 'odds_ht_over05', '2.5 Ust': 'odds_over25',
+                '2.5 Alt': 'odds_under25', 'KG Var': 'odds_btts_yes',
+                'KG Yok': 'odds_btts_no', '1X2': None,
             }
             odds_val = None
             try:
@@ -817,12 +757,10 @@ def api_coupon_today():
 
                 def _normalize_csv_keys(data):
                     normalized = {}
-                    if not isinstance(data, dict):
-                        return normalized
+                    if not isinstance(data, dict): return normalized
                     for k, v in data.items():
                         key = str(k).strip().lower()
-                        key = key.replace('%', 'pct')
-                        key = key.replace('.', '')
+                        key = key.replace('%', 'pct').replace('.', '')
                         key = key.replace('-', '_').replace(' ', '_')
                         key = _re.sub(r'_+', '_', key)
                         normalized[key] = v
@@ -831,21 +769,15 @@ def api_coupon_today():
                 def _extract_odds_from_csv(data, odds_key):
                     normalized = _normalize_csv_keys(data)
                     odds_aliases = {
-                        'odds_ht_over05': [
-                            'odds_ht_over05', 'odds_ht_over_05', 'odds_ht_over_0_5',
-                            'odds_1h_over05', 'odds_1h_over_05', 'odds_1h_over_0_5',
-                            'odds_1st_half_over05', 'odds_1st_half_over_05', 'odds_1st_half_over_0_5',
-                            '1st_half_over05', 'first_half_over05'
-                        ],
-                        'odds_over25': ['odds_over25', 'odds_over_25', 'odds_over_2_5', 'over25', 'over_25'],
-                        'odds_under25': ['odds_under25', 'odds_under_25', 'odds_under_2_5', 'under25', 'under_25'],
-                        'odds_btts_yes': ['odds_btts_yes', 'odds_btts_yes_', 'btts_yes', 'odds_bttsyes'],
-                        'odds_btts_no': ['odds_btts_no', 'odds_btts_no_', 'btts_no', 'odds_bttsno'],
+                        'odds_ht_over05': ['odds_ht_over05','odds_ht_over_05','odds_ht_over_0_5','odds_1h_over05','odds_1h_over_05','odds_1h_over_0_5','odds_1st_half_over05','odds_1st_half_over_05','odds_1st_half_over_0_5','1st_half_over05','first_half_over05'],
+                        'odds_over25': ['odds_over25','odds_over_25','odds_over_2_5','over25','over_25'],
+                        'odds_under25': ['odds_under25','odds_under_25','odds_under_2_5','under25','under_25'],
+                        'odds_btts_yes': ['odds_btts_yes','odds_btts_yes_','btts_yes','odds_bttsyes'],
+                        'odds_btts_no': ['odds_btts_no','odds_btts_no_','btts_no','odds_bttsno'],
                     }
                     for key in odds_aliases.get(odds_key, [odds_key]):
                         val = normalized.get(key)
-                        if val not in (None, '', 0, '0'):
-                            return val
+                        if val not in (None, '', 0, '0'): return val
                     return None
 
                 def _same_team(a, b):
@@ -861,22 +793,18 @@ def api_coupon_today():
 
                 vb_raw = m.get('value_bets')
                 vb_list = _json.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
-
                 for vb in vb_list:
                     label = str(vb.get('label', ''))
                     if label.replace('Over 2.5', '2.5 Ust').replace('KG Var', 'KG Var') in t or t in label:
                         odds_val = vb.get('odds')
-                        if odds_val:
-                            break
+                        if odds_val: break
 
                 if not odds_val:
                     odds_key = odds_map.get(t)
                     analysis_csv = m.get('csv_data')
                     if isinstance(analysis_csv, str) and analysis_csv:
-                        try:
-                            analysis_csv = _json.loads(analysis_csv)
-                        except Exception:
-                            analysis_csv = None
+                        try: analysis_csv = _json.loads(analysis_csv)
+                        except Exception: analysis_csv = None
                     if odds_key and analysis_csv:
                         odds_val = _extract_odds_from_csv(analysis_csv, odds_key)
 
@@ -887,34 +815,25 @@ def api_coupon_today():
                         best_pm = None
                         for pm in pending:
                             if _same_team(pm.get('home_team'), m.get('home_team')) and _same_team(pm.get('away_team'), m.get('away_team')):
-                                best_pm = pm
-                                break
+                                best_pm = pm; break
                         if best_pm and best_pm.get('csv_data'):
                             pm_csv = best_pm['csv_data']
-                            if isinstance(pm_csv, str):
-                                pm_csv = _json.loads(pm_csv)
+                            if isinstance(pm_csv, str): pm_csv = _json.loads(pm_csv)
                             odds_val = _extract_odds_from_csv(pm_csv, odds_key)
             except Exception:
                 pass
 
             coupon.append({
-                'home_team': m['home_team'],
-                'away_team': m['away_team'],
-                'league': m.get('league', ''),
-                'match_time': m.get('match_time', ''),
-                'prediction_type': c['type'],
-                'prediction_label': c['label'],
-                'pct': round(c['pct']),
-                'confidence': m.get('confidence', 'Orta'),
+                'home_team': m['home_team'], 'away_team': m['away_team'],
+                'league': m.get('league', ''), 'match_time': m.get('match_time', ''),
+                'prediction_type': c['type'], 'prediction_label': c['label'],
+                'pct': round(c['pct']), 'confidence': m.get('confidence', 'Orta'),
                 'analysis_id': m.get('id'),
                 'odds': round(float(odds_val), 2) if odds_val else None,
             })
 
         if len(coupon) < min_count:
-            return jsonify({
-                "status": "error",
-                "message": f"Yeterli tahmin bulunamadi (min {min_count}, bulunan {len(coupon)})"
-            }), 404
+            return jsonify({"status": "error", "message": f"Yeterli tahmin bulunamadi (min {min_count}, bulunan {len(coupon)})"}), 404
 
         logger.info(f"Kupon: {len(coupon)} tahmin, turler: {type_counts}")
         return jsonify({"status": "success", "coupon": coupon})
@@ -1059,6 +978,264 @@ def debug_footballdata(league_code):
         return jsonify(sorted([{'id': t.get('id'), 'name': t.get('name')} for t in teams], key=lambda x: x['name']))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/debug/analysis-data/<int:analysis_id>')
+def api_debug_analysis_data(analysis_id):
+    try:
+        from backend.database import get_analysis_by_id
+        from backend.football_api import (
+            get_team_last_matches, get_h2h, get_team_shot_stats,
+            get_team_standing, is_youth_or_reserve,
+        )
+        from backend.analyzer import (
+            extract_form_from_fixtures, extract_goals_avg,
+            extract_h2h_summary, _get_country_code,
+        )
+        from backend.ai_analyzer import _safe_float, calculate_value_bets, _is_score_valid, _is_ht_ft_consistent
+        import json as _json
+
+        analysis = get_analysis_by_id(analysis_id)
+        if not analysis:
+            return jsonify({'error': 'Analiz bulunamadı'}), 404
+
+        home_team = analysis['home_team']
+        away_team = analysis['away_team']
+        league    = analysis.get('league', '')
+        csv_data  = analysis.get('csv_data') or {}
+
+        fixture = {
+            'fixture': {'id': analysis.get('fixture_id', 0), 'date': analysis.get('match_time', '')},
+            'league':  {'id': 0, 'name': league},
+            'teams':   {'home': {'id': 0, 'name': home_team}, 'away': {'id': 0, 'name': away_team}},
+            'goals':   {'home': None, 'away': None},
+        }
+        country_code = _get_country_code(fixture)
+        is_youth = is_youth_or_reserve(home_team) or is_youth_or_reserve(away_team)
+
+        # ── CSV ──────────────────────────────────────────────────────────────
+        csv_status = 'ok' if csv_data else 'error'
+        if csv_data:
+            filled = sum(1 for v in csv_data.values() if v is not None)
+            if filled < 5:
+                csv_status = 'warn'
+
+        # ── Son Maçlar ───────────────────────────────────────────────────────
+        home_matches = get_team_last_matches(home_team, last=10) if not is_youth else []
+        away_matches = get_team_last_matches(away_team, last=10) if not is_youth else []
+
+        def match_info(matches, team_name):
+            if not matches:
+                return {'count': 0}
+            form = extract_form_from_fixtures(matches, team_name)
+            gavg, cavg = extract_goals_avg(matches, team_name)
+            return {'count': len(matches), 'form': form, 'goals_avg': gavg, 'conceded_avg': cavg}
+
+        last_matches = {
+            'home': match_info(home_matches, home_team),
+            'away': match_info(away_matches, away_team),
+        }
+
+        # ── Şut İstatistikleri ───────────────────────────────────────────────
+        shot_supported_codes = ('ENG', 'GER', 'ESP', 'ITA', 'FRA')
+        shots_supported = country_code and country_code in shot_supported_codes and not is_youth
+
+        if shots_supported:
+            home_shots = get_team_shot_stats(home_team, country_code, last=5)
+            away_shots = get_team_shot_stats(away_team, country_code, last=5)
+            shot_stats = {
+                'supported': True,
+                'home': {
+                    'available': bool(home_shots),
+                    'shots_avg': home_shots.get('shots_avg') if home_shots else None,
+                    'shots_on_avg': home_shots.get('shots_on_target_avg') if home_shots else None,
+                    'accuracy': home_shots.get('shot_accuracy') if home_shots else None,
+                    'reason': None if home_shots else 'Takım bulunamadı',
+                },
+                'away': {
+                    'available': bool(away_shots),
+                    'shots_avg': away_shots.get('shots_avg') if away_shots else None,
+                    'shots_on_avg': away_shots.get('shots_on_target_avg') if away_shots else None,
+                    'accuracy': away_shots.get('shot_accuracy') if away_shots else None,
+                    'reason': None if away_shots else 'Takım bulunamadı',
+                },
+            }
+        else:
+            reason = 'Gençlik/Rezerv takım' if is_youth else f'Lig desteklenmiyor ({country_code or "bilinmiyor"})'
+            shot_stats = {'supported': False, 'reason': reason}
+
+        # ── Puan Durumu ──────────────────────────────────────────────────────
+        home_standing = get_team_standing(home_team, country_code) if country_code and not is_youth else None
+        away_standing = get_team_standing(away_team, country_code) if country_code and not is_youth else None
+
+        standings = {
+            'home': {
+                'available': bool(home_standing),
+                'position': home_standing.get('position') if home_standing else None,
+                'points':   home_standing.get('points')   if home_standing else None,
+                'played':   home_standing.get('played')   if home_standing else None,
+                'reason': None if home_standing else ('Gençlik/Rezerv' if is_youth else 'Lig desteklenmiyor'),
+            },
+            'away': {
+                'available': bool(away_standing),
+                'position': away_standing.get('position') if away_standing else None,
+                'points':   away_standing.get('points')   if away_standing else None,
+                'played':   away_standing.get('played')   if away_standing else None,
+                'reason': None if away_standing else ('Gençlik/Rezerv' if is_youth else 'Lig desteklenmiyor'),
+            },
+        }
+
+        # ── H2H ─────────────────────────────────────────────────────────────
+        h2h_raw = get_h2h(home_team, away_team, last=5) if not is_youth else []
+        h2h_summary = extract_h2h_summary(h2h_raw, home_team, away_team)
+        h2h = {
+            'count':     h2h_summary.get('total', 0)     if h2h_summary else 0,
+            'avg_goals': h2h_summary.get('avg_goals')    if h2h_summary else None,
+            'home_wins': h2h_summary.get('home_wins')    if h2h_summary else None,
+            'away_wins': h2h_summary.get('away_wins')    if h2h_summary else None,
+            'draws':     h2h_summary.get('draws')        if h2h_summary else None,
+        }
+
+        # ── Clamp Analizi ────────────────────────────────────────────────────
+        def clamp_info(csv_key, margin, analysis_val):
+            csv_base = _safe_float(csv_data.get(csv_key)) if csv_data else None
+            final_val = round(_safe_float(analysis_val) or 0)
+            if csv_base is None:
+                return {'csv_base': None, 'margin': margin, 'ai_value': final_val, 'final_value': final_val, 'was_clamped': False}
+            low = max(0, csv_base - margin)
+            high = min(100, csv_base + margin)
+            was_clamped = not (low <= final_val <= high)
+            return {'csv_base': round(csv_base), 'margin': margin, 'ai_value': final_val, 'final_value': final_val, 'was_clamped': was_clamped}
+
+        clamp = {
+            'over25_pct': clamp_info('over25_avg', 10, analysis.get('over25_pct', 50)),
+            'btts_pct':   clamp_info('btts_avg',    8, analysis.get('btts_pct', 40)),
+            'ht2g_pct':   clamp_info('ht_over05_avg', 5, analysis.get('ht2g_pct', 40)),
+        }
+
+        # ── Karar Zinciri ────────────────────────────────────────────────────
+        odds_side = odds_detail = ppg_side = ppg_detail = xg_side = xg_detail = None
+
+        if csv_data:
+            try:
+                h_o = float(csv_data.get('odds_home') or 0)
+                a_o = float(csv_data.get('odds_away') or 0)
+                if h_o > 1 and a_o > 1:
+                    h_imp = round(1/h_o*100, 1)
+                    a_imp = round(1/a_o*100, 1)
+                    d = h_imp - a_imp
+                    if d > 15:    odds_side, odds_detail = '1', f'{home_team} net favori (%{h_imp} vs %{a_imp})'
+                    elif d < -15: odds_side, odds_detail = '2', f'{away_team} net favori (%{a_imp} vs %{h_imp})'
+                    elif d > 5:   odds_side, odds_detail = '1 (hafif)', f'Fark: {abs(d):.0f}%'
+                    elif d < -5:  odds_side, odds_detail = '2 (hafif)', f'Fark: {abs(d):.0f}%'
+                    else:         odds_side, odds_detail = 'X (dengeli)', f'Fark: {abs(d):.0f}%'
+            except: pass
+
+            try:
+                ch = float(csv_data.get('current_home_ppg') or 0)
+                ca = float(csv_data.get('current_away_ppg') or 0)
+                if ch > 0 or ca > 0:
+                    d = ch - ca
+                    if d > 0.5:    ppg_side, ppg_detail = '1', f'{home_team}: {ch} · {away_team}: {ca}'
+                    elif d < -0.5: ppg_side, ppg_detail = '2', f'{away_team}: {ca} · {home_team}: {ch}'
+                    else:          ppg_side, ppg_detail = 'X (dengeli)', f'Fark: {abs(d):.2f}'
+            except: pass
+
+            try:
+                hxg = float(csv_data.get('home_xg') or 0)
+                axg = float(csv_data.get('away_xg') or 0)
+                if hxg > 0 or axg > 0:
+                    d = hxg - axg
+                    if abs(d) >= 0.8:
+                        xg_side = home_team if d > 0 else away_team
+                        xg_detail = f'Fark: {abs(d):.2f} xG ({home_team}: {hxg} · {away_team}: {axg})'
+                    elif abs(d) >= 0.4:
+                        xg_side = f'Hafif: {home_team if d>0 else away_team}'
+                        xg_detail = f'Fark: {abs(d):.2f} xG'
+                    else:
+                        xg_side = 'Dengeli'
+                        xg_detail = f'{home_team}: {hxg} · {away_team}: {axg}'
+            except: pass
+
+        pred = analysis.get('prediction_1x2', '?')
+        conf = analysis.get('confidence', 'Orta')
+
+        decision = {
+            'odds_side':   odds_side  or '— (CSV oran yok)',
+            'odds_detail': odds_detail,
+            'ppg_side':    ppg_side   or '— (CSV PPG yok)',
+            'ppg_detail':  ppg_detail,
+            'xg_side':     xg_side    or '— (CSV xG yok)',
+            'xg_detail':   xg_detail,
+            'ai_pred':     pred,
+            'confidence':  conf,
+            'final_conf':  conf,
+            'conf_reason': 'Bahisçi + PPG uyumu kontrol edildi',
+        }
+
+        # ── Skor Tutarlılık ──────────────────────────────────────────────────
+        pred_score    = analysis.get('predicted_score', '?-?')
+        pred_ht_score = analysis.get('predicted_ht_score', '?-?')
+        over25_pct = analysis.get('over25_pct', 50)
+        btts_pct   = analysis.get('btts_pct', 40)
+        over35_avg = _safe_float(csv_data.get('over35_avg')) if csv_data else None
+        over45_avg = _safe_float(csv_data.get('over45_avg')) if csv_data else None
+
+        ai_valid      = _is_score_valid(pred_score, pred, btts_pct, over25_pct, over35_avg, over45_avg)
+        ht_consistent = _is_ht_ft_consistent(pred_ht_score, pred_score)
+
+        score_info = {
+            'ai_score':       pred_score,
+            'ai_valid':       ai_valid,
+            'final_score':    pred_score,
+            'ai_ht_score':    pred_ht_score,
+            'ht_consistent':  ht_consistent,
+            'final_ht_score': pred_ht_score,
+            'pred_1x2':       pred,
+            'confidence':     conf,
+        }
+
+        # ── Value Bets ───────────────────────────────────────────────────────
+        try:
+            vb_raw = analysis.get('value_bets')
+            value_bets = _json.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
+        except:
+            value_bets = []
+
+        # ── Genel Skor ───────────────────────────────────────────────────────
+        score_pts = 0
+        flags = []
+        if csv_data and csv_data.get('over25_avg'):  score_pts += 2
+        else: flags.append('CSV eksik')
+        if last_matches['home']['count'] >= 5: score_pts += 2
+        else: flags.append('Son maç az')
+        if shots_supported and shot_stats.get('home', {}).get('available'): score_pts += 1
+        if home_standing:  score_pts += 1
+        if h2h['count'] >= 3: score_pts += 1
+        if csv_data and csv_data.get('odds_home'): score_pts += 1
+        if csv_data and csv_data.get('home_xg'):   score_pts += 1
+        if len(value_bets) > 0: score_pts += 1
+
+        quality = 'Mükemmel' if score_pts >= 8 else 'İyi' if score_pts >= 6 else 'Orta' if score_pts >= 4 else 'Zayıf'
+        overall = {'score': score_pts, 'quality': quality, 'flags': flags}
+
+        return jsonify({
+            'csv':          {**{'status': csv_status}, **(csv_data or {})},
+            'last_matches': last_matches,
+            'shot_stats':   shot_stats,
+            'standings':    standings,
+            'h2h':          h2h,
+            'clamp':        clamp,
+            'decision':     decision,
+            'score':        score_info,
+            'value_bets':   value_bets,
+            'overall':      overall,
+        })
+
+    except Exception as e:
+        logger.error(f"Debug analysis data error: {e}")
+        import traceback
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
