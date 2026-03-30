@@ -506,12 +506,22 @@ def _get_collectapi_standings(league_key):
         )
         resp.raise_for_status()
         data = resp.json()
-        if not data.get('success'):
-            logger.warning(f'CollectAPI standings failed for {league_key}')
+        logger.info(f'CollectAPI raw response type: {type(data).__name__}')
+
+        # Response liste veya dict olabilir
+        if isinstance(data, list):
+            raw_list = data
+        elif isinstance(data, dict):
+            if not data.get('success'):
+                logger.warning(f'CollectAPI standings failed for {league_key}: {data}')
+                return None
+            raw_list = data.get('result', [])
+        else:
+            logger.warning(f'CollectAPI unexpected response for {league_key}')
             return None
 
         standings = []
-        for item in data.get('result', []):
+        for item in raw_list:
             standings.append({
                 'position': item.get('rank'),
                 'team': item.get('team', ''),
