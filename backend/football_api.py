@@ -14,10 +14,12 @@ FOOTBALL_DATA_HEADERS = {
     'X-Auth-Token': FOOTBALL_DATA_KEY
 }
 
-# ─── Puan durumu cache ────────────────────────────────────────────────────────
-_standings_cache = {}
+COLLECT_API_KEY = os.environ.get('COLLECT_API_KEY', '')
+COLLECT_API_BASE = 'https://api.collectapi.com/football'
 
-# ─── football-data.co.uk şut/korner cache (günde 1 kez) ─────────────────────
+# ─── Cache'ler ────────────────────────────────────────────────────────────────
+_standings_cache = {}
+_collectapi_standings_cache = {}
 _shots_cache = {}
 
 # ─── ClubElo → Düzgün isim tablosu ───────────────────────────────────────────
@@ -38,7 +40,7 @@ NAME_FIXES = {
     'Sporting': 'Sporting CP',
 }
 
-# ─── Lig kodu eşleştirmesi ────────────────────────────────────────────────────
+# ─── Lig kodu eşleştirmesi (football-data.org) ───────────────────────────────
 LEAGUE_CODES = {
     'GER': 'BL1', 'ENG': 'PL', 'ESP': 'PD',
     'ITA': 'SA', 'FRA': 'FL1', 'POR': 'PPL', 'NED': 'DED',
@@ -53,6 +55,41 @@ FDCO_LEAGUES = {
     'FRA': ('2425', 'F1'),
 }
 
+# ─── CollectAPI lig key eşleştirmesi ─────────────────────────────────────────
+COLLECT_API_LEAGUE_MAP = {
+    # Türkiye
+    'super lig': 'super-lig',
+    'süper lig': 'super-lig',
+    'trendyol süper lig': 'super-lig',
+    'trendyol super lig': 'super-lig',
+    'turkey': 'super-lig',
+    'türkiye': 'super-lig',
+    'tff 1. lig': 'tff-1-lig',
+    'tff 1 lig': 'tff-1-lig',
+    'trendyol 1. lig': 'tff-1-lig',
+    '1. lig': 'tff-1-lig',
+    # İngiltere
+    'premier league': 'ingiltere-premier-ligi',
+    'england': 'ingiltere-premier-ligi',
+    'championship': 'ingiltere-sampiyonluk-ligi',
+    'efl championship': 'ingiltere-sampiyonluk-ligi',
+    # Almanya
+    'bundesliga': 'almanya-bundesliga',
+    'germany': 'almanya-bundesliga',
+    '2. bundesliga': 'almanya-bundesliga-2-ligi',
+    # İspanya
+    'la liga': 'ispanya-la-liga',
+    'laliga': 'ispanya-la-liga',
+    'spain': 'ispanya-la-liga',
+    # İtalya
+    'serie a': 'italya-serie-a-ligi',
+    'italy': 'italya-serie-a-ligi',
+    # Fransa
+    'ligue 1': 'fransa-ligue-1',
+    'france': 'fransa-ligue-1',
+    'ligue 2': 'fransa-ligue-2',
+}
+
 # ─── Gençlik/Rezerv takım suffix'leri ────────────────────────────────────────
 YOUTH_SUFFIXES = (
     'u21', 'u18', 'u23', 'u19', 'u20', 'u17', 'u16', 'u15',
@@ -61,7 +98,6 @@ YOUTH_SUFFIXES = (
 )
 
 def is_youth_or_reserve(team_name):
-    """Takım adı gençlik/rezerv takımına işaret ediyorsa True döner."""
     name_lower = team_name.lower()
     for suffix in YOUTH_SUFFIXES:
         if suffix in name_lower:
@@ -394,7 +430,7 @@ def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
         return []
 
 
-# ─── Puan Durumu ─────────────────────────────────────────────────────────────
+# ─── Puan Durumu (football-data.org) ─────────────────────────────────────────
 
 def get_standings_cached(league_code):
     today = date.today()
@@ -433,33 +469,122 @@ def get_standings_cached(league_code):
         return None
 
 
-def get_team_standing(team_name, country_code):
-    league_code = LEAGUE_CODES.get(country_code)
-    if not league_code:
+# ─── Puan Durumu (CollectAPI) ─────────────────────────────────────────────────
+
+def _get_collectapi_league_key(league_name):
+    """Lig adından CollectAPI key'ini bul."""
+    league_lower = league_name.lower().strip()
+    for key, collect_key in COLLECT_API_LEAGUE_MAP.items():
+        if key in league_lower or league_lower in key:
+            return collect_key
+    return None
+
+
+def _get_collectapi_standings(league_key):
+    """CollectAPI'den puan durumu çek — günde 1 kez cache'le."""
+    if not COLLECT_API_KEY:
         return None
-    standings = get_standings_cached(league_code)
+
+    today = date.today()
+    if league_key in _collectapi_standings_cache:
+        cached = _collectapi_standings_cache[league_key]
+        if cached['date'] == today:
+            return cached['data']
+
+    try:
+        resp = requests.get(
+            f'{COLLECT_API_BASE}/league',
+            headers={
+                'authorization': f'apikey {COLLECT_API_KEY}',
+                'content-type': 'application/json',
+            },
+            params={'league': league_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get('success'):
+            logger.warning(f'CollectAPI standings failed for {league_key}')
+            return None
+
+        standings = []
+        for item in data.get('result', []):
+            standings.append({
+                'position': item.get('rank'),
+                'team': item.get('team', ''),
+                'played': item.get('play', 0),
+                'points': item.get('point', 0),
+                'won': item.get('win', 0),
+                'draw': item.get('draw', 0),
+                'lost': item.get('lose', 0),
+                'goals_for': item.get('goalfor', 0),
+                'goals_against': item.get('goalagainst', 0),
+                'goal_diff': item.get('goaldistance', 0),
+            })
+
+        _collectapi_standings_cache[league_key] = {'date': today, 'data': standings}
+        logger.info(f'CollectAPI standings cached for {league_key}: {len(standings)} teams')
+        return standings
+
+    except Exception as e:
+        logger.warning(f'CollectAPI standings error for {league_key}: {e}')
+        return None
+
+
+def _find_team_in_standings(team_name, standings):
+    """Standings listesinde takımı bul."""
     if not standings:
         return None
-
-    clean_name = team_name
-    for suffix in [' U21', ' U18', ' U23', ' U19', ' B', ' II', ' Reserves', ' Youth']:
-        if clean_name.endswith(suffix):
-            clean_name = clean_name[:-len(suffix)].strip()
-            break
-
-    clean_norm = normalize_name(clean_name)
-    for s in standings:
-        s_norm = normalize_name(s['team'])
-        if clean_norm in s_norm or s_norm in clean_norm:
-            return s
-
     team_norm = normalize_name(team_name)
     for s in standings:
         s_norm = normalize_name(s['team'])
         if team_norm in s_norm or s_norm in team_norm:
             return s
-
     return None
+
+
+def get_team_standing(team_name, country_code, league_name=None):
+    """
+    Puan durumu çek.
+    Önce football-data.org dene, bulamazsa CollectAPI'ye bak.
+    """
+    # ── 1. football-data.org (büyük ligler) ──────────────────────────────────
+    league_code = LEAGUE_CODES.get(country_code)
+    if league_code:
+        standings = get_standings_cached(league_code)
+        if standings:
+            clean_name = team_name
+            for suffix in [' U21', ' U18', ' U23', ' U19', ' B', ' II', ' Reserves', ' Youth']:
+                if clean_name.endswith(suffix):
+                    clean_name = clean_name[:-len(suffix)].strip()
+                    break
+            result = _find_team_in_standings(clean_name, standings) or \
+                     _find_team_in_standings(team_name, standings)
+            if result:
+                logger.info(f'Standing {team_name}: {result["position"]}. sira, {result["points"]} puan (football-data.org)')
+                return result
+
+    # ── 2. CollectAPI fallback ────────────────────────────────────────────────
+    if not COLLECT_API_KEY:
+        return None
+
+    search_league = league_name or ''
+    collect_key = _get_collectapi_league_key(search_league)
+
+    if not collect_key and country_code:
+        country_to_league = {
+            'TUR': 'super-lig',
+        }
+        collect_key = country_to_league.get(country_code)
+
+    if not collect_key:
+        return None
+
+    standings = _get_collectapi_standings(collect_key)
+    result = _find_team_in_standings(team_name, standings)
+    if result:
+        logger.info(f'Standing {team_name}: {result["position"]}. sira, {result["points"]} puan (CollectAPI)')
+    return result
 
 
 # ─── Ev/Deplasman Ayrımlı İstatistik ─────────────────────────────────────────
@@ -550,7 +675,6 @@ def get_todays_fixtures():
 # ─── Ana Fonksiyonlar ─────────────────────────────────────────────────────────
 
 def get_team_last_matches(team_name, last=10):
-    # Gençlik/rezerv takımları için ana takım verileri çekilmemeli
     if is_youth_or_reserve(team_name):
         logger.info(f'Youth/reserve team skipped for stats: {team_name}')
         return []
@@ -580,7 +704,6 @@ def get_team_last_matches(team_name, last=10):
 
 
 def get_h2h(team1_name, team2_name, last=5):
-    # Gençlik/rezerv takımları için H2H çekilmemeli
     if is_youth_or_reserve(team1_name) or is_youth_or_reserve(team2_name):
         logger.info(f'Youth/reserve team H2H skipped: {team1_name} vs {team2_name}')
         return []
@@ -623,33 +746,26 @@ def get_standings(league_code, season=2024):
     return result
 
 
-# API-Football
+# ─── API-Football ─────────────────────────────────────────────────────────────
 API_FOOTBALL_KEY = os.environ.get('API_FOOTBALL_KEY', '')
 API_FOOTBALL_BASE = 'https://v3.football.api-sports.io'
 API_FOOTBALL_HEADERS = {'x-apisports-key': API_FOOTBALL_KEY}
 
 API_FOOTBALL_LEAGUE_MAP = {
-    # Türkiye
-    'super lig': 203, 'turkey': 203, 'super lig': 203,
+    'super lig': 203, 'turkey': 203,
     '1. lig': 204, 'tff first league': 204, 'tff 1. lig': 204,
-    # Belçika
     'pro league': 144, 'belgian pro league': 144, 'first division a': 144, 'belgium': 144,
     'challenger pro league': 145, 'first division b': 145,
-    # İskoçya
     'premiership': 179, 'scottish premiership': 179, 'scotland': 179,
     'scottish championship': 180, 'scottish league one': 181,
-    # Avusturya
     'austrian bundesliga': 218, 'austria': 218,
-    # Avustralya
     'a-league': 188, 'a league': 188, 'australia': 188,
     'a-league women': 190, 'a league women': 190,
-    # İngiltere
     'national league': 43,
     'league one': 41, 'efl league one': 41,
     'league two': 42, 'efl league two': 42,
     'championship': 40, 'efl championship': 40,
     'premier league': 39,
-    # Diğer
     'superliga': 119, 'danish superliga': 119,
     'eliteserien': 103,
     'allsvenskan': 113,
@@ -665,7 +781,7 @@ def _get_api_football(endpoint, params={}):
     if not API_FOOTBALL_KEY:
         return None
     try:
-        time.sleep(1)  # saniyede 1 istek sınırı
+        time.sleep(1)
         resp = requests.get(
             API_FOOTBALL_BASE + '/' + endpoint,
             headers=API_FOOTBALL_HEADERS,
@@ -773,7 +889,6 @@ def _get_apifootball_team_id(team_name, league_id=203, season=2025):
                 logger.info('API-Football team ID: ' + name + ' -> ' + str(team_id))
                 return team_id
 
-    # Fuzzy search - isim tam eşleşmezse kısa adla dene
     short_name = team_name.split()[0]
     if short_name != team_name:
         result2 = _get_api_football('teams', {'name': short_name, 'league': league_id, 'season': season})
