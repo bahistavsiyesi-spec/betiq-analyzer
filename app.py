@@ -163,8 +163,12 @@ def api_stats_daily():
         cur.execute('''
             SELECT a.analysis_date, COUNT(*) as total,
                 SUM(r.pred_1x2_correct) as c1x2,
-                SUM(r.over25_correct) as cover25,
-                SUM(r.btts_correct) as cbtts
+                SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
+                COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
+                SUM(CASE WHEN a.btts_pct >= 65 THEN r.btts_correct ELSE 0 END) as cbtts,
+                COUNT(CASE WHEN a.btts_pct >= 65 THEN 1 END) as total_btts,
+                SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht,
+                COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
             GROUP BY a.analysis_date ORDER BY a.analysis_date DESC LIMIT 30
         ''')
@@ -173,11 +177,15 @@ def api_stats_daily():
         daily = []
         for r in rows:
             t = r['total'] or 0
+            total_over25 = r['total_over25'] or 0
+            total_btts = r['total_btts'] or 0
+            total_ht = r['total_ht'] or 0
             daily.append({
                 'date': r['analysis_date'], 'total': t,
                 'pct_1x2': round((r['c1x2'] or 0)/t*100) if t else 0,
-                'pct_over25': round((r['cover25'] or 0)/t*100) if t else 0,
-                'pct_btts': round((r['cbtts'] or 0)/t*100) if t else 0,
+                'pct_over25': round((r['cover25'] or 0)/total_over25*100) if total_over25 else 0,
+                'pct_btts': round((r['cbtts'] or 0)/total_btts*100) if total_btts else 0,
+                'pct_ht': round((r['cht'] or 0)/total_ht*100) if total_ht else 0,
             })
         cur.close(); conn.close()
         return jsonify(daily)
@@ -193,7 +201,7 @@ def api_stats_by_category():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
             SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
-                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
+                COUNT(CASE WHEN a.confidence IN ('Yuksek','Coc Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
                 SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
                 COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
                 SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
@@ -1012,14 +1020,12 @@ def api_debug_analysis_data(analysis_id):
         country_code = _get_country_code(fixture)
         is_youth = is_youth_or_reserve(home_team) or is_youth_or_reserve(away_team)
 
-        # ── CSV ──────────────────────────────────────────────────────────────
         csv_status = 'ok' if csv_data else 'error'
         if csv_data:
             filled = sum(1 for v in csv_data.values() if v is not None)
             if filled < 5:
                 csv_status = 'warn'
 
-        # ── Son Maçlar ───────────────────────────────────────────────────────
         home_matches = get_team_last_matches(home_team, last=10) if not is_youth else []
         away_matches = get_team_last_matches(away_team, last=10) if not is_youth else []
 
@@ -1035,7 +1041,6 @@ def api_debug_analysis_data(analysis_id):
             'away': match_info(away_matches, away_team),
         }
 
-        # ── Şut İstatistikleri ───────────────────────────────────────────────
         shot_supported_codes = ('ENG', 'GER', 'ESP', 'ITA', 'FRA')
         shots_supported = country_code and country_code in shot_supported_codes and not is_youth
 
@@ -1063,7 +1068,6 @@ def api_debug_analysis_data(analysis_id):
             reason = 'Gençlik/Rezerv takım' if is_youth else f'Lig desteklenmiyor ({country_code or "bilinmiyor"})'
             shot_stats = {'supported': False, 'reason': reason}
 
-        # ── Puan Durumu ──────────────────────────────────────────────────────
         home_standing = get_team_standing(home_team, country_code, league_name=league) if not is_youth else None
         away_standing = get_team_standing(away_team, country_code, league_name=league) if not is_youth else None
 
@@ -1084,7 +1088,6 @@ def api_debug_analysis_data(analysis_id):
             },
         }
 
-        # ── H2H ─────────────────────────────────────────────────────────────
         h2h_raw = get_h2h(home_team, away_team, last=5) if not is_youth else []
         h2h_summary = extract_h2h_summary(h2h_raw, home_team, away_team)
         h2h = {
@@ -1095,7 +1098,6 @@ def api_debug_analysis_data(analysis_id):
             'draws':     h2h_summary.get('draws')        if h2h_summary else None,
         }
 
-        # ── Clamp Analizi ────────────────────────────────────────────────────
         def clamp_info(csv_key, margin, analysis_val):
             csv_base = _safe_float(csv_data.get(csv_key)) if csv_data else None
             final_val = round(_safe_float(analysis_val) or 0)
@@ -1112,7 +1114,6 @@ def api_debug_analysis_data(analysis_id):
             'ht2g_pct':   clamp_info('ht_over05_avg', 5, analysis.get('ht2g_pct', 40)),
         }
 
-        # ── Karar Zinciri ────────────────────────────────────────────────────
         odds_side = odds_detail = ppg_side = ppg_detail = xg_side = xg_detail = None
 
         if csv_data:
@@ -1172,7 +1173,6 @@ def api_debug_analysis_data(analysis_id):
             'conf_reason': 'Bahisçi + PPG uyumu kontrol edildi',
         }
 
-        # ── Skor Tutarlılık ──────────────────────────────────────────────────
         pred_score    = analysis.get('predicted_score', '?-?')
         pred_ht_score = analysis.get('predicted_ht_score', '?-?')
         over25_pct = analysis.get('over25_pct', 50)
@@ -1194,14 +1194,12 @@ def api_debug_analysis_data(analysis_id):
             'confidence':     conf,
         }
 
-        # ── Value Bets ───────────────────────────────────────────────────────
         try:
             vb_raw = analysis.get('value_bets')
             value_bets = _json.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
         except:
             value_bets = []
 
-        # ── Genel Skor ───────────────────────────────────────────────────────
         score_pts = 0
         flags = []
         if csv_data and csv_data.get('over25_avg'):  score_pts += 2
