@@ -107,10 +107,6 @@ def get_fixture_result(fixture_id, home_team='', away_team='', match_time=''):
 
 
 def calculate_value_bet_results(analysis, outcomes):
-    """
-    Analizdeki value_bets listesini al, her birinin tutup tutmadığını hesapla.
-    Döner: [{"label": "Over 2.5", "correct": True, "odds": 1.65, "diff": 20}, ...]
-    """
     value_bets_raw = analysis.get('value_bets')
     if not value_bets_raw:
         return None
@@ -168,17 +164,19 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
 
     over25_pct = int(analysis.get('over25_pct', 0))
     actual_over25 = total_goals > 2.5
+    # Sadece eşik üstü tahminler sayılır, eşik altı False olarak kaydedilir
     if over25_pct >= 65:
-        over25_correct = actual_over25
+        over25_correct = actual_over25       # Üst tahmin ettik, üst geldiyse True
     else:
-        over25_correct = not actual_over25
+        over25_correct = False               # Eşik altı → istatistiğe katma
 
     btts_pct = int(analysis.get('btts_pct', 0))
     actual_btts = home_score > 0 and away_score > 0
+    # Sadece eşik üstü tahminler sayılır
     if btts_pct >= 65:
-        btts_correct = actual_btts
+        btts_correct = actual_btts           # KG Var tahmin ettik, var geldiyse True
     else:
-        btts_correct = not actual_btts
+        btts_correct = False                 # Eşik altı → istatistiğe katma
 
     predicted = analysis.get('predicted_score', '?-?')
     try:
@@ -192,9 +190,9 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
         ht_pct = int(analysis.get('ht2g_pct', 0))
         actual_ht_goal = (ht_home_score + ht_away_score) >= 1
         if ht_pct >= 65:
-            ht_correct = actual_ht_goal
+            ht_correct = actual_ht_goal      # İY 0.5 Üst tahmin ettik
         else:
-            ht_correct = not actual_ht_goal
+            ht_correct = False               # Eşik altı → istatistiğe katma
 
     return {
         'actual_1x2': actual_1x2,
@@ -303,7 +301,6 @@ def check_and_send_results():
             outcomes['score_correct'] = int(outcomes['score_correct'])
             outcomes['ht_correct'] = int(outcomes['ht_correct'])
 
-            # Value bet sonuçlarını hesapla
             vb_results = calculate_value_bet_results(analysis, outcomes)
 
             save_match_result(
