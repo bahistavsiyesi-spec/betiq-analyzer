@@ -474,9 +474,12 @@ def get_standings_cached(league_code):
 def _get_collectapi_league_key(league_name):
     """Lig adından CollectAPI key'ini bul."""
     league_lower = league_name.lower().strip()
+    logger.info(f'CollectAPI league key aranıyor: "{league_lower}"')
     for key, collect_key in COLLECT_API_LEAGUE_MAP.items():
         if key in league_lower or league_lower in key:
+            logger.info(f'CollectAPI league key bulundu: {collect_key}')
             return collect_key
+    logger.info(f'CollectAPI league key bulunamadi: "{league_lower}"')
     return None
 
 
@@ -548,6 +551,7 @@ def get_team_standing(team_name, country_code, league_name=None):
     Puan durumu çek.
     Önce football-data.org dene, bulamazsa CollectAPI'ye bak.
     """
+    logger.info(f'get_team_standing: {team_name} | country_code={country_code} | league_name={league_name}')
     # ── 1. football-data.org (büyük ligler) ──────────────────────────────────
     league_code = LEAGUE_CODES.get(country_code)
     if league_code:
