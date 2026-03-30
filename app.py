@@ -1064,8 +1064,8 @@ def api_debug_analysis_data(analysis_id):
             shot_stats = {'supported': False, 'reason': reason}
 
         # ── Puan Durumu ──────────────────────────────────────────────────────
-        home_standing = get_team_standing(home_team, country_code) if country_code and not is_youth else None
-        away_standing = get_team_standing(away_team, country_code) if country_code and not is_youth else None
+        home_standing = get_team_standing(home_team, country_code, league_name=league) if not is_youth else None
+        away_standing = get_team_standing(away_team, country_code, league_name=league) if not is_youth else None
 
         standings = {
             'home': {
