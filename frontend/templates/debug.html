@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetIQ — Debug</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        .debug-container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+
+        /* ── Başlık ── */
+        .debug-title {
+            font-size: 22px; font-weight: 800; color: #fff;
+            display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+        }
+        .debug-subtitle { font-size: 12px; color: #444; margin-bottom: 28px; font-family: 'JetBrains Mono', monospace; }
+
+        /* ── Maç Seçici ── */
+        .match-selector {
+            background: #0d0d1a; border: 1px solid #1e1e3a;
+            border-radius: 14px; padding: 20px; margin-bottom: 24px;
+        }
+        .selector-label { font-size: 11px; color: #555; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 12px; }
+        .selector-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .match-select {
+            flex: 1; min-width: 220px; padding: 10px 14px;
+            background: #12121f; border: 1px solid #2a2a3e; border-radius: 10px;
+            color: #fff; font-size: 13px; font-family: inherit; outline: none;
+            cursor: pointer; transition: border-color 0.2s;
+        }
+        .match-select:focus { border-color: #7c3aed; }
+        .btn-debug {
+            padding: 10px 22px; border-radius: 10px; border: none;
+            background: #7c3aed; color: #fff; font-size: 13px;
+            font-weight: 700; cursor: pointer; font-family: inherit;
+            transition: background 0.2s; white-space: nowrap;
+        }
+        .btn-debug:hover { background: #a855f7; }
+        .btn-debug:disabled { background: #2a2a3e; color: #555; cursor: not-allowed; }
+        .btn-refresh {
+            padding: 10px 16px; border-radius: 10px;
+            border: 1px solid #2a2a3e; background: transparent;
+            color: #666; font-size: 13px; cursor: pointer;
+            font-family: inherit; transition: all 0.2s;
+        }
+        .btn-refresh:hover { border-color: #7c3aed; color: #a78bfa; }
+
+        /* ── Grid ── */
+        .debug-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        /* ── Kart ── */
+        .debug-card {
+            background: #0d0d1a; border: 1px solid #1e1e3a;
+            border-radius: 14px; padding: 18px; position: relative;
+            transition: border-color 0.2s;
+        }
+        .debug-card.ok    { border-left: 3px solid #22c55e; }
+        .debug-card.warn  { border-left: 3px solid #f59e0b; }
+        .debug-card.error { border-left: 3px solid #ef4444; }
+        .debug-card.info  { border-left: 3px solid #3b82f6; }
+
+        .card-header {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 14px;
+        }
+        .card-title { font-size: 12px; font-weight: 700; color: #7c3aed; letter-spacing: 0.5px; }
+        .card-badge {
+            font-size: 10px; font-weight: 700; padding: 3px 10px;
+            border-radius: 20px; font-family: 'JetBrains Mono', monospace;
+        }
+        .badge-ok    { background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
+        .badge-warn  { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+        .badge-error { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+        .badge-info  { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+
+        /* ── Satırlar ── */
+        .data-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 7px 0; border-bottom: 1px solid #111; font-size: 12px;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-key   { color: #555; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+        .data-val   { color: #fff; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+        .data-val.green  { color: #22c55e; }
+        .data-val.yellow { color: #f59e0b; }
+        .data-val.red    { color: #ef4444; }
+        .data-val.blue   { color: #60a5fa; }
+        .data-val.purple { color: #a78bfa; }
+        .data-val.gray   { color: #444; }
+
+        /* ── Clamp Göstergesi ── */
+        .clamp-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 0; border-bottom: 1px solid #111; font-size: 11px;
+        }
+        .clamp-row:last-child { border-bottom: none; }
+        .clamp-key { color: #555; font-family: 'JetBrains Mono', monospace; min-width: 80px; }
+        .clamp-bar-wrap { flex: 1; height: 6px; background: #111; border-radius: 3px; position: relative; }
+        .clamp-bar-csv  { position: absolute; top: 0; height: 6px; background: #3b82f6; border-radius: 3px; }
+        .clamp-bar-ai   { position: absolute; top: 0; height: 6px; background: #a78bfa; border-radius: 3px; opacity: 0.7; }
+        .clamp-bar-final{ position: absolute; top: 0; height: 6px; background: #22c55e; border-radius: 3px; }
+        .clamp-range { font-size: 10px; color: #333; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+
+        /* ── Karar Zinciri ── */
+        .decision-chain { display: flex; flex-direction: column; gap: 8px; }
+        .decision-step {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 8px 12px; border-radius: 8px; background: #12121f;
+            border: 1px solid #1e1e3a; font-size: 11px;
+        }
+        .step-num {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #7c3aed22; border: 1px solid #7c3aed55;
+            color: #a78bfa; font-size: 10px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; font-family: 'JetBrains Mono', monospace;
+        }
+        .step-content { flex: 1; }
+        .step-label { color: #666; margin-bottom: 2px; }
+        .step-value { color: #fff; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+        .step-arrow { color: #333; font-size: 10px; margin-top: 2px; }
+
+        /* ── Tam Kart ── */
+        .full-card { grid-column: 1 / -1; }
+
+        /* ── Yükleniyor ── */
+        .debug-loading {
+            text-align: center; padding: 60px 20px;
+            color: #555; font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .debug-loading .spin {
+            display: inline-block; width: 20px; height: 20px;
+            border: 2px solid #2a2a3e; border-top-color: #7c3aed;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+            margin-bottom: 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Boş durum ── */
+        .debug-empty {
+            text-align: center; padding: 60px 20px; color: #333;
+            font-size: 13px;
+        }
+        .debug-empty .empty-icon { font-size: 36px; margin-bottom: 12px; }
+
+        /* ── Value Bet listesi ── */
+        .vb-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 7px 10px; border-radius: 8px; background: #12121f;
+            margin-bottom: 6px; font-size: 11px; border: 1px solid #1e1e3a;
+        }
+        .vb-label { color: #a78bfa; font-weight: 700; }
+        .vb-meta  { color: #555; font-family: 'JetBrains Mono', monospace; }
+        .vb-diff  { font-weight: 800; color: #22c55e; font-family: 'JetBrains Mono', monospace; }
+
+        /* ── Legend ── */
+        .legend {
+            display: flex; gap: 16px; flex-wrap: wrap;
+            margin-bottom: 20px; padding: 12px 16px;
+            background: #0d0d1a; border: 1px solid #1e1e3a;
+            border-radius: 10px; font-size: 11px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; color: #555; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        @media (max-width: 640px) {
+            .debug-grid { grid-template-columns: 1fr; }
+            .selector-row { flex-direction: column; }
+            .match-select { min-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">BetIQ</span>
+                <span class="logo-sub">ANALYZER</span>
+            </div>
+            <nav style="display:flex;gap:8px;align-items:center;">
+                <a href="/"          style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🏠 Ana Sayfa</a>
+                <a href="/gecmis"    style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">📅 Geçmiş</a>
+                <a href="/istatistik"style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">📊 İstatistik</a>
+                <a href="/kuponlar"  style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🎫 Kuponlar</a>
+                <a href="/debug"     style="padding:7px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;text-decoration:none;">🔬 Debug</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="debug-container">
+            <div class="debug-title">🔬 Analiz Veri Kalitesi</div>
+            <div class="debug-subtitle">// hangi veri geldi · hangi gelMedi · AI ne yaptı</div>
+
+            <!-- Maç Seçici -->
+            <div class="match-selector">
+                <div class="selector-label">BUGÜNÜN ANALİZLERİ</div>
+                <div class="selector-row">
+                    <select class="match-select" id="matchSelect">
+                        <option value="">-- Maç seçin --</option>
+                    </select>
+                    <button class="btn-refresh" onclick="loadMatchList()">🔄</button>
+                    <button class="btn-debug" id="debugBtn" onclick="runDebug()" disabled>🔬 İncele</button>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Veri geldi</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Kısmen / zayıf</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Veri yok</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Bilgi</div>
+            </div>
+
+            <!-- İçerik -->
+            <div id="debugContent">
+                <div class="debug-empty">
+                    <div class="empty-icon">🔬</div>
+                    <div>Yukarıdan bir maç seçip <strong>İncele</strong>'ye tıklayın</div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+let currentMatch = null;
+
+async function loadMatchList() {
+    const select = document.getElementById('matchSelect');
+    select.innerHTML = '<option value="">Yükleniyor...</option>';
+    try {
+        const resp = await fetch('/api/matches/today');
+        const matches = await resp.json();
+        select.innerHTML = '<option value="">-- Maç seçin --</option>';
+        if (!matches || matches.length === 0) {
+            select.innerHTML = '<option value="">Bugün analiz yok</option>';
+            return;
+        }
+        matches.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = `${m.home_team} vs ${m.away_team} — ${m.league || ''}`;
+            opt.dataset.match = JSON.stringify(m);
+            select.appendChild(opt);
+        });
+    } catch(e) {
+        select.innerHTML = '<option value="">Hata: ' + e.message + '</option>';
+    }
+}
+
+document.getElementById('matchSelect').addEventListener('change', function() {
+    document.getElementById('debugBtn').disabled = !this.value;
+    if (this.value) {
+        const opt = this.selectedOptions[0];
+        try { currentMatch = JSON.parse(opt.dataset.match); } catch(e) { currentMatch = null; }
+    }
+});
+
+async function runDebug() {
+    if (!currentMatch) return;
+    const content = document.getElementById('debugContent');
+    content.innerHTML = `<div class="debug-loading"><div class="spin"></div><br>Veri analiz ediliyor...</div>`;
+    document.getElementById('debugBtn').disabled = true;
+
+    try {
+        const resp = await fetch('/api/debug/analysis-data/' + currentMatch.id);
+        const data = await resp.json();
+        if (data.error) {
+            content.innerHTML = `<div class="debug-empty"><div class="empty-icon">❌</div><div>${data.error}</div></div>`;
+            return;
+        }
+        renderDebug(data, currentMatch);
+    } catch(e) {
+        content.innerHTML = `<div class="debug-empty"><div class="empty-icon">❌</div><div>Hata: ${e.message}</div></div>`;
+    }
+    document.getElementById('debugBtn').disabled = false;
+}
+
+function statusClass(status) {
+    if (status === 'ok')   return 'ok';
+    if (status === 'warn') return 'warn';
+    if (status === 'error')return 'error';
+    return 'info';
+}
+function badgeClass(status) {
+    return 'badge-' + statusClass(status);
+}
+function badgeText(status) {
+    if (status === 'ok')   return '✅ GELDİ';
+    if (status === 'warn') return '⚠️ KISMI';
+    if (status === 'error')return '❌ YOK';
+    return 'ℹ️ BİLGİ';
+}
+function valColor(val, thresholds) {
+    if (val === null || val === undefined) return 'gray';
+    if (thresholds) {
+        if (val >= thresholds[1]) return 'green';
+        if (val >= thresholds[0]) return 'yellow';
+        return 'red';
+    }
+    return 'blue';
+}
+
+function renderDebug(data, match) {
+    const content = document.getElementById('debugContent');
+
+    // ── CSV Kartı ──
+    const csv = data.csv || {};
+    const csvStatus = csv.status || 'error';
+    let csvRows = '';
+    const csvFields = [
+        ['over25_avg',     'Over 2.5 %',        [50,65]],
+        ['btts_avg',       'BTTS %',             [50,65]],
+        ['ht_over05_avg',  'İY 0.5 Üst %',      [50,70]],
+        ['avg_goals',      'Ort. Gol',           [2.0,3.0]],
+        ['home_xg',        'Ev xG',              [0.8,1.2]],
+        ['away_xg',        'Dep xG',             [0.8,1.2]],
+        ['home_ppg',       'Ev PPG',             null],
+        ['away_ppg',       'Dep PPG',            null],
+        ['current_home_ppg','Ev Güncel PPG',     null],
+        ['current_away_ppg','Dep Güncel PPG',    null],
+        ['odds_home',      'Oran Ev',            null],
+        ['odds_draw',      'Oran Beraberlik',    null],
+        ['odds_away',      'Oran Dep',           null],
+        ['odds_over25',    'Oran Over 2.5',      null],
+        ['odds_btts_yes',  'Oran KG Var',        null],
+        ['odds_ht_over05', 'Oran İY 0.5',        null],
+        ['over35_avg',     'Over 3.5 %',         null],
+        ['over45_avg',     'Over 4.5 %',         null],
+        ['avg_corners',    'Ort. Korner',        null],
+    ];
+    csvFields.forEach(([key, label, thresholds]) => {
+        const val = csv[key];
+        const display = val !== null && val !== undefined ? val : '—';
+        const cls = val !== null && val !== undefined ? valColor(val, thresholds) : 'gray';
+        csvRows += `<div class="data-row">
+            <span class="data-key">${label}</span>
+            <span class="data-val ${cls}">${display}</span>
+        </div>`;
+    });
+
+    // ── Son Maçlar Kartı ──
+    const lm = data.last_matches || {};
+    let lmRows = '';
+    ['home', 'away'].forEach(side => {
+        const info = lm[side] || {};
+        const label = side === 'home' ? match.home_team : match.away_team;
+        const count = info.count || 0;
+        const cls = count >= 5 ? 'green' : count > 0 ? 'yellow' : 'red';
+        lmRows += `<div class="data-row">
+            <span class="data-key">${label}</span>
+            <span class="data-val ${cls}">${count > 0 ? count + ' maç' : 'Veri yok'}</span>
+        </div>`;
+        if (info.form) {
+            lmRows += `<div class="data-row">
+                <span class="data-key">  form</span>
+                <span class="data-val purple">${info.form}</span>
+            </div>`;
+        }
+        if (info.goals_avg !== undefined) {
+            lmRows += `<div class="data-row">
+                <span class="data-key">  gol ort.</span>
+                <span class="data-val blue">${info.goals_avg} atar / ${info.conceded_avg} yer</span>
+            </div>`;
+        }
+    });
+
+    // ── Şut Kartı ──
+    const shots = data.shot_stats || {};
+    let shotRows = '';
+    ['home', 'away'].forEach(side => {
+        const info = shots[side] || {};
+        const label = side === 'home' ? match.home_team : match.away_team;
+        if (info.available) {
+            shotRows += `<div class="data-row">
+                <span class="data-key">${label}</span>
+                <span class="data-val green">✅ ${info.shots_avg} şut · ${info.shots_on_avg} isabetli · %${info.accuracy}</span>
+            </div>`;
+        } else {
+            shotRows += `<div class="data-row">
+                <span class="data-key">${label}</span>
+                <span class="data-val red">❌ ${info.reason || 'Veri yok'}</span>
+            </div>`;
+        }
+    });
+
+    // ── Puan Durumu Kartı ──
+    const standings = data.standings || {};
+    let standRows = '';
+    ['home', 'away'].forEach(side => {
+        const info = standings[side] || {};
+        const label = side === 'home' ? match.home_team : match.away_team;
+        if (info.available) {
+            standRows += `<div class="data-row">
+                <span class="data-key">${label}</span>
+                <span class="data-val green">${info.position}. sıra · ${info.points} puan · ${info.played} maç</span>
+            </div>`;
+        } else {
+            standRows += `<div class="data-row">
+                <span class="data-key">${label}</span>
+                <span class="data-val red">❌ ${info.reason || 'Veri yok'}</span>
+            </div>`;
+        }
+    });
+
+    // ── H2H Kartı ──
+    const h2h = data.h2h || {};
+    const h2hStatus = (h2h.count || 0) >= 3 ? 'ok' : (h2h.count || 0) > 0 ? 'warn' : 'error';
+
+    // ── Clamp Kartı ──
+    const clamp = data.clamp || {};
+    let clampRows = '';
+    [
+        ['over25_pct', 'Over 2.5'],
+        ['btts_pct',   'BTTS'],
+        ['ht2g_pct',   'İY 0.5'],
+    ].forEach(([key, label]) => {
+        const c = clamp[key] || {};
+        if (!c.csv_base) {
+            clampRows += `<div class="clamp-row">
+                <span class="clamp-key">${label}</span>
+                <span class="data-val gray" style="font-size:10px;">CSV baz yok — serbest</span>
+            </div>`;
+            return;
+        }
+        const base = c.csv_base, margin = c.margin || 10;
+        const low = Math.max(0, base - margin), high = Math.min(100, base + margin);
+        const aiVal = c.ai_value, finalVal = c.final_value;
+        const clamped = c.was_clamped;
+
+        clampRows += `<div class="clamp-row">
+            <span class="clamp-key">${label}</span>
+            <div style="flex:1;padding:0 8px;">
+                <div style="display:flex;justify-content:space-between;font-size:9px;color:#333;margin-bottom:3px;">
+                    <span>${low}%</span>
+                    <span style="color:#3b82f6;">CSV: ${base}%</span>
+                    <span>${high}%</span>
+                </div>
+                <div class="clamp-bar-wrap">
+                    <div class="clamp-bar-csv" style="left:${base}%;width:2px;background:#3b82f6;"></div>
+                    <div style="position:absolute;top:-3px;left:${low}%;width:${high-low}%;height:12px;background:rgba(124,58,237,0.08);border:1px dashed #3a2a5a;border-radius:2px;"></div>
+                    <div class="clamp-bar-final" style="left:${finalVal-1}%;width:2px;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:9px;margin-top:3px;">
+                    <span style="color:#555;">AI: <span style="color:#a78bfa;">${aiVal}%</span></span>
+                    <span style="color:${clamped?'#f59e0b':'#22c55e'};">${clamped?'⚠️ CLAMP':'✅ OK'} → ${finalVal}%</span>
+                </div>
+            </div>
+        </div>`;
+    });
+
+    // ── Karar Zinciri ──
+    const decision = data.decision || {};
+    let decisionHtml = '<div class="decision-chain">';
+    const steps = [
+        ['1', 'Bahisçi Oranı', decision.odds_side, decision.odds_detail],
+        ['2', 'Güncel PPG',    decision.ppg_side,  decision.ppg_detail],
+        ['3', 'xG Farkı',      decision.xg_side,   decision.xg_detail],
+        ['4', 'AI Tahmini',    decision.ai_pred,   decision.confidence],
+        ['5', 'Final Güven',   decision.final_conf,decision.conf_reason],
+    ];
+    steps.forEach(([num, label, val, detail]) => {
+        const valStr = val || '—';
+        const cls = valStr === '—' ? 'gray' : valStr === 'X' ? 'yellow' : 'green';
+        decisionHtml += `<div class="decision-step">
+            <div class="step-num">${num}</div>
+            <div class="step-content">
+                <div class="step-label">${label}</div>
+                <div class="step-value" style="color:${cls==='gray'?'#444':cls==='yellow'?'#f59e0b':'#22c55e'};">${valStr}</div>
+                ${detail ? `<div class="step-arrow" style="color:#555;font-size:10px;margin-top:2px;">${detail}</div>` : ''}
+            </div>
+        </div>`;
+    });
+    decisionHtml += '</div>';
+
+    // ── Value Bets ──
+    const vbs = data.value_bets || [];
+    let vbHtml = '';
+    if (vbs.length === 0) {
+        vbHtml = '<div class="data-row"><span class="data-val gray">Value bet bulunamadı</span></div>';
+    } else {
+        vbs.forEach(v => {
+            vbHtml += `<div class="vb-item">
+                <span class="vb-label">💎 ${v.label}</span>
+                <span class="vb-meta">Biz %${v.our_pct} · Bahisçi %${v.implied_pct} · @${v.odds}</span>
+                <span class="vb-diff">+${v.diff}%</span>
+            </div>`;
+        });
+    }
+
+    // ── Skor Tutarlılık ──
+    const score = data.score || {};
+    let scoreRows = `
+        <div class="data-row"><span class="data-key">AI Skoru</span><span class="data-val ${score.ai_valid?'green':'red'}">${score.ai_score || '—'} ${score.ai_valid?'✅ geçerli':'❌ geçersiz'}</span></div>
+        <div class="data-row"><span class="data-key">Final Skor</span><span class="data-val green">${score.final_score || '—'}</span></div>
+        <div class="data-row"><span class="data-key">AI İY Skoru</span><span class="data-val ${score.ht_consistent?'green':'red'}">${score.ai_ht_score || '—'} ${score.ht_consistent?'✅ tutarlı':'❌ tutarsız'}</span></div>
+        <div class="data-row"><span class="data-key">Final İY</span><span class="data-val green">${score.final_ht_score || '—'}</span></div>
+        <div class="data-row"><span class="data-key">Tahmin</span><span class="data-val purple">${score.pred_1x2 || '—'} · ${score.confidence || '—'}</span></div>
+    `;
+
+    // ── Genel Skor Kartı ──
+    const overall = data.overall || {};
+    const overallScore = overall.score || 0;
+    const overallColor = overallScore >= 7 ? '#22c55e' : overallScore >= 4 ? '#f59e0b' : '#ef4444';
+
+    // ── HTML Render ──
+    content.innerHTML = `
+    <!-- Genel Skor -->
+    <div class="debug-card info" style="margin-bottom:16px;display:flex;align-items:center;gap:20px;padding:16px 20px;">
+        <div style="font-size:42px;font-weight:800;color:${overallColor};font-family:'JetBrains Mono',monospace;line-height:1;">${overallScore}<span style="font-size:18px;color:#333;">/10</span></div>
+        <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:4px;">${match.home_team} vs ${match.away_team}</div>
+            <div style="font-size:11px;color:#555;margin-bottom:8px;">${match.league || ''}</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                ${overall.flags && overall.flags.map(f => `<span style="font-size:10px;padding:2px 8px;border-radius:12px;background:#12121f;border:1px solid #2a2a3e;color:#888;">${f}</span>`).join('') || ''}
+            </div>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:11px;color:#555;">Veri Kalitesi</div>
+            <div style="font-size:11px;color:${overallColor};font-weight:700;">${overall.quality || '—'}</div>
+        </div>
+    </div>
+
+    <div class="debug-grid">
+        <!-- CSV -->
+        <div class="debug-card ${statusClass(csvStatus)}">
+            <div class="card-header">
+                <div class="card-title">📁 CSV VERİSİ (FootyStats)</div>
+                <div class="card-badge ${badgeClass(csvStatus)}">${badgeText(csvStatus)}</div>
+            </div>
+            ${csvRows}
+        </div>
+
+        <!-- Son Maçlar -->
+        <div class="debug-card ${lm.home && lm.home.count > 0 ? 'ok' : 'error'}">
+            <div class="card-header">
+                <div class="card-title">📊 SON MAÇLAR (football-data.org)</div>
+                <div class="card-badge ${lm.home && lm.home.count > 0 ? 'badge-ok' : 'badge-error'}">${lm.home && lm.home.count > 0 ? badgeText('ok') : badgeText('error')}</div>
+            </div>
+            ${lmRows}
+        </div>
+
+        <!-- Şut İstatistikleri -->
+        <div class="debug-card ${shots.supported ? 'ok' : 'error'}">
+            <div class="card-header">
+                <div class="card-title">🎯 ŞUT İSTATİSTİKLERİ (football-data.co.uk)</div>
+                <div class="card-badge ${shots.supported ? 'badge-ok' : 'badge-error'}">${shots.supported ? badgeText('ok') : badgeText('error')}</div>
+            </div>
+            ${shots.supported ? shotRows : `<div class="data-row"><span class="data-val red">❌ ${shots.reason || 'Lig desteklenmiyor (sadece ENG/GER/ESP/ITA/FRA)'}</span></div>`}
+        </div>
+
+        <!-- Puan Durumu -->
+        <div class="debug-card ${standings.home && standings.home.available ? 'ok' : 'warn'}">
+            <div class="card-header">
+                <div class="card-title">🏆 PUAN DURUMU</div>
+                <div class="card-badge ${standings.home && standings.home.available ? 'badge-ok' : 'badge-warn'}">${standings.home && standings.home.available ? badgeText('ok') : badgeText('warn')}</div>
+            </div>
+            ${standRows}
+        </div>
+
+        <!-- H2H -->
+        <div class="debug-card ${h2hStatus}">
+            <div class="card-header">
+                <div class="card-title">🤝 H2H GEÇMİŞİ</div>
+                <div class="card-badge ${badgeClass(h2hStatus)}">${badgeText(h2hStatus)}</div>
+            </div>
+            <div class="data-row">
+                <span class="data-key">Maç sayısı</span>
+                <span class="data-val ${h2h.count >= 3 ? 'green' : h2h.count > 0 ? 'yellow' : 'red'}">${h2h.count || 0} maç</span>
+            </div>
+            ${h2h.avg_goals !== undefined ? `<div class="data-row"><span class="data-key">Ort. gol</span><span class="data-val blue">${h2h.avg_goals}</span></div>` : ''}
+            ${h2h.home_wins !== undefined ? `<div class="data-row"><span class="data-key">Ev / Dep / Ber</span><span class="data-val purple">${h2h.home_wins}W · ${h2h.away_wins}W · ${h2h.draws}D</span></div>` : ''}
+        </div>
+
+        <!-- Karar Zinciri -->
+        <div class="debug-card info">
+            <div class="card-header">
+                <div class="card-title">⚖️ TARAF TAHMİN KARAR ZİNCİRİ</div>
+                <div class="card-badge badge-info">ℹ️ ANALİZ</div>
+            </div>
+            ${decisionHtml}
+        </div>
+
+        <!-- Clamp Analizi -->
+        <div class="debug-card info full-card">
+            <div class="card-header">
+                <div class="card-title">📐 YÜZDE CLAMP ANALİZİ</div>
+                <div class="card-badge badge-info">ℹ️ CSV vs AI vs FINAL</div>
+            </div>
+            <div style="font-size:10px;color:#333;margin-bottom:12px;font-family:'JetBrains Mono',monospace;">
+                Mavi çizgi = CSV baz · Mor bölge = izin verilen aralık · Yeşil çizgi = final değer
+            </div>
+            ${clampRows}
+        </div>
+
+        <!-- Skor Tutarlılık -->
+        <div class="debug-card ${score.ai_valid && score.ht_consistent ? 'ok' : 'warn'}">
+            <div class="card-header">
+                <div class="card-title">⚽ SKOR TAHMİN KONTROLÜ</div>
+                <div class="card-badge ${score.ai_valid && score.ht_consistent ? 'badge-ok' : 'badge-warn'}">${score.ai_valid && score.ht_consistent ? badgeText('ok') : badgeText('warn')}</div>
+            </div>
+            ${scoreRows}
+        </div>
+
+        <!-- Value Bets -->
+        <div class="debug-card ${vbs.length > 0 ? 'ok' : 'info'}">
+            <div class="card-header">
+                <div class="card-title">💎 VALUE BET HESAPLAMA</div>
+                <div class="card-badge ${vbs.length > 0 ? 'badge-ok' : 'badge-info'}">${vbs.length > 0 ? vbs.length + ' BULUNDU' : 'YOK'}</div>
+            </div>
+            ${vbHtml}
+        </div>
+    </div>`;
+}
+
+// İlk yükleme
+loadMatchList();
+</script>
+</body>
+</html>
