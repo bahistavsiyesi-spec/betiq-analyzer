@@ -175,18 +175,8 @@ def _build_csv_odds_data(csv_data, home_name, away_name):
     draw_odds = safe_float(raw_draw)
     away_odds = safe_float(raw_away)
 
-    logger.info(
-        'RAW ODDS CSV: %s | %s | %s',
-        raw_home,
-        raw_draw,
-        raw_away,
-    )
-    logger.info(
-        'PARSED ODDS: %s | %s | %s',
-        home_odds,
-        draw_odds,
-        away_odds,
-    )
+    logger.info('RAW ODDS CSV: %s | %s | %s', raw_home, raw_draw, raw_away)
+    logger.info('PARSED ODDS: %s | %s | %s', home_odds, draw_odds, away_odds)
 
     if home_odds is None or away_odds is None:
         return None
@@ -200,14 +190,7 @@ def _build_csv_odds_data(csv_data, home_name, away_name):
     }
 
     draw_log = f'{draw_odds:.2f}' if draw_odds is not None else 'None'
-    logger.info(
-        'Odds (CSV): %s %.2f | Draw %s | %s %.2f',
-        home_name,
-        home_odds,
-        draw_log,
-        away_name,
-        away_odds,
-    )
+    logger.info('Odds (CSV): %s %.2f | Draw %s | %s %.2f', home_name, home_odds, draw_log, away_name, away_odds)
     return odds_data
 
 
@@ -223,6 +206,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
 
     home_name = str(home_name).strip()
     away_name = str(away_name).strip()
+    league_name = fixture['league']['name']
     logger.info('Analyzing: ' + home_name + ' vs ' + away_name)
 
     home_matches = get_team_last_matches(home_name, last=10)
@@ -269,19 +253,16 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     if is_youth_match:
         logger.info(f'Youth match — standings skipped: {home_name} vs {away_name}')
     else:
-        # Önce football-data.org dene (büyük ligler)
-        if country_code:
-            try:
-                home_standing = get_team_standing(home_name, country_code)
-                away_standing = get_team_standing(away_name, country_code)
-                if home_standing:
-                    logger.info(f'Standing {home_name}: {home_standing["position"]}. sira, {home_standing["points"]} puan')
-                if away_standing:
-                    logger.info(f'Standing {away_name}: {away_standing["position"]}. sira, {away_standing["points"]} puan')
-            except Exception as e:
-                logger.warning('Standings failed: ' + str(e))
-
-        # API-Football standings kaldırıldı — free plan 2025 sezonunu desteklemiyor
+        try:
+            # league_name ile hem football-data.org hem CollectAPI fallback çalışır
+            home_standing = get_team_standing(home_name, country_code, league_name=league_name)
+            away_standing = get_team_standing(away_name, country_code, league_name=league_name)
+            if home_standing:
+                logger.info(f'Standing {home_name}: {home_standing["position"]}. sira, {home_standing["points"]} puan')
+            if away_standing:
+                logger.info(f'Standing {away_name}: {away_standing["position"]}. sira, {away_standing["points"]} puan')
+        except Exception as e:
+            logger.warning('Standings failed: ' + str(e))
 
     home_shot_stats = None
     away_shot_stats = None
