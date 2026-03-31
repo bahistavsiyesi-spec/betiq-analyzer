@@ -374,7 +374,7 @@
 
             document.getElementById('statsShareCard').innerHTML = `
                 <div class="ssc-header">
-                    <div class="ssc-logo">⚡ BetIQ</div>
+                    <img src="/static/img/logo.png" alt="Logo" style="height:28px;object-fit:contain;" onerror="this.style.display='none'">
                     <div class="ssc-date">${dateStr}</div>
                 </div>
                 <div class="ssc-title">
@@ -401,10 +401,6 @@
                 </div>
                 <div class="ssc-total">
                     Toplam <span>${d.total}</span> maç · Sonuçlanan <span>${d.withResults}</span> maç
-                </div>
-                <div class="ssc-footer">
-                    <div class="ssc-footer-left">betiq-analyzer.onrender.com</div>
-                    <div class="ssc-footer-right">Skor Doğru: ${d.sScore}</div>
                 </div>
             `;
         }
