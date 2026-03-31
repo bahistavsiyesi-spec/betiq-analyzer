@@ -10,7 +10,6 @@
     <style>
         .gecmis-container { max-width: 900px; margin: 0 auto; padding: 20px; }
 
-        /* ─── Takvim Picker ─────────────────────────────────────────── */
         .date-picker-wrap {
             display: flex;
             align-items: center;
@@ -18,11 +17,7 @@
             margin-bottom: 24px;
             flex-wrap: wrap;
         }
-        .date-picker-label {
-            font-size: 13px;
-            color: #666;
-            white-space: nowrap;
-        }
+        .date-picker-label { font-size: 13px; color: #666; white-space: nowrap; }
         .date-picker-input {
             padding: 10px 16px;
             border-radius: 10px;
@@ -49,23 +44,14 @@
             font-family: inherit;
         }
         .date-nav-btn:hover { border-color: #7c3aed; color: #fff; }
-        .date-display {
-            font-size: 16px;
-            font-weight: 700;
-            color: #fff;
-            min-width: 120px;
-            text-align: center;
-        }
-        .available-dates-hint {
-            font-size: 11px;
-            color: #555;
-            margin-top: 4px;
-        }
+        .date-display { font-size: 16px; font-weight: 700; color: #fff; min-width: 120px; text-align: center; }
+        .available-dates-hint { font-size: 11px; color: #555; margin-top: 4px; }
 
-        .summary-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; padding: 16px; background: #1a1a2e; border-radius: 12px; border: 1px solid #333; }
+        .summary-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; padding: 16px; background: #1a1a2e; border-radius: 12px; border: 1px solid #333; align-items: center; }
         .summary-item { text-align: center; }
         .summary-item .s-value { font-size: 22px; font-weight: 800; color: #7c3aed; }
         .summary-item .s-label { font-size: 11px; color: #666; margin-top: 2px; }
+
         .result-card { background: #12121f; border: 1px solid #2a2a3e; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
         .result-card.correct { border-left: 3px solid #22c55e; }
         .result-card.wrong { border-left: 3px solid #ef4444; }
@@ -98,6 +84,8 @@
         .btn-report:hover { background: #a855f7; }
         .btn-share { padding: 5px 12px; border-radius: 8px; border: 1px solid #7c3aed; background: transparent; color: #7c3aed; font-size: 11px; cursor: pointer; font-family: inherit; margin-top: 10px; margin-left: 8px; transition: all 0.2s; }
         .btn-share:hover { background: #7c3aed; color: #fff; }
+
+        /* ─── Maç paylaşım overlay ───────────────────────────────────── */
         .share-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; }
         .share-overlay.active { display: flex; }
         .share-modal { background: #0d0d1a; border-radius: 16px; padding: 24px; max-width: 500px; width: 90%; }
@@ -128,6 +116,58 @@
         .share-modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
         .btn-download { padding: 10px 20px; border-radius: 10px; border: none; background: #7c3aed; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
         .btn-close-share { padding: 10px 20px; border-radius: 10px; border: 1px solid #333; background: transparent; color: #aaa; font-size: 13px; cursor: pointer; font-family: inherit; }
+
+        /* ─── Günlük istatistik paylaşım kartı ───────────────────────── */
+        .stats-share-card {
+            width: 400px;
+            height: 400px;
+            background: linear-gradient(135deg, #0d0d1a 0%, #1a0a2e 100%);
+            border-radius: 16px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-family: 'Syne', sans-serif;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #2a1a4e;
+            box-sizing: border-box;
+        }
+        .stats-share-card::before {
+            content: '';
+            position: absolute;
+            top: -60px; right: -60px;
+            width: 200px; height: 200px;
+            background: radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%);
+        }
+        .stats-share-card::after {
+            content: '';
+            position: absolute;
+            bottom: -40px; left: -40px;
+            width: 150px; height: 150px;
+            background: radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%);
+        }
+        .ssc-header { display: flex; justify-content: space-between; align-items: center; }
+        .ssc-logo { font-size: 16px; font-weight: 800; color: #7c3aed; letter-spacing: 1px; }
+        .ssc-date { font-size: 12px; color: #555; background: #1a1a2e; padding: 4px 12px; border-radius: 20px; }
+        .ssc-title { text-align: center; }
+        .ssc-title h2 { font-size: 18px; font-weight: 800; color: #fff; margin: 0 0 4px 0; }
+        .ssc-title p { font-size: 12px; color: #555; margin: 0; }
+        .ssc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .ssc-stat {
+            background: rgba(124,58,237,0.1);
+            border: 1px solid rgba(124,58,237,0.2);
+            border-radius: 12px;
+            padding: 12px 14px;
+            text-align: center;
+        }
+        .ssc-stat-val { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+        .ssc-stat-lbl { font-size: 10px; color: #666; font-weight: 600; letter-spacing: 0.5px; }
+        .ssc-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #2a2a3e; padding-top: 10px; }
+        .ssc-footer-left { font-size: 10px; color: #444; }
+        .ssc-footer-right { font-size: 10px; color: #555; }
+        .ssc-total { text-align: center; font-size: 12px; color: #666; }
+        .ssc-total span { color: #7c3aed; font-weight: 700; }
     </style>
 </head>
 <body>
@@ -139,14 +179,19 @@
                     <span class="logo-text">BetIQ</span>
                     <span class="logo-sub">ANALYZER</span>
                 </div>
+                <nav style="display:flex;gap:8px;align-items:center;">
+                    <a href="/" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🏠 Ana Sayfa</a>
+                    <a href="/gecmis" style="padding:7px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;text-decoration:none;">📅 Geçmiş</a>
+                    <a href="/istatistik" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">📊 İstatistik</a>
+                    <a href="/kuponlar" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🎫 Kuponlar</a>
+                    <a href="/debug" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🔬 Debug</a>
+                </nav>
             </div>
         </header>
         <main class="main-content">
             <div class="gecmis-container">
-                <a href="/" class="back-btn">← Ana Sayfa</a>
                 <h2 style="color:#fff; margin-bottom:20px;">📅 Geçmiş Analizler</h2>
 
-                <!-- Takvim Picker -->
                 <div class="date-picker-wrap">
                     <span class="date-picker-label">Tarih seç:</span>
                     <button class="date-nav-btn" onclick="navigateDate(-1)">◀</button>
@@ -163,6 +208,9 @@
                     <div class="summary-item"><div class="s-value" id="correctBtts">0%</div><div class="s-label">KG Var</div></div>
                     <div class="summary-item"><div class="s-value" id="correctHt">-</div><div class="s-label">İY 0.5 Üst</div></div>
                     <div class="summary-item"><div class="s-value" id="correctScore">0</div><div class="s-label">Skor Doğru</div></div>
+                    <div style="margin-left:auto;">
+                        <button class="btn-share" style="margin-top:0;" onclick="openStatsShare()">📊 İstatistiği Paylaş</button>
+                    </div>
                 </div>
 
                 <div id="reportBtnWrapper" style="display:none; margin-top:16px;">
@@ -177,6 +225,7 @@
         </main>
     </div>
 
+    <!-- Maç Paylaşım Overlay -->
     <div class="share-overlay" id="shareOverlay" onclick="closeShare(event)">
         <div class="share-modal" onclick="event.stopPropagation()">
             <h3>📸 Instagram / X Paylaşım Kartı</h3>
@@ -190,11 +239,26 @@
         </div>
     </div>
 
+    <!-- Günlük İstatistik Paylaşım Overlay -->
+    <div class="share-overlay" id="statsShareOverlay" onclick="closeStatsShare(event)">
+        <div class="share-modal" onclick="event.stopPropagation()">
+            <h3>📊 Günlük İstatistik Kartı</h3>
+            <div class="share-card-wrap">
+                <div class="stats-share-card" id="statsShareCard"></div>
+            </div>
+            <div class="share-modal-btns">
+                <button class="btn-close-share" onclick="closeStatsShareModal()">İptal</button>
+                <button class="btn-download" onclick="downloadStatsCard()">⬇️ PNG İndir</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentDate = null;
         let currentMatches = [];
         let shareMatchData = null;
         let availableDates = [];
+        let currentSummaryData = null;
 
         async function loadDates() {
             const resp = await fetch('/api/dates');
@@ -203,7 +267,6 @@
                 document.getElementById('availableDatesHint').textContent = 'Henüz analiz yapılmadı.';
                 return;
             }
-            // En son tarihi seç
             const latest = availableDates[0];
             document.getElementById('datePicker').value = latest;
             document.getElementById('datePicker').max = latest;
@@ -223,8 +286,6 @@
             if (!availableDates.length) return;
             const current = document.getElementById('datePicker').value;
             const idx = availableDates.indexOf(current);
-            // dir=-1 → önceki gün (daha eski), dir=1 → sonraki gün (daha yeni)
-            // availableDates[0] en yeni, son eleman en eski
             const newIdx = idx - dir;
             if (newIdx >= 0 && newIdx < availableDates.length) {
                 const newDate = availableDates[newIdx];
@@ -257,31 +318,116 @@
             const THRESH = 65;
             const withResults = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
             document.getElementById('totalMatches').textContent = matches.length;
+
+            let s1x2 = '-', sOver = '-', sBtts = '-', sHt = '-', sScore = 0;
+
             if (withResults.length > 0) {
-                // 1X2: sadece Yüksek/Çok Yüksek güvenli maçlar
                 const highConf = withResults.filter(m => ['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence));
-                document.getElementById('correct1x2').textContent = highConf.length > 0
-                    ? `${Math.round(highConf.filter(m=>m.pred_1x2_correct).length/highConf.length*100)}%` : '-';
-                // 2.5 Üst: sadece %65+
+                s1x2 = highConf.length > 0 ? `${Math.round(highConf.filter(m=>m.pred_1x2_correct).length/highConf.length*100)}%` : '-';
+
                 const over25Eligible = withResults.filter(m => (m.over25_pct||0) >= THRESH);
-                document.getElementById('correctOver25').textContent = over25Eligible.length > 0
-                    ? `${Math.round(over25Eligible.filter(m=>m.over25_correct).length/over25Eligible.length*100)}%` : '-';
-                // KG Var: sadece %65+
+                sOver = over25Eligible.length > 0 ? `${Math.round(over25Eligible.filter(m=>m.over25_correct).length/over25Eligible.length*100)}%` : '-';
+
                 const bttsEligible = withResults.filter(m => (m.btts_pct||0) >= THRESH);
-                document.getElementById('correctBtts').textContent = bttsEligible.length > 0
-                    ? `${Math.round(bttsEligible.filter(m=>m.btts_correct).length/bttsEligible.length*100)}%` : '-';
-                // İY 0.5 Üst: sadece %65+ ve İY skoru girilmiş
+                sBtts = bttsEligible.length > 0 ? `${Math.round(bttsEligible.filter(m=>m.btts_correct).length/bttsEligible.length*100)}%` : '-';
+
                 const htEligible = withResults.filter(m => (m.ht2g_pct||0) >= THRESH && m.ht_home_score !== null && m.ht_home_score !== undefined);
-                document.getElementById('correctHt').textContent = htEligible.length > 0
-                    ? `${Math.round(htEligible.filter(m=>m.ht_correct).length/htEligible.length*100)}%` : '-';
-                // Skor: tüm maçlar
-                document.getElementById('correctScore').textContent = withResults.filter(m=>m.score_correct).length;
-            } else {
-                ['correct1x2','correctOver25','correctBtts','correctScore','correctHt'].forEach(id => document.getElementById(id).textContent = '-');
+                sHt = htEligible.length > 0 ? `${Math.round(htEligible.filter(m=>m.ht_correct).length/htEligible.length*100)}%` : '-';
+
+                sScore = withResults.filter(m=>m.score_correct).length;
             }
+
+            document.getElementById('correct1x2').textContent = s1x2;
+            document.getElementById('correctOver25').textContent = sOver;
+            document.getElementById('correctBtts').textContent = sBtts;
+            document.getElementById('correctHt').textContent = sHt;
+            document.getElementById('correctScore').textContent = sScore;
+
+            // Summary data kaydet (paylaşım için)
+            currentSummaryData = {
+                total: matches.length,
+                withResults: withResults.length,
+                s1x2, sOver, sBtts, sHt, sScore
+            };
+
             document.getElementById('summaryBar').style.display = 'flex';
         }
 
+        // ─── Günlük İstatistik Paylaşım ─────────────────────────────────
+        function openStatsShare() {
+            if (!currentSummaryData) return;
+            buildStatsCard();
+            document.getElementById('statsShareOverlay').classList.add('active');
+        }
+
+        function buildStatsCard() {
+            const d = currentSummaryData;
+            const dateStr = currentDate ? formatDate(currentDate) : '—';
+
+            function statColor(val) {
+                if (val === '-') return '#555';
+                const n = parseInt(val);
+                if (n >= 70) return '#22c55e';
+                if (n >= 50) return '#f59e0b';
+                return '#ef4444';
+            }
+
+            document.getElementById('statsShareCard').innerHTML = `
+                <div class="ssc-header">
+                    <div class="ssc-logo">⚡ BetIQ</div>
+                    <div class="ssc-date">${dateStr}</div>
+                </div>
+                <div class="ssc-title">
+                    <h2>Günlük İstatistik</h2>
+                    <p>${dateStr} Analiz Raporu</p>
+                </div>
+                <div class="ssc-stats">
+                    <div class="ssc-stat">
+                        <div class="ssc-stat-val" style="color:${statColor(d.s1x2)}">${d.s1x2}</div>
+                        <div class="ssc-stat-lbl">1X2 BAŞARI</div>
+                    </div>
+                    <div class="ssc-stat">
+                        <div class="ssc-stat-val" style="color:${statColor(d.sOver)}">${d.sOver}</div>
+                        <div class="ssc-stat-lbl">2.5 ÜST (%65+)</div>
+                    </div>
+                    <div class="ssc-stat">
+                        <div class="ssc-stat-val" style="color:${statColor(d.sBtts)}">${d.sBtts}</div>
+                        <div class="ssc-stat-lbl">KG VAR (%65+)</div>
+                    </div>
+                    <div class="ssc-stat">
+                        <div class="ssc-stat-val" style="color:${statColor(d.sHt)}">${d.sHt}</div>
+                        <div class="ssc-stat-lbl">İY 0.5 ÜST (%65+)</div>
+                    </div>
+                </div>
+                <div class="ssc-total">
+                    Toplam <span>${d.total}</span> maç · Sonuçlanan <span>${d.withResults}</span> maç
+                </div>
+                <div class="ssc-footer">
+                    <div class="ssc-footer-left">betiq-analyzer.onrender.com</div>
+                    <div class="ssc-footer-right">Skor Doğru: ${d.sScore}</div>
+                </div>
+            `;
+        }
+
+        function closeStatsShare(e) { if(e.target===document.getElementById('statsShareOverlay')) closeStatsShareModal(); }
+        function closeStatsShareModal() { document.getElementById('statsShareOverlay').classList.remove('active'); }
+
+        async function downloadStatsCard() {
+            const card = document.getElementById('statsShareCard');
+            const btn = document.querySelector('#statsShareOverlay .btn-download');
+            btn.textContent = '⏳ Hazırlanıyor...'; btn.disabled = true;
+            try {
+                const canvas = await html2canvas(card, {scale:2, backgroundColor:null, useCORS:true, logging:false});
+                const link = document.createElement('a');
+                const dateStr = currentDate ? currentDate : 'betiq';
+                link.download = `betiq_istatistik_${dateStr}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch(e) { alert('PNG oluşturulamadı: '+e.message); }
+            btn.textContent = '⬇️ PNG İndir'; btn.disabled = false;
+        }
+
+        // ─── Maç Paylaşım ───────────────────────────────────────────────
         function renderMatches(matches) {
             document.getElementById('matchesContainer').innerHTML = matches.map(m => createCard(m)).join('');
         }
@@ -407,6 +553,7 @@
                     <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">KG VAR</div><div class="share-stat-value">%${Math.round(m.btts_pct||0)}</div></div></div>
                     <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">İY 0.5 ÜST</div><div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}</div></div></div>
                 </div>`;
+
             document.getElementById('shareCard').innerHTML = `
                 <div class="share-card-header">
                     <img src="/static/img/logo.png" alt="Logo" style="height:28px;object-fit:contain;" onerror="this.style.display='none'">
@@ -418,7 +565,7 @@
                         <div class="share-vs">VS</div>
                         <div class="share-team-name away">${m.away_team}</div>
                     </div>
-                    ${hasResult?`<div class="share-result-score">${m.home_score} — ${m.away_score}</div>${hasHt?`<div class="share-ht-score">İY: ${m.ht_home_score}-${m.ht_away_score}</div>`:'`'}`:''}
+                    ${hasResult?`<div class="share-result-score">${m.home_score} — ${m.away_score}</div>${hasHt?`<div class="share-ht-score">İY: ${m.ht_home_score}-${m.ht_away_score}</div>`:''}`:''}
                 </div>
                 ${stats}
                 <div class="share-card-footer">
@@ -431,7 +578,7 @@
 
         async function downloadShareCard() {
             const card = document.getElementById('shareCard');
-            const btn = document.querySelector('.btn-download');
+            const btn = document.querySelector('#shareOverlay .btn-download');
             btn.textContent = '⏳ Hazırlanıyor...'; btn.disabled = true;
             try {
                 const canvas = await html2canvas(card,{scale:2,backgroundColor:null,useCORS:true,logging:false});
