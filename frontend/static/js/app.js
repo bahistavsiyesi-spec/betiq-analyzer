@@ -324,103 +324,49 @@ async function downloadCard(matchId, homeTeam, awayTeam, format) {
 
 function buildStoryElement(card, homeTeam, awayTeam) {
     // Karttan verileri oku
-    const league    = (card.querySelector('.league-badge') || {}).textContent || '';
-    const time      = (card.querySelector('.match-time') || {}).textContent || '';
-    const stats     = card.querySelectorAll('.stat-box');
-    const over25    = stats[0] ? (stats[0].querySelector('.stat-value') || {}).textContent || '-' : '-';
-    const ht2g      = stats[1] ? (stats[1].querySelector('.stat-value') || {}).textContent || '-' : '-';
-    const btts      = stats[2] ? (stats[2].querySelector('.stat-value') || {}).textContent || '-' : '-';
-    const winner    = (card.querySelector('.score-value') || {}).textContent || '-';
-    const conf      = (card.querySelector('.confidence-badge') || {}).textContent || '';
-    const predScore = card.querySelector('.predicted-score');
+    const league   = (card.querySelector('.league-badge') || {}).textContent || '';
+    const time     = (card.querySelector('.match-time') || {}).textContent || '';
+    const conf     = (card.querySelector('.confidence-badge') || {}).textContent || '';
     const leagueClean = league.replace('⚽','').trim();
-    const confClean = conf.replace('Taraf Guveni:','').trim();
+    const confClean   = conf.replace('Taraf Guveni:','').trim();
 
-    // Value bets
-    const vbItems = card.querySelectorAll('[style*="VALUE BET"]');
-    let vbHtml = '';
-    const vbRows = card.querySelectorAll('div[style*="💎"]');
+    // Hikaye kartı için kartın içeriğini klonla — sadece wrapper boyutunu değiştir
+    const clone = card.cloneNode(true);
 
-    function statColor(val) {
-        if (!val || val === '-') return '#555';
-        const n = parseInt(val);
-        if (n >= 70) return '#22c55e';
-        if (n >= 50) return '#f59e0b';
-        return '#ef4444';
-    }
+    // Klondaki butonları kaldır
+    clone.querySelectorAll('button').forEach(b => b.remove());
 
-    const div = document.createElement('div');
-    div.style.cssText = [
+    // Wrapper div: 400x711 (9:16), kart içeriğini ortala
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = [
         'position:fixed', 'left:-9999px', 'top:0',
         'width:400px', 'height:711px',
         'background:linear-gradient(160deg,#0d0d1a 0%,#1a0a2e 100%)',
-        'padding:28px 24px',
-        'display:flex', 'flex-direction:column', 'justify-content:space-between',
+        'display:flex', 'flex-direction:column', 'justify-content:center',
         'font-family:Syne,sans-serif', 'box-sizing:border-box',
-        'border:1px solid #2a1a4e', 'overflow:hidden'
+        'border:1px solid #2a1a4e', 'overflow:hidden', 'padding:20px 0'
     ].join(';');
 
-    div.innerHTML = `
-        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;
-            background:radial-gradient(circle,rgba(124,58,237,0.25) 0%,transparent 70%);"></div>
+    // Klonun stilini ayarla — border ve border-radius kaldır, margin sıfırla
+    clone.style.cssText = 'margin:0;border-radius:0;border:none;border-left:none;background:transparent;padding:0 20px;width:100%;box-sizing:border-box;';
 
-        <!-- HEADER -->
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <img src="/static/img/logo.png" style="height:30px;object-fit:contain;" onerror="this.style.display='none'">
-            <div style="font-size:11px;color:#555;background:#1a1a2e;padding:3px 10px;border-radius:20px;">${time}</div>
-        </div>
-
-        <!-- LİG -->
-        <div style="text-align:center;font-size:11px;color:#555;
-            background:#111;border:1px solid #222;border-radius:20px;
-            padding:4px 0;margin:0 20px;">
-            ${leagueClean}
-        </div>
-
-        <!-- TAKIMLAR -->
-        <div style="text-align:center;">
-            <div style="font-size:20px;font-weight:800;color:#fff;line-height:1.2;">${homeTeam}</div>
-            <div style="font-size:12px;color:#444;margin:6px 0;font-weight:600;">VS</div>
-            <div style="font-size:20px;font-weight:800;color:#fff;line-height:1.2;">${awayTeam}</div>
-        </div>
-
-        <!-- İSTATİSTİKLER -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2);
-                border-radius:12px;padding:12px;text-align:center;">
-                <div style="font-size:26px;font-weight:800;color:${statColor(over25)};">${over25}</div>
-                <div style="font-size:9px;color:#555;margin-top:3px;letter-spacing:0.5px;">2.5 GOL USTU</div>
-            </div>
-            <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2);
-                border-radius:12px;padding:12px;text-align:center;">
-                <div style="font-size:26px;font-weight:800;color:${statColor(ht2g)};">${ht2g}</div>
-                <div style="font-size:9px;color:#555;margin-top:3px;letter-spacing:0.5px;">IY 0.5 UST</div>
-            </div>
-            <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2);
-                border-radius:12px;padding:12px;text-align:center;">
-                <div style="font-size:26px;font-weight:800;color:${statColor(btts)};">${btts}</div>
-                <div style="font-size:9px;color:#555;margin-top:3px;letter-spacing:0.5px;">KG VAR</div>
-            </div>
-            <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2);
-                border-radius:12px;padding:12px;text-align:center;display:flex;
-                flex-direction:column;justify-content:center;">
-                <div style="font-size:13px;font-weight:800;color:#fff;line-height:1.3;">${winner}</div>
-                <div style="font-size:9px;color:#555;margin-top:3px;letter-spacing:0.5px;">KAZANAN</div>
-            </div>
-        </div>
-
-        <!-- FOOTER -->
-        <div style="border-top:1px solid #2a2a3e;padding-top:10px;
-            display:flex;justify-content:space-between;align-items:center;">
-            <div style="font-size:10px;color:#444;">betiq-analyzer.onrender.com</div>
-            <div style="font-size:11px;color:#7c3aed;font-weight:700;
-                background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);
-                border-radius:20px;padding:3px 10px;">
-                ${confClean}
-            </div>
-        </div>
+    // Üstte logo + lig + saat satırı ekle
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:0 20px 12px 20px;border-bottom:1px solid #1e1e3a;margin-bottom:12px;';
+    header.innerHTML = `
+        <img src="/static/img/logo.png" style="height:28px;object-fit:contain;" onerror="this.style.display='none'">
+        <div style="font-size:11px;color:#555;background:#1a1a2e;padding:3px 10px;border-radius:20px;">${leagueClean} ${time ? '· '+time : ''}</div>
     `;
-    return div;
+    wrapper.appendChild(header);
+    wrapper.appendChild(clone);
+
+    // Altta güven badge ekle
+    const footer = document.createElement('div');
+    footer.style.cssText = 'padding:12px 20px 0 20px;border-top:1px solid #1e1e3a;margin-top:12px;display:flex;justify-content:center;';
+    footer.innerHTML = `<div style="font-size:12px;color:#7c3aed;font-weight:700;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:20px;padding:4px 16px;">Taraf Guveni: ${confClean}</div>`;
+    wrapper.appendChild(footer);
+
+    return wrapper;
 }
 
 function buildValueBetsHtml(match) {
