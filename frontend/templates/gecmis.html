@@ -1,936 +1,583 @@
-// ===== CSV UPLOAD =====
-function initCsvUpload() {
-    const btn = document.getElementById('csvUploadBtn');
-    const input = document.getElementById('csvUpload');
-    if (!btn || !input) return;
-
-    btn.addEventListener('click', () => input.click());
-    input.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const status = document.getElementById('csvStatus');
-        status.textContent = '⏳ CSV okunuyor...';
-        status.style.color = '#888';
-        try {
-            const text = await file.text();
-            const lines = text.split(/\r?\n/).filter(l => l.trim());
-            if (lines.length < 2) { status.textContent = '❌ Geçersiz CSV'; status.style.color = '#ef4444'; return; }
-
-            const headers = parseCSVLine(lines[0]);
-            const idx = {
-                homeTeam:       findCol(headers, ['Home Team', 'home_team_name']),
-                awayTeam:       findCol(headers, ['Away Team', 'away_team_name']),
-                league:         findCol(headers, ['League', 'league']),
-                country:        findCol(headers, ['Country', 'country']),
-                date:           findCol(headers, ['date_GMT', 'timestamp']),
-                status:         findCol(headers, ['Match Status', 'status']),
-                homeXg:         findCol(headers, ['Home Team Pre-Match xG']),
-                awayXg:         findCol(headers, ['Away Team Pre-Match xG']),
-                homePpg:        findCol(headers, ['Home Team Points Per Game (Pre-Match)']),
-                awayPpg:        findCol(headers, ['Away Team Points Per Game (Pre-Match)']),
-                avgGoals:       findCol(headers, ['Average Goals']),
-                over05Avg:      findCol(headers, ['Over05 Average']),
-                over15Avg:      findCol(headers, ['Over15 Average']),
-                over25Avg:      findCol(headers, ['Over25 Average']),
-                over35Avg:      findCol(headers, ['Over35 Average']),
-                over45Avg:      findCol(headers, ['Over45 Average']),
-                bttsAvg:        findCol(headers, ['BTTS Average']),
-                btts1hAvg:      findCol(headers, ['1H BTTS Average']),
-                ht05Avg:        findCol(headers, ['Over05 FHG HT Average']),
-                ht15Avg:        findCol(headers, ['Over15 FHG HT Average']),
-                avgCorners:     findCol(headers, ['Average Corners']),
-                avgCorners85:   findCol(headers, ['Average Over 8.5 Corners']),
-                avgCorners95:   findCol(headers, ['Average Over 9.5 Corners']),
-                avgCorners105:  findCol(headers, ['Average Over 10.5 Corners']),
-                avgCards:       findCol(headers, ['Average Cards']),
-                currentHomePpg: findCol(headers, ['Home Team Points Per Game (Current)']),
-                currentAwayPpg: findCol(headers, ['Away Team Points Per Game (Current)']),
-                ht2Over05Avg:   findCol(headers, ['Over05 2HG Average']),
-                ht2Over15Avg:   findCol(headers, ['Over15 2HG Average']),
-                oddsHome:       findCol(headers, ['Odds_Home_Win']),
-                oddsDraw:       findCol(headers, ['Odds_Draw']),
-                oddsAway:       findCol(headers, ['Odds_Away_Win']),
-                oddsOver15:     findCol(headers, ['Odds_Over15']),
-                oddsOver25:     findCol(headers, ['Odds_Over25']),
-                oddsOver35:     findCol(headers, ['Odds_Over35']),
-                oddsOver45:     findCol(headers, ['Odds_Over45']),
-                oddsUnder25:    findCol(headers, ['Odds_Under25']),
-                oddsBtts:       findCol(headers, ['Odds_BTTS_Yes']),
-                oddsBttsNo:     findCol(headers, ['Odds_BTTS_No']),
-                oddsHt05:       findCol(headers, ['Odds_1st_Half_Over05']),
-                oddsHt15:       findCol(headers, ['Odds_1st_Half_Over15']),
-                oddsHt25:       findCol(headers, ['Odds_1st_Half_Over25']),
-                oddsDc1x:       findCol(headers, ['Odds_DoubleChance_1x']),
-                oddsDc12:       findCol(headers, ['Odds_DoubleChance_12']),
-                oddsDcX2:       findCol(headers, ['Odds_DoubleChance_x2']),
-                oddsDnb1:       findCol(headers, ['Odds_DrawNoBet_1']),
-                oddsDnb2:       findCol(headers, ['Odds_DrawNoBet_2']),
-                oddsCorn85:     findCol(headers, ['Odds_Corners_Over85']),
-                oddsCorn95:     findCol(headers, ['Odds_Corners_Over95']),
-                oddsCorn105:    findCol(headers, ['Odds_Corners_Over105']),
-            };
-
-            if (idx.homeTeam === -1 || idx.awayTeam === -1) {
-                status.textContent = '❌ Takım sütunları bulunamadı'; status.style.color = '#ef4444'; return;
-            }
-
-            const matches = [];
-            for (const line of lines.slice(1)) {
-                if (!line.trim()) continue;
-                const cols = parseCSVLine(line);
-                if (cols.length < 3) continue;
-                const homeTeam = (cols[idx.homeTeam] || '').trim().replace(/^"|"$/g, '');
-                const awayTeam = (cols[idx.awayTeam] || '').trim().replace(/^"|"$/g, '');
-                if (!homeTeam || !awayTeam) continue;
-                if (idx.status !== -1) {
-                    const ms = (cols[idx.status] || '').toLowerCase();
-                    if (ms === 'complete') continue;
-                }
-                const league  = idx.league  !== -1 ? (cols[idx.league]  || '').trim().replace(/^"|"$/g, '') : 'Bilinmeyen';
-                const country = idx.country !== -1 ? (cols[idx.country] || '').trim() : '';
-                const leagueName = country && league ? `${country} - ${league}` : league;
-                let matchDate = null;
-                if (idx.date !== -1 && cols[idx.date]) {
-                    try {
-                        const raw = cols[idx.date].trim().replace(/^"|"$/g, '');
-                        if (/^\d+$/.test(raw)) {
-                            matchDate = new Date(parseInt(raw)*1000).toISOString();
-                        } else {
-                            const m = raw.match(/^(\w+)\s+(\d+)\s+(\d+)\s*-\s*(\d+):(\d+)(am|pm)$/i);
-                            if (m) {
-                                const months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
-                                const mon = months[m[1].toLowerCase()];
-                                const day = parseInt(m[2]);
-                                const yr  = parseInt(m[3]);
-                                let hr    = parseInt(m[4]);
-                                const min = parseInt(m[5]);
-                                const ampm = m[6].toLowerCase();
-                                if (ampm === 'pm' && hr !== 12) hr += 12;
-                                if (ampm === 'am' && hr === 12) hr = 0;
-                                matchDate = new Date(Date.UTC(yr, mon, day, hr, min)).toISOString();
-                            } else {
-                                matchDate = new Date(raw).toISOString();
-                            }
-                        }
-                    } catch(e) {}
-                }
-                function sf(ci) {
-                    if (ci === -1 || !cols[ci]) return null;
-                    const v = parseFloat(cols[ci].trim().replace(/^"|"$/g, '').replace(',', '.'));
-                    return isNaN(v) ? null : v;
-                }
-                const csv_data = {
-                    home_xg: sf(idx.homeXg), away_xg: sf(idx.awayXg),
-                    home_ppg: sf(idx.homePpg), away_ppg: sf(idx.awayPpg),
-                    avg_goals: sf(idx.avgGoals),
-                    over05_avg: sf(idx.over05Avg), over15_avg: sf(idx.over15Avg),
-                    over25_avg: sf(idx.over25Avg), over35_avg: sf(idx.over35Avg), over45_avg: sf(idx.over45Avg),
-                    btts_avg: sf(idx.bttsAvg), btts_1h_avg: sf(idx.btts1hAvg),
-                    ht_over05_avg: sf(idx.ht05Avg), ht_over15_avg: sf(idx.ht15Avg),
-                    avg_corners: sf(idx.avgCorners),
-                    avg_corners_85: sf(idx.avgCorners85), avg_corners_95: sf(idx.avgCorners95), avg_corners_105: sf(idx.avgCorners105),
-                    avg_cards: sf(idx.avgCards),
-                    current_home_ppg: sf(idx.currentHomePpg),
-                    current_away_ppg: sf(idx.currentAwayPpg),
-                    ht2_over05_avg: sf(idx.ht2Over05Avg),
-                    ht2_over15_avg: sf(idx.ht2Over15Avg),
-                    odds_home: sf(idx.oddsHome), odds_draw: sf(idx.oddsDraw), odds_away: sf(idx.oddsAway),
-                    odds_over15: sf(idx.oddsOver15), odds_over25: sf(idx.oddsOver25),
-                    odds_over35: sf(idx.oddsOver35), odds_over45: sf(idx.oddsOver45), odds_under25: sf(idx.oddsUnder25),
-                    odds_btts_yes: sf(idx.oddsBtts), odds_btts_no: sf(idx.oddsBttsNo),
-                    odds_ht_over05: sf(idx.oddsHt05), odds_ht_over15: sf(idx.oddsHt15), odds_ht_over25: sf(idx.oddsHt25),
-                    odds_dc_1x: sf(idx.oddsDc1x), odds_dc_12: sf(idx.oddsDc12), odds_dc_x2: sf(idx.oddsDcX2),
-                    odds_dnb_1: sf(idx.oddsDnb1), odds_dnb_2: sf(idx.oddsDnb2),
-                    odds_corners_85: sf(idx.oddsCorn85), odds_corners_95: sf(idx.oddsCorn95), odds_corners_105: sf(idx.oddsCorn105),
-                };
-                matches.push({ home_team: homeTeam, away_team: awayTeam, league: leagueName, date: matchDate, csv_data });
-            }
-
-            if (matches.length === 0) {
-                status.textContent = '⚠️ Eklenecek maç bulunamadı.'; status.style.color = '#f59e0b'; return;
-            }
-
-            status.textContent = '⏳ Sunucuya kaydediliyor...';
-            const resp = await fetch('/api/csv/upload', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ matches })
-            });
-            const data = await resp.json();
-            if (data.status === 'success') {
-                status.textContent = `✅ ${data.total} maç yüklendi! Sol panelden seç.`;
-                status.style.color = '#22c55e';
-                await loadFixtures();
-            } else {
-                status.textContent = '❌ Hata: ' + data.message;
-                status.style.color = '#ef4444';
-            }
-        } catch(err) {
-            status.textContent = '❌ Hata: ' + err.message; status.style.color = '#ef4444';
-        }
-        input.value = '';
-    });
-}
-
-function parseCSVLine(line) {
-    const result = []; let current = '', inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"') inQuotes = !inQuotes;
-        else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
-        else current += ch;
-    }
-    result.push(current); return result;
-}
-function findCol(headers, names) {
-    for (const name of names) {
-        const idx = headers.findIndex(h => h.trim().replace(/^"|"$/g, '').toLowerCase() === name.toLowerCase());
-        if (idx !== -1) return idx;
-    }
-    return -1;
-}
-
-const API_BASE = '';
-let selectedFixtures = {};
-let manualMatches = [];
-let couponCanvas = null;
-let selectedAiProvider = 'claude';
-
-const _logoCache = {};
-
-const TEAM_IDS = {
-    'Bayern': 5, 'Dortmund': 4, 'Leverkusen': 3, 'Leipzig': 721,
-    'Frankfurt': 19, 'Stuttgart': 10, 'Freiburg': 17, 'Hoffenheim': 2,
-    'Bremen': 12, 'Wolfsburg': 11, 'Gladbach': 18, 'Augsburg': 16,
-    'Union Berlin': 28, 'Bochum': 20, 'Mainz': 15, 'St. Pauli': 20,
-    'Kiel': 44, 'Heidenheim': 44, 'Hamburg': 7, 'Hannover': 30,
-    'Karlsruhe': 24, 'Schalke': 6, 'Darmstadt': 36, 'Koeln': 1,
-    'Hertha': 27, 'Duesseldorf': 45, 'Nuernberg': 7,
-    'Arsenal': 57, 'Aston Villa': 58, 'Bournemouth': 1044,
-    'Brentford': 402, 'Brighton': 397, 'Chelsea': 61,
-    'Crystal Palace': 354, 'Everton': 62, 'Fulham': 63,
-    'Ipswich': 349, 'Leicester': 338, 'Liverpool': 64,
-    'Manchester City': 65, 'Man City': 65,
-    'Manchester United': 66, 'Man United': 66, 'Man Utd': 66,
-    'Newcastle': 67, 'Newcastle United': 67,
-    'Nottingham Forest': 351,
-    'Southampton': 340, 'Tottenham': 73, 'Spurs': 73,
-    'West Ham': 563, 'Wolverhampton': 76, 'Wolves': 76,
-    'Burnley': 328, 'Leeds': 341, 'Sunderland': 71, 'Coventry': 1076, 'Middlesbrough': 343,
-    'Barcelona': 81, 'Real Madrid': 86, 'Atletico Madrid': 78, 'Atletico': 78,
-    'Athletic Club': 77, 'Athletic Bilbao': 77, 'Real Sociedad': 92, 'Villarreal': 95,
-    'Real Betis': 90, 'Betis': 90, 'Valencia': 94, 'Girona': 298,
-    'Celta Vigo': 558, 'Celta': 558, 'Sevilla': 559, 'Osasuna': 79,
-    'Getafe': 82, 'Rayo Vallecano': 88, 'Rayo': 88, 'Mallorca': 89,
-    'Alaves': 263, 'Espanyol': 80,
-    'Las Palmas': 275, 'Leganes': 745, 'Valladolid': 250,
-    'AC Milan': 98, 'Milan': 98, 'Inter': 108, 'Inter Milan': 108,
-    'Juventus': 109, 'Napoli': 113, 'Atalanta': 102,
-    'Roma': 100, 'AS Roma': 100, 'Lazio': 110, 'Fiorentina': 99, 'Bologna': 103,
-    'Torino': 586, 'Udinese': 115, 'Genoa': 107,
-    'Cagliari': 104, 'Lecce': 5890, 'Verona': 450,
-    'Parma': 112, 'Como': 7397, 'Monza': 5911,
-    'PSG': 524, 'Paris Saint-Germain': 524, 'Marseille': 516,
-    'Lyon': 523, 'Monaco': 548, 'Lille': 521, 'Nice': 522,
-    'Lens': 546, 'Rennes': 529, 'Nantes': 543,
-};
-
-function getFootballDataLogoUrl(teamName) {
-    if (TEAM_IDS[teamName]) return `https://crests.football-data.org/${TEAM_IDS[teamName]}.png`;
-    const lower = teamName.toLowerCase();
-    for (const [key, id] of Object.entries(TEAM_IDS)) {
-        if (key.toLowerCase().includes(lower) || lower.includes(key.toLowerCase()))
-            return `https://crests.football-data.org/${id}.png`;
-    }
-    return null;
-}
-
-async function fetchLogoFromSportsDB(teamName) {
-    if (_logoCache[teamName] !== undefined) return _logoCache[teamName];
-    try {
-        const encoded = encodeURIComponent(teamName);
-        const resp = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encoded}`);
-        const data = await resp.json();
-        const teams = data.teams;
-        if (teams && teams.length > 0) {
-            const url = teams[0].strBadge || null;
-            _logoCache[teamName] = url;
-            return url;
-        }
-    } catch(e) {}
-    _logoCache[teamName] = null;
-    return null;
-}
-
-function teamLogoHtml(teamName, asyncLoad = true) {
-    const fdUrl = getFootballDataLogoUrl(teamName);
-    if (fdUrl) {
-        return `<img src="${fdUrl}" alt="${teamName}" style="width:24px;height:24px;object-fit:contain;border-radius:4px;margin-bottom:4px;" onerror="this.style.display='none'">`;
-    }
-    const safeId = 'logo_' + teamName.replace(/[^a-zA-Z0-9]/g, '_');
-    if (asyncLoad) {
-        fetchLogoFromSportsDB(teamName).then(url => {
-            if (url) {
-                const el = document.getElementById(safeId);
-                if (el) { el.src = url; el.style.display = ''; }
-            }
-        });
-    }
-    return `<img id="${safeId}" src="" alt="${teamName}" style="width:24px;height:24px;object-fit:contain;border-radius:4px;margin-bottom:4px;display:none;" onerror="this.style.display='none'">`;
-}
-
-function getWinnerLabel(prediction, homeTeam, awayTeam) {
-    if (prediction === '1') return { label: homeTeam + ' Kazanir', icon: '🏆' };
-    if (prediction === '2') return { label: awayTeam + ' Kazanir', icon: '🏆' };
-    if (prediction === 'X') return { label: 'Beraberlik', icon: '🤝' };
-    return { label: 'Belirsiz', icon: '❓' };
-}
-
-function pctClass(pct) { const v=parseFloat(pct)||0; return v>=70?'pct-high':v>=40?'pct-medium':'pct-low'; }
-function barClass(pct) { const v=parseFloat(pct)||0; return v>=70?'bar-high':v>=40?'bar-medium':'bar-low'; }
-function cardConfidenceClass(c) {
-    return {'Cok Yuksek':'card-confidence-very-high','Yuksek':'card-confidence-high','Orta':'card-confidence-medium','Dusuk':'card-confidence-low'}[c]||'card-confidence-medium';
-}
-
-async function downloadCard(matchId, homeTeam, awayTeam) {
-    const card=document.getElementById(`matchcard-${matchId}`); if(!card) return;
-    const btn=document.getElementById(`dlbtn-${matchId}`);
-    if(btn){btn.textContent='⏳';btn.disabled=true;}
-    // İndirme sırasında butonları gizle
-    const btns = card.querySelectorAll('button');
-    btns.forEach(b => b.style.display='none');
-    try {
-        const canvas=await html2canvas(card,{scale:4,backgroundColor:null,useCORS:true,logging:false});
-        const link=document.createElement('a');
-        link.download=`${homeTeam}_vs_${awayTeam}.png`.replace(/\s+/g,'_');
-        link.href=canvas.toDataURL('image/png'); link.click();
-    } catch(e){alert('Indirme hatasi: '+e.message);}
-    // Butonları geri getir
-    btns.forEach(b => b.style.display='');
-    if(btn){btn.textContent='📸';btn.disabled=false;}
-}
-
-function buildValueBetsHtml(match) {
-    let valueBets = null;
-    try { valueBets = match.value_bets ? JSON.parse(match.value_bets) : null; } catch(e) {}
-    if (!valueBets || valueBets.length === 0) return '';
-    const items = valueBets.map(v => {
-        const diffColor = v.diff >= 15 ? '#22c55e' : v.diff >= 10 ? '#f59e0b' : '#a78bfa';
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#0d0d1a;border-radius:8px;border:1px solid #1e1e3a;margin-bottom:4px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:13px;">💎</span>
-                <span style="font-size:12px;font-weight:700;color:#fff;">${v.label}</span>
-                <span style="font-size:10px;color:#555;">@ ${v.odds}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-size:10px;color:#555;">Bizim: %${v.our_pct} | Bahisci: %${v.implied_pct}</span>
-                <span style="font-size:11px;font-weight:800;color:${diffColor};background:${diffColor}22;padding:2px 6px;border-radius:6px;">+${v.diff}%</span>
-            </div>
-        </div>`;
-    }).join('');
-    return `<div style="margin-top:10px;padding:10px 12px;background:#12121f;border-radius:10px;border:1px solid #2a1a4e;">
-        <div style="font-size:10px;color:#7c3aed;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">💎 VALUE BET FIRSATLARI</div>
-        ${items}
-    </div>`;
-}
-
-function buildTrendHtml(match) {
-    let homeTrend=null, awayTrend=null;
-    try{homeTrend=match.home_goals_trend?JSON.parse(match.home_goals_trend):null;}catch(e){}
-    try{awayTrend=match.away_goals_trend?JSON.parse(match.away_goals_trend):null;}catch(e){}
-    if(!homeTrend&&!awayTrend) return '';
-    function goalDot(goals) {
-        return goals.map(g =>
-            `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #3a3a5a;background:#12121f;color:#ccc;font-size:11px;font-weight:700;">${g}</span>`
-        ).join('');
-    }
-    function trendRow(icon, goals) {
-        const avg = goals.length ? (goals.reduce((a,b)=>a+b,0)/goals.length).toFixed(1) : '0';
-        return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
-            <span style="font-size:13px;flex-shrink:0;">${icon}</span>
-            <div style="display:flex;gap:4px;">${goalDot(goals)}</div>
-            <span style="font-size:10px;color:#444;margin-left:2px;">ort. ${avg}</span>
-        </div>`;
-    }
-    function teamBlock(name, trend, borderTop) {
-        return `<div style="${borderTop?'border-top:1px solid #1e1e3a;padding-top:8px;margin-top:8px':''}">
-            <div style="font-size:11px;color:#666;font-weight:600;margin-bottom:6px;">${name}</div>
-            ${trendRow('⚽', trend.scored)}
-            ${trendRow('🥅', trend.conceded)}
-        </div>`;
-    }
-    return `<div style="margin-top:12px;padding:10px 12px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
-        <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">📈 GOL TRENDİ (Son 5 Mac)</div>
-        ${homeTrend ? teamBlock(match.home_team, homeTrend, false) : ''}
-        ${awayTrend ? teamBlock(match.away_team, awayTrend, !!homeTrend) : ''}
-        <div style="font-size:9px;color:#2a2a3a;margin-top:6px;text-align:right;">← Eski &nbsp; Yeni →</div>
-    </div>`;
-}
-
-// ===== ANALİZ YORUMU BLOĞU =====
-function buildReasoningHtml(match) {
-    let reasoning = null;
-    try { reasoning = match.reasoning ? JSON.parse(match.reasoning) : null; } catch(e) {}
-    if (!reasoning || reasoning.length === 0) return '';
-
-    const icons = ['🏠', '✈️', '📊', '🚩', '⏱️'];
-    const items = reasoning.map((r, i) => {
-        const icon = icons[i] || '•';
-        return `<div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">
-            <span style="font-size:12px;flex-shrink:0;margin-top:1px;">${icon}</span>
-            <span style="font-size:11px;color:#aaa;line-height:1.5;">${r}</span>
-        </div>`;
-    }).join('');
-
-    return `<div style="margin-top:10px;padding:10px 12px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
-        <div style="font-size:10px;color:#6366f1;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">🤖 AI ANALİZ YORUMU</div>
-        ${items}
-    </div>`;
-}
-
-// ===== KORNER BİLGİ BLOĞU =====
-function buildCornerInfoHtml(match) {
-    let csv = match.csv_data;
-    if (typeof csv === 'string') {
-        try { csv = JSON.parse(csv); } catch(e) { csv = null; }
-    }
-    if (!csv) return '';
-
-    const avg     = csv.avg_corners;
-    const over85  = csv.avg_corners_85;
-    const over95  = csv.avg_corners_95;
-    const over105 = csv.avg_corners_105;
-
-    if (avg == null && over85 == null && over95 == null && over105 == null) return '';
-
-    function cornerBarColor(val) {
-        if (val == null) return '#3a3a5a';
-        if (val >= 10) return '#22c55e';
-        if (val >= 8)  return '#f59e0b';
-        return '#60a5fa';
-    }
-
-    function fmtPct(val) {
-        if (val == null) return '—';
-        const v = val > 1 ? val : val * 100;
-        return v.toFixed(0) + '%';
-    }
-
-    function fmtNum(val) {
-        return val != null ? parseFloat(val).toFixed(1) : '—';
-    }
-
-    const barWidth = avg != null ? Math.min(100, (avg / 14) * 100).toFixed(1) : 0;
-    const barColor = cornerBarColor(avg);
-
-    function pctColor(val) {
-        if (val == null) return '#555';
-        const v = val > 1 ? val : val * 100;
-        if (v >= 70) return '#22c55e';
-        if (v >= 45) return '#f59e0b';
-        return '#60a5fa';
-    }
-
-    const thresholds = [
-        { label: '8.5 Üst', val: over85 },
-        { label: '9.5 Üst', val: over95 },
-        { label: '10.5 Üst', val: over105 },
-    ].filter(t => t.val != null);
-
-    const thresholdHtml = thresholds.map(t => `
-        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;
-                    background:#0d0d1a;border:1px solid #1e1e3a;border-radius:8px;
-                    padding:6px 10px;min-width:62px;">
-            <span style="font-size:9px;color:#444;font-weight:600;white-space:nowrap;">${t.label}</span>
-            <span style="font-size:13px;font-weight:800;color:${pctColor(t.val)};">${fmtPct(t.val)}</span>
-        </div>`
-    ).join('');
-
-    return `
-    <div style="margin-top:10px;padding:10px 12px;background:#0a0a16;border-radius:10px;border:1px solid #1a1a2e;">
-        <div style="font-size:10px;color:#3b82f6;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">
-            🚩 KORNER İSTATİSTİKLERİ
-        </div>
-        ${avg != null ? `
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <span style="font-size:11px;color:#555;">Ort. Korner</span>
-            <div style="display:flex;align-items:center;gap:8px;flex:1;margin-left:12px;">
-                <div style="flex:1;height:6px;background:#1e1e3a;border-radius:3px;overflow:hidden;">
-                    <div style="height:100%;width:${barWidth}%;background:${barColor};border-radius:3px;transition:width 0.4s;"></div>
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetIQ — Geçmiş Analizler</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        .gecmis-container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .date-picker-wrap { display:flex; align-items:center; gap:12px; margin-bottom:24px; flex-wrap:wrap; }
+        .date-picker-label { font-size:13px; color:#666; white-space:nowrap; }
+        .date-picker-input { padding:10px 16px; border-radius:10px; border:1px solid #333; background:#1a1a2e; color:#fff; font-size:14px; font-family:inherit; cursor:pointer; outline:none; transition:border-color 0.2s; color-scheme:dark; }
+        .date-picker-input:focus { border-color:#7c3aed; }
+        .date-nav-btn { padding:8px 14px; border-radius:8px; border:1px solid #333; background:#1a1a2e; color:#aaa; cursor:pointer; font-size:16px; transition:all 0.2s; font-family:inherit; }
+        .date-nav-btn:hover { border-color:#7c3aed; color:#fff; }
+        .date-display { font-size:16px; font-weight:700; color:#fff; min-width:120px; text-align:center; }
+        .available-dates-hint { font-size:11px; color:#555; margin-top:4px; }
+        .summary-bar { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px; padding:16px; background:#1a1a2e; border-radius:12px; border:1px solid #333; align-items:center; }
+        .summary-item { text-align:center; }
+        .summary-item .s-value { font-size:22px; font-weight:800; color:#7c3aed; }
+        .summary-item .s-label { font-size:11px; color:#666; margin-top:2px; }
+        .result-card { background:#12121f; border:1px solid #2a2a3e; border-radius:14px; padding:18px; margin-bottom:16px; }
+        .result-card.correct { border-left:3px solid #22c55e; }
+        .result-card.wrong { border-left:3px solid #ef4444; }
+        .result-card.pending { border-left:3px solid #f59e0b; }
+        .result-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+        .result-teams { font-size:16px; font-weight:700; color:#fff; }
+        .result-score { font-size:20px; font-weight:800; color:#7c3aed; }
+        .result-score.pending-score { color:#f59e0b; font-size:14px; }
+        .result-preds { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+        .pred-item { display:flex; align-items:center; gap:6px; background:#1a1a2e; padding:6px 12px; border-radius:8px; font-size:12px; }
+        .pred-item .tick { font-size:14px; }
+        .pred-label { color:#888; }
+        .pred-value { color:#fff; font-weight:600; }
+        .no-data { text-align:center; padding:60px 20px; color:#555; }
+        .league-small { font-size:11px; color:#666; margin-top:2px; }
+        .score-form { display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
+        .score-input { width:52px; padding:6px 8px; border-radius:8px; border:1px solid #333; background:#1a1a2e; color:#fff; font-size:16px; font-weight:700; text-align:center; font-family:inherit; }
+        .score-input:focus { outline:none; border-color:#7c3aed; }
+        .score-sep { color:#666; font-size:18px; font-weight:700; }
+        .btn-save-score { padding:6px 14px; border-radius:8px; border:none; background:#7c3aed; color:#fff; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; transition:background 0.2s; }
+        .btn-save-score:hover { background:#a855f7; }
+        .btn-enter-score { padding:5px 12px; border-radius:8px; border:1px solid #444; background:transparent; color:#888; font-size:11px; cursor:pointer; font-family:inherit; margin-top:10px; transition:all 0.2s; }
+        .btn-enter-score:hover { border-color:#7c3aed; color:#7c3aed; }
+        .btn-edit-score { padding:5px 12px; border-radius:8px; border:1px solid #444; background:transparent; color:#888; font-size:11px; cursor:pointer; font-family:inherit; margin-top:10px; transition:all 0.2s; }
+        .btn-edit-score:hover { border-color:#f59e0b; color:#f59e0b; }
+        .save-msg { font-size:12px; color:#22c55e; margin-left:8px; }
+        .btn-report { padding:10px 20px; border-radius:10px; border:none; background:#7c3aed; color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; transition:background 0.2s; margin-bottom:20px; }
+        .btn-report:hover { background:#a855f7; }
+        .btn-share { padding:5px 12px; border-radius:8px; border:1px solid #7c3aed; background:transparent; color:#7c3aed; font-size:11px; cursor:pointer; font-family:inherit; margin-top:10px; margin-left:8px; transition:all 0.2s; }
+        .btn-share:hover { background:#7c3aed; color:#fff; }
+        .share-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center; }
+        .share-overlay.active { display:flex; }
+        .share-modal { background:#0d0d1a; border-radius:16px; padding:24px; max-width:500px; width:90%; }
+        .share-modal h3 { color:#fff; margin-bottom:16px; font-size:15px; }
+        .share-card-wrap { display:flex; justify-content:center; margin-bottom:16px; }
+        .share-card { width:400px; height:400px; background:linear-gradient(135deg,#0d0d1a 0%,#1a0a2e 100%); border-radius:16px; padding:28px; display:flex; flex-direction:column; justify-content:space-between; font-family:'Syne',sans-serif; position:relative; overflow:hidden; border:1px solid #2a1a4e; }
+        .share-card::before { content:''; position:absolute; top:-60px; right:-60px; width:180px; height:180px; background:radial-gradient(circle,rgba(124,58,237,0.3) 0%,transparent 70%); }
+        .share-card-header { display:flex; justify-content:space-between; align-items:center; }
+        .share-card-league { font-size:11px; color:#666; background:#1a1a2e; padding:4px 10px; border-radius:20px; }
+        .share-card-teams { text-align:center; padding:8px 0; }
+        .share-card-teams .teams-row { display:flex; align-items:center; justify-content:center; gap:12px; }
+        .share-team-name { font-size:18px; font-weight:800; color:#fff; flex:1; }
+        .share-team-name.home { text-align:right; }
+        .share-team-name.away { text-align:left; }
+        .share-vs { font-size:13px; color:#555; font-weight:600; flex-shrink:0; }
+        .share-result-score { font-size:36px; font-weight:800; color:#7c3aed; text-align:center; margin:4px 0; letter-spacing:2px; }
+        .share-ht-score { font-size:12px; color:#555; text-align:center; }
+        .share-card-stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .share-stat { background:rgba(124,58,237,0.1); border:1px solid rgba(124,58,237,0.2); border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:8px; }
+        .share-stat-tick { font-size:16px; line-height:1; }
+        .share-stat-info { flex:1; }
+        .share-stat-label { font-size:10px; color:#666; }
+        .share-stat-value { font-size:13px; font-weight:700; color:#fff; }
+        .share-card-footer { display:flex; justify-content:space-between; align-items:center; border-top:1px solid #2a2a3e; padding-top:10px; }
+        .share-footer-pred { font-size:11px; color:#888; }
+        .share-footer-pred span { color:#7c3aed; font-weight:700; }
+        .share-pending-badge { background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; text-align:center; }
+        .share-modal-btns { display:flex; gap:10px; justify-content:flex-end; }
+        .btn-download { padding:10px 20px; border-radius:10px; border:none; background:#7c3aed; color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .btn-download-sq { padding:10px 20px; border-radius:10px; border:none; background:#555; color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .btn-close-share { padding:10px 20px; border-radius:10px; border:1px solid #333; background:transparent; color:#aaa; font-size:13px; cursor:pointer; font-family:inherit; }
+        .stats-share-card { width:400px; height:400px; background:linear-gradient(135deg,#0d0d1a 0%,#1a0a2e 100%); border-radius:16px; padding:28px; display:flex; flex-direction:column; justify-content:space-between; font-family:'Syne',sans-serif; position:relative; overflow:hidden; border:1px solid #2a1a4e; box-sizing:border-box; }
+        .stats-share-card::before { content:''; position:absolute; top:-60px; right:-60px; width:200px; height:200px; background:radial-gradient(circle,rgba(124,58,237,0.25) 0%,transparent 70%); }
+        .stats-share-card::after { content:''; position:absolute; bottom:-40px; left:-40px; width:150px; height:150px; background:radial-gradient(circle,rgba(124,58,237,0.15) 0%,transparent 70%); }
+        .ssc-header { display:flex; justify-content:space-between; align-items:center; }
+        .ssc-date { font-size:12px; color:#555; background:#1a1a2e; padding:4px 12px; border-radius:20px; }
+        .ssc-title { text-align:center; }
+        .ssc-title h2 { font-size:18px; font-weight:800; color:#fff; margin:0 0 4px 0; }
+        .ssc-title p { font-size:12px; color:#555; margin:0; }
+        .ssc-stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        .ssc-stat { background:rgba(124,58,237,0.1); border:1px solid rgba(124,58,237,0.2); border-radius:12px; padding:12px 14px; text-align:center; }
+        .ssc-stat-val { font-size:26px; font-weight:800; margin-bottom:4px; }
+        .ssc-stat-lbl { font-size:10px; color:#666; font-weight:600; letter-spacing:0.5px; }
+        .ssc-total { text-align:center; font-size:12px; color:#666; }
+        .ssc-total span { color:#7c3aed; font-weight:700; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">⚡</span>
+                    <span class="logo-text">BetIQ</span>
+                    <span class="logo-sub">ANALYZER</span>
                 </div>
-                <span style="font-size:13px;font-weight:800;color:${barColor};min-width:28px;text-align:right;">${fmtNum(avg)}</span>
+                <nav style="display:flex;gap:8px;align-items:center;">
+                    <a href="/" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🏠 Ana Sayfa</a>
+                    <a href="/gecmis" style="padding:7px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;text-decoration:none;">📅 Geçmiş</a>
+                    <a href="/istatistik" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">📊 İstatistik</a>
+                    <a href="/kuponlar" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🎫 Kuponlar</a>
+                    <a href="/debug" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🔬 Debug</a>
+                </nav>
             </div>
-        </div>` : ''}
-        ${thresholds.length > 0 ? `
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            ${thresholdHtml}
-        </div>` : ''}
-    </div>`;
-}
+        </header>
+        <main class="main-content">
+            <div class="gecmis-container">
+                <h2 style="color:#fff;margin-bottom:20px;">📅 Geçmiş Analizler</h2>
+                <div class="date-picker-wrap">
+                    <span class="date-picker-label">Tarih seç:</span>
+                    <button class="date-nav-btn" onclick="navigateDate(-1)">◀</button>
+                    <input type="date" class="date-picker-input" id="datePicker" onchange="loadDate(this.value)">
+                    <button class="date-nav-btn" onclick="navigateDate(1)">▶</button>
+                    <span class="date-display" id="dateDisplay">—</span>
+                </div>
+                <div class="available-dates-hint" id="availableDatesHint"></div>
+                <div id="summaryBar" style="display:none;margin-top:16px;" class="summary-bar">
+                    <div class="summary-item"><div class="s-value" id="totalMatches">0</div><div class="s-label">Toplam Maç</div></div>
+                    <div class="summary-item"><div class="s-value" id="correct1x2">0%</div><div class="s-label">1X2 Doğru</div></div>
+                    <div class="summary-item"><div class="s-value" id="correctOver25">0%</div><div class="s-label">2.5 Üstü</div></div>
+                    <div class="summary-item"><div class="s-value" id="correctBtts">0%</div><div class="s-label">KG Var</div></div>
+                    <div class="summary-item"><div class="s-value" id="correctHt">-</div><div class="s-label">İY 0.5 Üst</div></div>
+                    <div class="summary-item"><div class="s-value" id="correctScore">0</div><div class="s-label">Skor Doğru</div></div>
+                    <div style="margin-left:auto;">
+                        <button class="btn-share" style="margin-top:0;" onclick="openStatsShare()">📊 İstatistiği Paylaş</button>
+                    </div>
+                </div>
+                <div id="reportBtnWrapper" style="display:none;margin-top:16px;">
+                    <button class="btn-report" onclick="sendReport()">📊 Telegram'a Rapor Gönder</button>
+                    <span id="reportMsg" style="font-size:13px;margin-left:10px;"></span>
+                </div>
+                <div id="matchesContainer" style="margin-top:16px;">
+                    <div class="no-data">Yukarıdan bir tarih seç</div>
+                </div>
+            </div>
+        </main>
+    </div>
 
-// ─── Kupon ────────────────────────────────────────────────────────────────────
-async function generateCoupon() {
-    const btn = document.getElementById('couponBtn');
-    btn.disabled = true; btn.textContent = '⏳ Olusturuluyor...';
-    try {
-        const resp = await fetch('/api/coupon/today');
-        const data = await resp.json();
-        if (data.status !== 'success') {
-            alert(data.message || 'Kupon olusturulamadi.');
-            btn.disabled = false; btn.textContent = '🎫 Kupon Olustur'; return;
+    <!-- Maç Paylaşım Overlay -->
+    <div class="share-overlay" id="shareOverlay" onclick="closeShare(event)">
+        <div class="share-modal" onclick="event.stopPropagation()">
+            <h3>📸 Instagram / X Paylaşım Kartı</h3>
+            <div class="share-card-wrap">
+                <div class="share-card" id="shareCard"></div>
+            </div>
+            <div class="share-modal-btns">
+                <button class="btn-close-share" onclick="closeShareModal()">İptal</button>
+                <button class="btn-download-sq" onclick="downloadShareCard('square')">📐 Kare</button>
+                <button class="btn-download" onclick="downloadShareCard('story')">📱 Hikaye</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Günlük İstatistik Paylaşım Overlay -->
+    <div class="share-overlay" id="statsShareOverlay" onclick="closeStatsShare(event)">
+        <div class="share-modal" onclick="event.stopPropagation()">
+            <h3>📊 Günlük İstatistik Kartı</h3>
+            <div class="share-card-wrap">
+                <div class="stats-share-card" id="statsShareCard"></div>
+            </div>
+            <div class="share-modal-btns">
+                <button class="btn-close-share" onclick="closeStatsShareModal()">İptal</button>
+                <button class="btn-download" onclick="downloadStatsCard()">⬇️ PNG İndir</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentDate = null;
+        let currentMatches = [];
+        let shareMatchData = null;
+        let availableDates = [];
+        let currentSummaryData = null;
+
+        async function loadDates() {
+            const resp = await fetch('/api/dates');
+            availableDates = await resp.json();
+            if (!availableDates.length) { document.getElementById('availableDatesHint').textContent='Henüz analiz yapılmadı.'; return; }
+            const latest = availableDates[0];
+            document.getElementById('datePicker').value = latest;
+            document.getElementById('datePicker').max = latest;
+            document.getElementById('datePicker').min = availableDates[availableDates.length-1];
+            updateAvailableHint();
+            loadDate(latest);
         }
-        await saveCoupon(data.coupon);
-        drawCouponCanvas(data.coupon);
-    } catch(e) {
-        alert('Hata: ' + e.message);
-        btn.disabled = false; btn.textContent = '🎫 Kupon Olustur';
-    }
-}
 
-async function saveCoupon(coupon) {
-    try {
-        await fetch('/api/coupon/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: coupon })
-        });
-    } catch(e) {
-        console.error('Kupon kaydetme hatasi:', e);
-    }
-}
+        function updateAvailableHint() {
+            const count = availableDates.length;
+            const oldest = availableDates[availableDates.length-1];
+            document.getElementById('availableDatesHint').textContent =
+                `${count} günlük analiz mevcut (${formatDate(oldest)} - ${formatDate(availableDates[0])})`;
+        }
 
-function drawCouponCanvas(coupon) {
-    const today=new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
-    const width=480, headerH=110, rowH=72, footerH=90;
-    const contentH=headerH+coupon.length*rowH+footerH;
-    const height=Math.max(width*1.25,contentH);
-    const extraPad=Math.max(0,height-contentH);
-    const canvas=document.createElement('canvas');
-    canvas.width=width*2; canvas.height=height*2;
-    const ctx=canvas.getContext('2d'); ctx.scale(2,2);
-    const bg=ctx.createLinearGradient(0,0,0,height);
-    bg.addColorStop(0,'#0d0d1a'); bg.addColorStop(1,'#160a28');
-    ctx.fillStyle=bg; ctx.fillRect(0,0,width,height);
-    ctx.strokeStyle='#2a1a4e'; ctx.lineWidth=1; ctx.strokeRect(0.5,0.5,width-1,height-1);
-    const logo=new Image(); logo.crossOrigin='anonymous'; logo.src='/static/img/logo.png';
-    const drawContent=()=>{
-        if(logo.naturalWidth) ctx.drawImage(logo,20,20,56,56);
-        ctx.fillStyle='#555'; ctx.font='500 11px Syne,sans-serif'; ctx.textAlign='right'; ctx.fillText(today,width-20,32);
-        ctx.fillStyle='#7c3aed'; ctx.font='800 16px Syne,sans-serif'; ctx.fillText('GUNUN KUPONU',width-20,54);
-        ctx.strokeStyle='#1e1e3a'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(20,headerH-6); ctx.lineTo(width-20,headerH-6); ctx.stroke();
-
-        coupon.forEach((item,i)=>{
-            const y=headerH+i*rowH;
-            if(i%2===0){ctx.fillStyle='rgba(124,58,237,0.04)';ctx.fillRect(0,y,width,rowH);}
-            ctx.font='700 12px Syne,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left';
-            let mt=`${item.home_team} vs ${item.away_team}`;
-            while(ctx.measureText(mt).width>220&&mt.length>10) mt=mt.slice(0,-4)+'...';
-            ctx.fillText(mt,20,y+22);
-            ctx.fillStyle='#444'; ctx.font='500 10px Syne,sans-serif'; ctx.fillText(item.league||'',20,y+38);
-            if(item.odds){
-                ctx.fillStyle='#22c55e'; ctx.font='700 11px Syne,sans-serif';
-                ctx.fillText('@'+parseFloat(item.odds).toFixed(2),20,y+56);
+        function navigateDate(dir) {
+            if (!availableDates.length) return;
+            const current = document.getElementById('datePicker').value;
+            const idx = availableDates.indexOf(current);
+            const newIdx = idx - dir;
+            if (newIdx >= 0 && newIdx < availableDates.length) {
+                document.getElementById('datePicker').value = availableDates[newIdx];
+                loadDate(availableDates[newIdx]);
             }
-            const bc=getBadgeColor(item.prediction_type);
-            const bW=118,bH=44,bX=width-bW-20,bY=y+(rowH-bH)/2;
-            ctx.fillStyle=bc.bg; roundRect(ctx,bX,bY,bW,bH,10); ctx.fill();
-            ctx.strokeStyle=bc.border; ctx.lineWidth=1.5; roundRect(ctx,bX,bY,bW,bH,10); ctx.stroke();
-            ctx.fillStyle=bc.text; ctx.textAlign='center';
-            // Font boyutunu metne göre otomatik küçült
-            let fontSize=13;
-            ctx.font=`700 ${fontSize}px Syne,sans-serif`;
-            while(ctx.measureText(item.prediction_label).width>bW-10&&fontSize>8){
-                fontSize--;
-                ctx.font=`700 ${fontSize}px Syne,sans-serif`;
+        }
+
+        async function loadDate(date) {
+            if (!date) return;
+            currentDate = date;
+            document.getElementById('datePicker').value = date;
+            document.getElementById('dateDisplay').textContent = formatDate(date);
+            document.getElementById('matchesContainer').innerHTML = '<div class="no-data">Yükleniyor...</div>';
+            document.getElementById('summaryBar').style.display = 'none';
+            document.getElementById('reportBtnWrapper').style.display = 'none';
+            const resp = await fetch(`/api/matches/date/${date}`);
+            const matches = await resp.json();
+            currentMatches = matches;
+            if (!matches.length) { document.getElementById('matchesContainer').innerHTML='<div class="no-data">Bu tarihte analiz bulunamadı.</div>'; return; }
+            renderSummary(matches);
+            renderMatches(matches);
+            document.getElementById('reportBtnWrapper').style.display = 'block';
+        }
+
+        function renderSummary(matches) {
+            const THRESH = 65;
+            const withResults = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
+            document.getElementById('totalMatches').textContent = matches.length;
+            let s1x2='-', sOver='-', sBtts='-', sHt='-', sScore=0;
+            if (withResults.length > 0) {
+                const highConf = withResults.filter(m => ['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence));
+                s1x2 = highConf.length > 0 ? `${Math.round(highConf.filter(m=>m.pred_1x2_correct).length/highConf.length*100)}%` : '-';
+                const over25Eligible = withResults.filter(m => (m.over25_pct||0) >= THRESH);
+                sOver = over25Eligible.length > 0 ? `${Math.round(over25Eligible.filter(m=>m.over25_correct).length/over25Eligible.length*100)}%` : '-';
+                const bttsEligible = withResults.filter(m => (m.btts_pct||0) >= THRESH);
+                sBtts = bttsEligible.length > 0 ? `${Math.round(bttsEligible.filter(m=>m.btts_correct).length/bttsEligible.length*100)}%` : '-';
+                const htEligible = withResults.filter(m => (m.ht2g_pct||0) >= THRESH && m.ht_home_score !== null && m.ht_home_score !== undefined);
+                sHt = htEligible.length > 0 ? `${Math.round(htEligible.filter(m=>m.ht_correct).length/htEligible.length*100)}%` : '-';
+                sScore = withResults.filter(m=>m.score_correct).length;
             }
-            ctx.fillText(item.prediction_label,bX+bW/2,bY+bH/2+5);
-        });
-
-        const validOdds = coupon.filter(i=>i.odds).map(i=>parseFloat(i.odds));
-        const totalOdds = validOdds.length > 0 ? validOdds.reduce((a,b)=>a*b,1) : null;
-        const fy = headerH + coupon.length*rowH + extraPad/2;
-
-        if(totalOdds){
-            ctx.strokeStyle='#2a1a4e'; ctx.lineWidth=1;
-            ctx.beginPath(); ctx.moveTo(20,fy+10); ctx.lineTo(width-20,fy+10); ctx.stroke();
-            ctx.fillStyle='#666'; ctx.font='500 11px Syne,sans-serif'; ctx.textAlign='left';
-            ctx.fillText('Toplam Oran',20,fy+28);
-            ctx.fillStyle='#22c55e'; ctx.font='800 15px Syne,sans-serif'; ctx.textAlign='right';
-            ctx.fillText('@'+totalOdds.toFixed(2),width-20,fy+28);
+            document.getElementById('correct1x2').textContent = s1x2;
+            document.getElementById('correctOver25').textContent = sOver;
+            document.getElementById('correctBtts').textContent = sBtts;
+            document.getElementById('correctHt').textContent = sHt;
+            document.getElementById('correctScore').textContent = sScore;
+            currentSummaryData = { total:matches.length, withResults:withResults.length, s1x2, sOver, sBtts, sHt, sScore };
+            document.getElementById('summaryBar').style.display = 'flex';
         }
 
-        ctx.fillStyle='#2a2a3a'; ctx.font='400 9px Syne,sans-serif'; ctx.textAlign='center';
-        ctx.fillText('Bu tahminler yapay zeka analizi ile olusturulmustur. Sorumluluk kabul edilmez.',width/2,fy+(totalOdds?48:32));
-
-        couponCanvas=canvas; showCouponPreview(canvas,today);
-        const b=document.getElementById('couponBtn'); if(b){b.disabled=false;b.textContent='🎫 Kupon Olustur';}
-    };
-    logo.onload=drawContent; logo.onerror=drawContent;
-}
-
-function showCouponPreview(canvas, today) {
-    document.getElementById('couponModal')?.remove();
-    const modal = document.createElement('div'); modal.id = 'couponModal';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-    const imgSrc = canvas.toDataURL('image/png');
-    modal.innerHTML = `<div style="background:#0d0d1a;border:1px solid #2a1a4e;border-radius:16px;padding:20px;max-width:520px;width:100%;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-            <span style="color:#fff;font-weight:700;font-size:14px;">🎫 Kupon Onizleme</span>
-            <button onclick="document.getElementById('couponModal').remove()" style="background:transparent;border:none;color:#666;font-size:20px;cursor:pointer;">✕</button>
-        </div>
-        <div style="display:flex;justify-content:center;margin-bottom:16px;max-height:70vh;overflow-y:auto;">
-            <img src="${imgSrc}" style="max-width:100%;border-radius:10px;border:1px solid #2a1a4e;">
-        </div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
-            <button onclick="document.getElementById('couponModal').remove()" style="padding:10px 20px;border-radius:10px;border:1px solid #333;background:transparent;color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;">Iptal</button>
-            <a href="/kuponlar" style="padding:10px 20px;border-radius:10px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;">📋 Kuponlarim</a>
-            <button onclick="downloadCoupon('${today}')" style="padding:10px 20px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⬇️ PNG Indir</button>
-        </div>
-    </div>`;
-    modal.addEventListener('click', (e) => { if(e.target===modal) modal.remove(); });
-    document.body.appendChild(modal);
-}
-
-function downloadCoupon(today) {
-    if(!couponCanvas) return;
-    const link = document.createElement('a');
-    link.download = `gollazim_kupon_${today.replace(/\./g,'-')}.png`;
-    link.href = couponCanvas.toDataURL('image/png'); link.click();
-    document.getElementById('couponModal')?.remove();
-}
-
-function getBadgeColor(type) {
-    const map = {
-        '1X2':{bg:'rgba(124,58,237,0.15)',border:'rgba(124,58,237,0.6)',text:'#a78bfa'},
-        'IY 0.5 Ust':{bg:'rgba(168,85,247,0.12)',border:'rgba(168,85,247,0.5)',text:'#c084fc'},
-        '2.5 Ust':{bg:'rgba(34,197,94,0.12)',border:'rgba(34,197,94,0.5)',text:'#4ade80'},
-        '2.5 Alt':{bg:'rgba(59,130,246,0.12)',border:'rgba(59,130,246,0.5)',text:'#60a5fa'},
-        'KG Var':{bg:'rgba(245,158,11,0.12)',border:'rgba(245,158,11,0.5)',text:'#fbbf24'},
-        'KG Yok':{bg:'rgba(239,68,68,0.12)',border:'rgba(239,68,68,0.5)',text:'#f87171'},
-    };
-    return map[type] || map['1X2'];
-}
-
-function roundRect(ctx,x,y,w,h,r){
-    ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
-}
-
-async function loadFixtures() {
-    const container = document.getElementById('fixturesList');
-    container.innerHTML = `<div class="loading-fixtures"><div class="spinner"></div><span>Yukleniyor...</span></div>`;
-    try {
-        const resp = await fetch('/api/fixtures/today');
-        const fixtures = await resp.json();
-        if (!fixtures || fixtures.length === 0) {
-            container.innerHTML = `<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
-            return;
+        // ─── Günlük İstatistik Paylaşım ──────────────────────────────────────
+        function openStatsShare() {
+            if (!currentSummaryData) return;
+            buildStatsCard();
+            document.getElementById('statsShareOverlay').classList.add('active');
         }
-        const grouped = {};
-        fixtures.forEach(f => { const l=f.league||'Diger'; if(!grouped[l])grouped[l]=[]; grouped[l].push(f); });
-        let html = '';
-        for (const [league, matches] of Object.entries(grouped)) {
-            html += `<div class="league-group"><div class="league-title">🏆 ${league}</div>`;
-            matches.forEach(f => {
-                const time = formatTime(f.date);
-                html += `<div class="fixture-item" data-id="${f.id}" onclick="toggleFixture(${f.id}, '${f.home_team.replace(/'/g,"\\'")}', '${f.away_team.replace(/'/g,"\\'")}', '${(f.league||'').replace(/'/g,"\\'")}', '${f.date||''}')">
-                    <div class="fixture-check" id="check-${f.id}">☐</div>
-                    <div class="fixture-info">
-                        <span class="fixture-teams">${f.home_team} vs ${f.away_team}</span>
-                        ${time?`<span class="fixture-time">${time}</span>`:''}
+
+        function buildStatsCard() {
+            const d = currentSummaryData;
+            const dateStr = currentDate ? formatDate(currentDate) : '—';
+            function statColor(val) {
+                if (val==='-') return '#555';
+                const n = parseInt(val);
+                if (n>=70) return '#22c55e';
+                if (n>=50) return '#f59e0b';
+                return '#ef4444';
+            }
+            document.getElementById('statsShareCard').innerHTML = `
+                <div class="ssc-header">
+                    <img src="/static/img/logo.png" style="height:28px;object-fit:contain;" onerror="this.style.display='none'">
+                    <div class="ssc-date">${dateStr}</div>
+                </div>
+                <div class="ssc-title"><h2>Günlük İstatistik</h2><p>${dateStr} Analiz Raporu</p></div>
+                <div class="ssc-stats">
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.s1x2)}">${d.s1x2}</div><div class="ssc-stat-lbl">1X2 BAŞARI</div></div>
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sOver)}">${d.sOver}</div><div class="ssc-stat-lbl">2.5 ÜST (%65+)</div></div>
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sBtts)}">${d.sBtts}</div><div class="ssc-stat-lbl">KG VAR (%65+)</div></div>
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sHt)}">${d.sHt}</div><div class="ssc-stat-lbl">İY 0.5 ÜST (%65+)</div></div>
+                </div>
+                <div class="ssc-total">Toplam <span>${d.total}</span> maç · Sonuçlanan <span>${d.withResults}</span> maç</div>`;
+        }
+
+        function closeStatsShare(e) { if(e.target===document.getElementById('statsShareOverlay')) closeStatsShareModal(); }
+        function closeStatsShareModal() { document.getElementById('statsShareOverlay').classList.remove('active'); }
+
+        async function downloadStatsCard() {
+            const card = document.getElementById('statsShareCard');
+            const btn = document.querySelector('#statsShareOverlay .btn-download');
+            btn.textContent='⏳ Hazırlanıyor...'; btn.disabled=true;
+            try {
+                const canvas = await html2canvas(card,{scale:2,backgroundColor:null,useCORS:true,logging:false});
+                const link = document.createElement('a');
+                link.download=`betiq_istatistik_${currentDate||'betiq'}.png`;
+                link.href=canvas.toDataURL('image/png'); link.click();
+            } catch(e) { alert('PNG oluşturulamadı: '+e.message); }
+            btn.textContent='⬇️ PNG İndir'; btn.disabled=false;
+        }
+
+        // ─── Maç Paylaşım ────────────────────────────────────────────────────
+        function renderMatches(matches) {
+            document.getElementById('matchesContainer').innerHTML = matches.map(m=>createCard(m)).join('');
+        }
+
+        function createCard(m) {
+            const hasResult = m.home_score !== null && m.home_score !== undefined;
+            const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
+            const cardClass = hasResult ? (m.pred_1x2_correct?'correct':'wrong') : 'pending';
+            const pred = m.prediction_1x2 || '?';
+            const predText = {'1':'1 (Ev)','X':'X (Beraberlik)','2':'2 (Dep)'}[pred]||pred;
+            const scoreHtml = hasResult
+                ? `<div><div class="result-score">${m.home_score} - ${m.away_score}</div>${hasHt?`<div style="font-size:11px;color:#888;text-align:right;">İY: ${m.ht_home_score}-${m.ht_away_score}</div>`:''}</div>`
+                : `<div class="result-score pending-score">⏳ Sonuç Bekleniyor</div>`;
+            const scoreFormHtml = `
+                <div style="margin-top:10px;">
+                    <button class="btn-${hasResult?'edit':'enter'}-score" onclick="toggleScoreForm(${m.id})">${hasResult?'✏️ Skoru Düzenle':'✏️ Skor Gir'}</button>
+                    <button class="btn-share" onclick="openShare(${m.id})">📸 Paylaş</button>
+                    <div id="scoreForm-${m.id}" style="display:none;margin-top:10px;">
+                        <div style="font-size:11px;color:#888;margin-bottom:6px;">Maç Sonu Skoru</div>
+                        <div class="score-form">
+                            <input type="number" min="0" max="20" class="score-input" id="hs-${m.id}" placeholder="0" value="${hasResult?m.home_score:''}">
+                            <span class="score-sep">-</span>
+                            <input type="number" min="0" max="20" class="score-input" id="as-${m.id}" placeholder="0" value="${hasResult?m.away_score:''}">
+                        </div>
+                        <div style="font-size:11px;color:#888;margin:8px 0 6px 0;">İlk Yarı Skoru <span style="color:#555;">(opsiyonel)</span></div>
+                        <div class="score-form">
+                            <input type="number" min="0" max="20" class="score-input" id="hths-${m.id}" placeholder="0" value="${hasHt?m.ht_home_score:''}">
+                            <span class="score-sep">-</span>
+                            <input type="number" min="0" max="20" class="score-input" id="htas-${m.id}" placeholder="0" value="${hasHt?m.ht_away_score:''}">
+                        </div>
+                        <div style="margin-top:10px;">
+                            <button class="btn-save-score" onclick="saveScore(${m.id})">💾 Kaydet</button>
+                            <span class="save-msg" id="saveMsg-${m.id}"></span>
+                        </div>
                     </div>
                 </div>`;
-            });
-            html += `</div>`;
+            const THRESHOLD = 65;
+            const highConf1x2 = ['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence);
+            const over25AboveThreshold = (m.over25_pct||0) >= THRESHOLD;
+            const bttsAboveThreshold = (m.btts_pct||0) >= THRESHOLD;
+            const htAboveThreshold = (m.ht2g_pct||0) >= THRESHOLD;
+            function thresholdTick(a,c) { if(!a)return '<span style="color:#555;font-size:11px;">—</span>'; return c?'✅':'❌'; }
+            function thresholdVal(a,v) { if(!a)return 'Oynanmadı 🚫'; return v; }
+            const htPredHtml = hasHt ? `<div class="pred-item"><span class="tick">${thresholdTick(htAboveThreshold,m.ht_correct)}</span><span class="pred-label">İY 0.5 Üst:</span><span class="pred-value">${thresholdVal(htAboveThreshold,'%'+Math.round(m.ht2g_pct||0)+' → İY '+m.ht_home_score+'-'+m.ht_away_score)}</span></div>` : '';
+            const predsHtml = hasResult ? `
+                <div class="result-preds">
+                    <div class="pred-item"><span class="tick">${highConf1x2?(m.pred_1x2_correct?'✅':'❌'):'<span style=\"color:#555;font-size:11px;\">—</span>'}</span><span class="pred-label">1X2:</span><span class="pred-value">${highConf1x2?predText+' → '+m.actual_1x2:'Oynanmadı 🚫'}</span></div>
+                    <div class="pred-item"><span class="tick">${thresholdTick(over25AboveThreshold,m.over25_correct)}</span><span class="pred-label">2.5 Gol:</span><span class="pred-value">${thresholdVal(over25AboveThreshold,'%'+Math.round(m.over25_pct)+' → '+(m.actual_over25?'Üstü':'Altı'))}</span></div>
+                    <div class="pred-item"><span class="tick">${thresholdTick(bttsAboveThreshold,m.btts_correct)}</span><span class="pred-label">KG Var:</span><span class="pred-value">${thresholdVal(bttsAboveThreshold,'%'+Math.round(m.btts_pct)+' → '+(m.actual_btts?'Var':'Yok'))}</span></div>
+                    ${htPredHtml}
+                    <div class="pred-item"><span class="tick">${m.score_correct?'✅':'❌'}</span><span class="pred-label">Skor:</span><span class="pred-value">${m.predicted_score||'?-?'}</span></div>
+                    <div class="pred-item"><span class="tick">—</span><span class="pred-label">Tahmini İY:</span><span class="pred-value">${m.predicted_ht_score||'?-?'}</span></div>
+                </div>${scoreFormHtml}` : `
+                <div class="result-preds">
+                    <div class="pred-item"><span class="pred-label">1X2:</span><span class="pred-value">${predText}</span></div>
+                    <div class="pred-item"><span class="pred-label">2.5 Gol:</span><span class="pred-value">%${Math.round(m.over25_pct||0)}</span></div>
+                    <div class="pred-item"><span class="pred-label">KG Var:</span><span class="pred-value">%${Math.round(m.btts_pct||0)}</span></div>
+                    <div class="pred-item"><span class="pred-label">İY 0.5 Üst:</span><span class="pred-value">%${Math.round(m.ht2g_pct||0)}</span></div>
+                    <div class="pred-item"><span class="pred-label">Tahmini Skor:</span><span class="pred-value">${m.predicted_score||'?-?'}</span></div>
+                    <div class="pred-item"><span class="pred-label">Tahmini İY:</span><span class="pred-value">${m.predicted_ht_score||'?-?'}</span></div>
+                </div>${scoreFormHtml}`;
+            return `<div class="result-card ${cardClass}" id="card-${m.id}">
+                <div class="result-header">
+                    <div><div class="result-teams">${m.home_team} vs ${m.away_team}</div><div class="league-small">🏆 ${m.league||''} &nbsp; 🕐 ${formatTime(m.match_time)}</div></div>
+                    ${scoreHtml}
+                </div>${predsHtml}</div>`;
         }
-        container.innerHTML = html;
-        updateSelectedCount();
-    } catch(e) {
-        container.innerHTML = `<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
-    }
-}
 
-function toggleFixture(id, home, away, league, date) {
-    if (selectedFixtures[id]) {
-        delete selectedFixtures[id];
-        document.getElementById(`check-${id}`).textContent = '☐';
-        document.querySelector(`[data-id="${id}"]`).classList.remove('selected');
-    } else {
-        selectedFixtures[id] = { id, home_team: home, away_team: away, league, date };
-        document.getElementById(`check-${id}`).textContent = '✅';
-        document.querySelector(`[data-id="${id}"]`).classList.add('selected');
-    }
-    updateSelectedCount();
-}
-
-function selectAll() {
-    const items = document.querySelectorAll('.fixture-item');
-    const allSelected = items.length === Object.keys(selectedFixtures).length;
-    items.forEach(item => {
-        const id = parseInt(item.dataset.id);
-        if (allSelected) { delete selectedFixtures[id]; document.getElementById(`check-${id}`).textContent='☐'; item.classList.remove('selected'); }
-        else { selectedFixtures[id]={id}; document.getElementById(`check-${id}`).textContent='✅'; item.classList.add('selected'); }
-    });
-    updateSelectedCount();
-}
-
-function updateSelectedCount() {
-    const total = Object.keys(selectedFixtures).length + manualMatches.length;
-    document.getElementById('selectedCount').textContent = `${total} mac secildi`;
-    document.getElementById('analyzeBtn').disabled = total === 0;
-}
-
-function selectAiProvider(provider) {
-    selectedAiProvider = provider;
-    document.querySelectorAll('.ai-btn').forEach(btn => {
-        btn.style.background = 'transparent';
-        btn.style.color = '#666';
-        btn.style.borderColor = '#2a2a3a';
-    });
-    const active = document.getElementById(`ai-btn-${provider}`);
-    if (active) {
-        const colors = { grok: '#10b981', gemini: '#3b82f6' };
-        active.style.background = (colors[provider] || '#7c3aed') + '22';
-        active.style.color = colors[provider] || '#a78bfa';
-        active.style.borderColor = colors[provider] || '#7c3aed';
-    }
-}
-
-function initImageUpload() {
-    const btn=document.getElementById('imageUploadBtn');
-    const input=document.getElementById('imageUpload');
-    btn.addEventListener('click',()=>input.click());
-    input.addEventListener('change',async(e)=>{
-        const file=e.target.files[0]; if(!file) return;
-        const reader=new FileReader();
-        reader.onload=(ev)=>{document.getElementById('previewImg').src=ev.target.result;document.getElementById('imagePreview').style.display='block';};
-        reader.readAsDataURL(file);
-        const status=document.getElementById('imageStatus');
-        status.textContent='🔍 Gorsel analiz ediliyor...'; status.style.color='#888'; btn.disabled=true;
-        try {
-            const base64=await fileToBase64(file);
-            const resp=await fetch('/api/parse/image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:base64,media_type:file.type})});
-            const data=await resp.json();
-            if(data.status==='success'&&data.matches.length>0){
-                data.matches.forEach(m=>{if(!manualMatches.some(x=>x.home_team===m.home_team&&x.away_team===m.away_team))manualMatches.push(m);});
-                renderManualList(); updateSelectedCount();
-                status.textContent=`✅ ${data.matches.length} mac eklendi!`; status.style.color='#22c55e';
-            } else {status.textContent='❌ Mac bulunamadi.'; status.style.color='#ef4444';}
-        } catch(err){status.textContent='❌ Hata: '+err.message; status.style.color='#ef4444';}
-        btn.disabled=false; input.value='';
-    });
-}
-
-function fileToBase64(file){
-    return new Promise((resolve,reject)=>{
-        const reader=new FileReader();
-        reader.onload=()=>resolve(reader.result.split(',')[1]);
-        reader.onerror=reject; reader.readAsDataURL(file);
-    });
-}
-
-function addManualMatch() {
-    const home=document.getElementById('homeTeam').value.trim();
-    const away=document.getElementById('awayTeam').value.trim();
-    const league=document.getElementById('leagueName').value.trim()||'Manuel Mac';
-    const time=document.getElementById('matchTime').value;
-    if(!home||!away){alert('Ev sahibi ve deplasman takimi gerekli!');return;}
-    let matchDate=null;
-    if(time){const t=new Date();const[h,m]=time.split(':');t.setHours(parseInt(h),parseInt(m),0,0);matchDate=t.toISOString();}
-    manualMatches.push({home_team:home,away_team:away,league,date:matchDate});
-    document.getElementById('homeTeam').value=''; document.getElementById('awayTeam').value='';
-    document.getElementById('leagueName').value=''; document.getElementById('matchTime').value='';
-    renderManualList(); updateSelectedCount();
-}
-
-function removeManual(index){manualMatches.splice(index,1);renderManualList();updateSelectedCount();}
-
-function renderManualList() {
-    const container=document.getElementById('manualList');
-    if(manualMatches.length===0){container.innerHTML='';return;}
-    container.innerHTML=manualMatches.map((m,i)=>{
-        const timeStr=formatTime(m.date);
-        return `<div class="manual-item">
-            <span>⚽ ${m.home_team} vs ${m.away_team} <small>(${m.league})</small>${timeStr?' 🕐 '+timeStr:''}</span>
-            <button onclick="removeManual(${i})" class="btn-remove">✕</button>
-        </div>`;
-    }).join('');
-}
-
-async function runAnalysis() {
-    const btn=document.getElementById('analyzeBtn');
-    const statusDiv=document.getElementById('analysisStatus');
-    const fixtureIds = Object.keys(selectedFixtures).map(Number);
-    const total = fixtureIds.length + manualMatches.length;
-    const aiLabel = selectedAiProvider === 'grok' ? 'Grok' : selectedAiProvider === 'gemini' ? 'Gemini' : 'Claude';
-    btn.disabled=true; btn.innerHTML='⏳ Analiz baslatiliyor...';
-    statusDiv.style.display='block';
-    statusDiv.innerHTML=`<div class="status-box"><div class="status-spinner"></div><div class="status-text">
-        <strong>🔍 ${total} mac analiz ediliyor... (${aiLabel})</strong>
-        <span>${aiLabel} AI calisiyor, yaklasik ${total*10} saniye surer.</span>
-        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div>
-        <small id="progressText">Baslatiliyor...</small>
-    </div></div>`;
-    const duration=total*10000;
-    [10,25,40,55,70,85,95].forEach((pct,i)=>{
-        setTimeout(()=>{
-            const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
-            if(bar)bar.style.width=pct+'%';
-            if(txt)txt.textContent=`🤖 ${aiLabel} analiz yapiyor... (${Math.ceil(i*total/7)}/${total})`;
-        },(duration/7)*i);
-    });
-    try {
-        const resp=await fetch('/api/analyze/selected',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fixture_ids: fixtureIds, manual_matches: manualMatches, ai_provider: selectedAiProvider})});
-        const data=await resp.json();
-        if(data.status==='success'){
-            selectedFixtures={};
-            setTimeout(async()=>await checkAndReload(statusDiv,btn,total),duration+5000);
-        } else showError(statusDiv,btn,data.message);
-    } catch(e){showError(statusDiv,btn,e.message);}
-}
-
-async function checkAndReload(statusDiv,btn,total) {
-    try {
-        const res=await fetch('/api/matches/today'); const matches=await res.json();
-        if(matches&&matches.length>0){
-            const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
-            if(bar)bar.style.width='100%'; if(txt)txt.textContent='✅ Analiz tamamlandi!';
-            statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} mac analiz edildi!</span></div>`;
-            renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et'; statusDiv.style.display='none';
-            await loadFixtures();
-        } else setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);
-    } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);}
-}
-
-function showError(statusDiv,btn,message){
-    statusDiv.innerHTML=`<div class="status-box error"><span>❌ Hata: ${message}</span></div>`;
-    btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et';
-}
-
-async function sendToTelegram() {
-    const btn=document.getElementById('telegramBtn'); btn.disabled=true; btn.innerHTML='⏳ Gonderiliyor...';
-    try {
-        const resp=await fetch('/api/telegram/send',{method:'POST'}); const data=await resp.json();
-        if(data.status==='success'){btn.innerHTML='✅ Gonderildi!';btn.style.background='#22c55e';setTimeout(()=>{btn.innerHTML="📨 Telegram'a Gonder";btn.style.background='';btn.disabled=false;},3000);}
-        else{btn.innerHTML='❌ Hata!';btn.style.background='#ef4444';alert('Hata: '+data.message);setTimeout(()=>{btn.innerHTML="📨 Telegram'a Gonder";btn.style.background='';btn.disabled=false;},3000);}
-    } catch(e){btn.innerHTML='❌ Hata!';alert('Hata: '+e.message);btn.disabled=false;}
-}
-
-async function loadMatches() {
-    const container=document.getElementById('matchesContainer');
-    try {
-        const resp=await fetch('/api/matches/today'); const matches=await resp.json();
-        if(!matches||matches.length===0){
-            container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p><p>Sol taraftan mac secip analiz et.</p></div>`;return;
+        function openShare(matchId) {
+            const m = currentMatches.find(x=>x.id===matchId);
+            if (!m) return;
+            shareMatchData = m;
+            buildShareCard(m);
+            document.getElementById('shareOverlay').classList.add('active');
         }
-        renderMatches(matches);
-    } catch(e){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;}
-}
 
-function renderMatches(matches) {
-    const container=document.getElementById('matchesContainer');
-    if(!matches||matches.length===0){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;return;}
-    container.innerHTML=`
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 4px;">
-            <div style="display:flex;gap:8px;">
-                <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">📨 Telegram'a Gonder</button>
-                <button id="couponBtn" onclick="generateCoupon()" style="padding:8px 18px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">🎫 Kupon Olustur</button>
-            </div>
-            <button onclick="clearAllMatches()" style="padding:6px 14px;border-radius:8px;border:1px solid #ef4444;background:transparent;color:#ef4444;font-size:12px;cursor:pointer;font-family:inherit;">🗑️ Tumunu Sil</button>
-        </div>
-        <div id="matchCardsList">${matches.map(m=>createMatchCard(m)).join('')}</div>`;
-}
+        function buildShareCard(m) {
+            const hasResult = m.home_score !== null && m.home_score !== undefined;
+            const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
+            const pred = m.prediction_1x2||'?';
+            const predText = {'1':'1 (Ev)','X':'Beraberlik','2':'2 (Dep)'}[pred]||pred;
+            const THRESH=65;
+            const high1x2=['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence);
+            const o25above=(m.over25_pct||0)>=THRESH, btabove=(m.btts_pct||0)>=THRESH, htabove=(m.ht2g_pct||0)>=THRESH;
+            function sTick(a,c){return a?(c?'✅':'❌'):'—';}
+            function sVal(a,v){return a?v:'Oynanmadı 🚫';}
+            const stats = hasResult ? `
+                <div class="share-card-stats">
+                    <div class="share-stat"><span class="share-stat-tick">${high1x2?(m.pred_1x2_correct?'✅':'❌'):'—'}</span><div class="share-stat-info"><div class="share-stat-label">1X2 TAHMİN</div><div class="share-stat-value">${high1x2?predText+' → '+(m.actual_1x2||'?'):'Oynanmadı 🚫'}</div></div></div>
+                    <div class="share-stat"><span class="share-stat-tick">${sTick(o25above,m.over25_correct)}</span><div class="share-stat-info"><div class="share-stat-label">2.5 GOL ÜSTÜ</div><div class="share-stat-value">${sVal(o25above,'%'+Math.round(m.over25_pct||0)+' → '+(m.actual_over25?'Üstü':'Altı'))}</div></div></div>
+                    <div class="share-stat"><span class="share-stat-tick">${sTick(btabove,m.btts_correct)}</span><div class="share-stat-info"><div class="share-stat-label">KG VAR (BTTS)</div><div class="share-stat-value">${sVal(btabove,'%'+Math.round(m.btts_pct||0)+' → '+(m.actual_btts?'Var':'Yok'))}</div></div></div>
+                    <div class="share-stat"><span class="share-stat-tick">${hasHt?sTick(htabove,m.ht_correct):'—'}</span><div class="share-stat-info"><div class="share-stat-label">İY 0.5 ÜST</div><div class="share-stat-value">${hasHt?sVal(htabove,'%'+Math.round(m.ht2g_pct||0)+' → İY '+m.ht_home_score+'-'+m.ht_away_score):'—'}</div></div></div>
+                </div>` : `
+                <div class="share-pending-badge">⏳ Sonuç Henüz Girilmedi</div>
+                <div class="share-card-stats" style="margin-top:8px;">
+                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">1X2 TAHMİN</div><div class="share-stat-value">${predText}</div></div></div>
+                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">2.5 GOL</div><div class="share-stat-value">%${Math.round(m.over25_pct||0)}</div></div></div>
+                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">KG VAR</div><div class="share-stat-value">%${Math.round(m.btts_pct||0)}</div></div></div>
+                    <div class="share-stat"><div class="share-stat-info"><div class="share-stat-label">İY 0.5 ÜST</div><div class="share-stat-value">%${Math.round(m.ht2g_pct||0)}</div></div></div>
+                </div>`;
+            document.getElementById('shareCard').innerHTML = `
+                <div class="share-card-header">
+                    <img src="/static/img/logo.png" style="height:28px;object-fit:contain;" onerror="this.style.display='none'">
+                    <div class="share-card-league">${m.league||'Lig'}</div>
+                </div>
+                <div class="share-card-teams">
+                    <div class="teams-row">
+                        <div class="share-team-name home">${m.home_team}</div>
+                        <div class="share-vs">VS</div>
+                        <div class="share-team-name away">${m.away_team}</div>
+                    </div>
+                    ${hasResult?`<div class="share-result-score">${m.home_score} — ${m.away_score}</div>${hasHt?`<div class="share-ht-score">İY: ${m.ht_home_score}-${m.ht_away_score}</div>`:''}`:''}
+                </div>
+                ${stats}
+                <div class="share-card-footer">
+                    <div class="share-footer-pred">Tahmin: <span>${predText}</span> &nbsp;|&nbsp; Güven: <span>${m.confidence||'Orta'}</span></div>
+                </div>`;
+        }
 
-function createMatchCard(match) {
-    const prediction=match.prediction_1x2||'?';
-    const confidence=match.confidence||'Orta';
-    const confidenceClass={'Cok Yuksek':'confidence-very-high','Yuksek':'confidence-high','Orta':'confidence-medium','Dusuk':'confidence-low'}[confidence]||'confidence-medium';
-    const cardClass=cardConfidenceClass(confidence);
-    const timeStr=formatTime(match.match_time);
-    const homeLogo=teamLogoHtml(match.home_team);
-    const awayLogo=teamLogoHtml(match.away_team);
-    const winner=getWinnerLabel(prediction,match.home_team,match.away_team);
-    const over25=match.over25_pct||0,ht2g=match.ht2g_pct||0,btts=match.btts_pct||0;
-    const trendHtml=buildTrendHtml(match);
-    const valueBetsHtml=buildValueBetsHtml(match);
-    const cornerInfoHtml=buildCornerInfoHtml(match);
-    const reasoningHtml=buildReasoningHtml(match);
-    return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
-        <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
-            <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${match.home_team.replace(/'/g,"\\'")}','${match.away_team.replace(/'/g,"\\'")}' )"
-                style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
-                onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#555'" title="Karti Indir">📸</button>
-            <button onclick="deleteMatch(${match.id})"
-                style="background:transparent;border:none;color:#444;font-size:15px;cursor:pointer;padding:0;line-height:1;"
-                onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#444'" title="Sil">🗑️</button>
-        </div>
-        <div class="match-header">
-            <span class="league-badge">⚽ ${match.league||'Bilinmeyen Lig'}</span>
-            ${timeStr?`<span class="match-time">${timeStr}</span>`:''}
-        </div>
-        <div class="teams">
-            <div class="team home-team">${homeLogo}<span class="team-name">${match.home_team}</span><span class="team-form">${match.home_form||''}</span></div>
-            <div class="vs-badge prediction-${prediction.toLowerCase()}">
-                <img src="/static/img/logo.png" alt="GL" onerror="this.parentElement.innerHTML='${prediction}'">
-            </div>
-            <div class="team away-team">${awayLogo}<span class="team-name">${match.away_team}</span><span class="team-form">${match.away_form||''}</span></div>
-        </div>
-        <div class="stats-grid">
-            <div class="stat-box"><span class="stat-label">🎯 2.5 GOL USTU</span><span class="stat-value ${pctClass(over25)}">${over25}%</span><div class="stat-bar"><div class="stat-fill ${barClass(over25)}" style="width:${over25}%"></div></div></div>
-            <div class="stat-box"><span class="stat-label">⚽ IY 0.5 UST</span><span class="stat-value ${pctClass(ht2g)}">${ht2g}%</span><div class="stat-bar"><div class="stat-fill ${barClass(ht2g)}" style="width:${ht2g}%"></div></div></div>
-            <div class="stat-box"><span class="stat-label">🔁 KG VAR (BTTS)</span><span class="stat-value ${pctClass(btts)}">${btts}%</span><div class="stat-bar"><div class="stat-fill ${barClass(btts)}" style="width:${btts}%"></div></div></div>
-            <div class="stat-box"><span class="stat-label">📊 GOL ORT.</span><span class="stat-value">${match.home_goals_avg||0} / ${match.away_goals_avg||0}</span></div>
-        </div>
-        <div class="prediction-row">
-            <div class="predicted-score"><span class="score-label">${winner.icon} KAZANAN TAHMINI</span><span class="score-value">${winner.label}</span></div>
-            <span class="confidence-badge ${confidenceClass}">Taraf Guveni: ${confidence}</span>
-        </div>
-        ${valueBetsHtml}
-        ${trendHtml}
-        ${cornerInfoHtml}
-        ${reasoningHtml}
-    </div>`;
-}
+        function closeShare(e) { if(e.target===document.getElementById('shareOverlay')) closeShareModal(); }
+        function closeShareModal() { document.getElementById('shareOverlay').classList.remove('active'); }
 
-async function deleteMatch(id) {
-    if(!confirm('Bu analizi silmek istedigine emin misin?')) return;
-    try {
-        await fetch(`/api/matches/delete/${id}`,{method:'DELETE'});
-        document.getElementById(`matchcard-${id}`)?.remove();
-        if(document.querySelectorAll('.match-card').length===0)
-            document.getElementById('matchesContainer').innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;
-    } catch(e){alert('Silme hatasi: '+e.message);}
-}
+        async function downloadShareCard(format) {
+            format = format || 'square';
+            const name = shareMatchData ? (shareMatchData.home_team+'_vs_'+shareMatchData.away_team).replace(/\s+/g,'_') : 'betiq_kart';
+            const btns = document.querySelectorAll('#shareOverlay .btn-download, #shareOverlay .btn-download-sq');
+            btns.forEach(b=>{b.disabled=true;});
+            try {
+                if (format === 'square') {
+                    const card = document.getElementById('shareCard');
+                    const canvas = await html2canvas(card,{scale:2,backgroundColor:null,useCORS:true,logging:false});
+                    const link = document.createElement('a');
+                    link.download = name+'_kare.png'; link.href=canvas.toDataURL('image/png'); link.click();
+                } else {
+                    const storyEl = buildStoryCard(shareMatchData);
+                    document.body.appendChild(storyEl);
+                    await new Promise(r=>setTimeout(r,120));
+                    const canvas = await html2canvas(storyEl,{scale:2,backgroundColor:'#0d0d1a',useCORS:true,logging:false});
+                    document.body.removeChild(storyEl);
+                    const link = document.createElement('a');
+                    link.download = name+'_hikaye.png'; link.href=canvas.toDataURL('image/png'); link.click();
+                }
+            } catch(e) { alert('PNG oluşturulamadı: '+e.message); }
+            btns.forEach(b=>{b.disabled=false;});
+        }
 
-async function clearAllMatches() {
-    if(!confirm('Bugünün tüm analizleri silinecek. Emin misin?')) return;
-    try {
-        await fetch('/api/matches/clear',{method:'DELETE'});
-        document.getElementById('matchesContainer').innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;
-    } catch(e){alert('Silme hatasi: '+e.message);}
-}
+        function buildStoryCard(m) {
+            const hasResult = m.home_score !== null && m.home_score !== undefined;
+            const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
+            const pred = m.prediction_1x2||'?';
+            const predText = {'1':'1 (Ev)','X':'Beraberlik','2':'2 (Dep)'}[pred]||pred;
+            const THRESH=65;
+            const high1x2=['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence);
+            const o25above=(m.over25_pct||0)>=THRESH, btabove=(m.btts_pct||0)>=THRESH, htabove=(m.ht2g_pct||0)>=THRESH;
+            function sTick(a,c){return a?(c?'TUTTU ✓':'TUTMADI ✗'):'—';}
+            function sVal(a,v){return a?v:'Oynanmadi';}
+            function statColor(pct) {
+                const n=parseInt(pct)||0;
+                if(n>=70) return '#22c55e';
+                if(n>=50) return '#f59e0b';
+                return '#ef4444';
+            }
 
-function formatTime(dateStr) {
-    if(!dateStr) return '';
-    try {
-        const d=new Date(dateStr); if(isNaN(d.getTime())) return '';
-        const t=d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Istanbul'});
-        if(t==='00:00') return '';
-        return t;
-    } catch{return '';}
-}
+            const scoreBlock = hasResult
+                ? `<div style="text-align:center;margin:8px 0;">
+                    <div style="font-size:40px;font-weight:800;color:#7c3aed;letter-spacing:3px;">${m.home_score} — ${m.away_score}</div>
+                    ${hasHt?`<div style="font-size:12px;color:#555;margin-top:2px;">IY: ${m.ht_home_score}-${m.ht_away_score}</div>`:''}
+                  </div>`
+                : `<div style="text-align:center;margin:8px 0;font-size:13px;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:8px;">Sonuc Bekleniyor</div>`;
 
-document.addEventListener('DOMContentLoaded',()=>{
-    loadFixtures();
-    loadMatches();
-    document.getElementById('analyzeBtn').addEventListener('click',runAnalysis);
-    document.getElementById('refreshFixtures').addEventListener('click',loadFixtures);
-    document.getElementById('selectAll').addEventListener('click',selectAll);
-    document.getElementById('addManual').addEventListener('click',addManualMatch);
-    initImageUpload();
-    initCsvUpload();
-});
+            const statsBlock = hasResult ? `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">1X2 TAHMIN</div>
+                        <div style="font-size:12px;font-weight:800;color:${high1x2?(m.pred_1x2_correct?'#22c55e':'#ef4444'):'#555'};">${high1x2?predText+' → '+sTick(true,m.pred_1x2_correct):'Oynanmadi'}</div>
+                    </div>
+                    <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">2.5 GOL USTU</div>
+                        <div style="font-size:22px;font-weight:800;color:${o25above?statColor(m.over25_pct):'#555'};">${o25above?'%'+Math.round(m.over25_pct||0):'—'}</div>
+                        ${o25above?`<div style="font-size:10px;color:${m.over25_correct?'#22c55e':'#ef4444'};font-weight:700;">${m.actual_over25?'Ustu ✓':'Alti ✗'}</div>`:'<div style="font-size:10px;color:#555;">Oynanmadi</div>'}
+                    </div>
+                    <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">KG VAR</div>
+                        <div style="font-size:22px;font-weight:800;color:${btabove?statColor(m.btts_pct):'#555'};">${btabove?'%'+Math.round(m.btts_pct||0):'—'}</div>
+                        ${btabove?`<div style="font-size:10px;color:${m.btts_correct?'#22c55e':'#ef4444'};font-weight:700;">${m.actual_btts?'Var ✓':'Yok ✗'}</div>`:'<div style="font-size:10px;color:#555;">Oynanmadi</div>'}
+                    </div>
+                    <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">IY 0.5 UST</div>
+                        <div style="font-size:22px;font-weight:800;color:${hasHt&&htabove?statColor(m.ht2g_pct):'#555'};">${hasHt&&htabove?'%'+Math.round(m.ht2g_pct||0):'—'}</div>
+                        ${hasHt&&htabove?`<div style="font-size:10px;color:${m.ht_correct?'#22c55e':'#ef4444'};font-weight:700;">IY ${m.ht_home_score}-${m.ht_away_score} ${m.ht_correct?'✓':'✗'}</div>`:'<div style="font-size:10px;color:#555;">—</div>'}
+                    </div>
+                </div>` : `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:4px;">1X2 TAHMIN</div>
+                        <div style="font-size:13px;font-weight:800;color:#fff;">${predText}</div>
+                    </div>
+                    <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:4px;">2.5 GOL USTU</div>
+                        <div style="font-size:22px;font-weight:800;color:${statColor(m.over25_pct);}">%${Math.round(m.over25_pct||0)}</div>
+                    </div>
+                    <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:4px;">KG VAR</div>
+                        <div style="font-size:22px;font-weight:800;color:${statColor(m.btts_pct);}">%${Math.round(m.btts_pct||0)}</div>
+                    </div>
+                    <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:4px;">IY 0.5 UST</div>
+                        <div style="font-size:22px;font-weight:800;color:${statColor(m.ht2g_pct);}">%${Math.round(m.ht2g_pct||0)}</div>
+                    </div>
+                </div>`;
+
+            const div = document.createElement('div');
+            div.style.cssText='position:fixed;left:-9999px;top:0;width:400px;height:711px;background:linear-gradient(160deg,#0d0d1a 0%,#1a0a2e 100%);display:flex;flex-direction:column;justify-content:space-between;font-family:Syne,sans-serif;box-sizing:border-box;padding:28px 24px;border:1px solid #2a1a4e;overflow:hidden;';
+            div.innerHTML = `
+                <div style="position:absolute;top:-50px;right:-50px;width:180px;height:180px;background:radial-gradient(circle,rgba(124,58,237,0.2) 0%,transparent 70%);pointer-events:none;"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <img src="/static/img/logo.png" style="height:30px;object-fit:contain;" onerror="this.style.display='none'">
+                    <div style="font-size:11px;color:#555;background:#1a1a2e;padding:3px 12px;border-radius:20px;">${m.league||''}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:20px;font-weight:800;color:#fff;line-height:1.2;">${m.home_team}</div>
+                    <div style="font-size:12px;color:#3a3a5a;margin:6px 0;font-weight:700;letter-spacing:2px;">VS</div>
+                    <div style="font-size:20px;font-weight:800;color:#fff;line-height:1.2;">${m.away_team}</div>
+                </div>
+                ${scoreBlock}
+                ${statsBlock}
+                <div style="display:flex;justify-content:center;">
+                    <div style="font-size:12px;color:#7c3aed;font-weight:700;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:20px;padding:6px 20px;">
+                        Tahmin: ${predText} | Guven: ${m.confidence||'Orta'}
+                    </div>
+                </div>`;
+            return div;
+        }
+
+        function toggleScoreForm(id) {
+            const form = document.getElementById('scoreForm-'+id);
+            form.style.display = form.style.display==='none'?'block':'none';
+        }
+
+        async function saveScore(analysisId) {
+            const hs=parseInt(document.getElementById('hs-'+analysisId).value);
+            const as_=parseInt(document.getElementById('as-'+analysisId).value);
+            const hths=document.getElementById('hths-'+analysisId).value;
+            const htas=document.getElementById('htas-'+analysisId).value;
+            const msg=document.getElementById('saveMsg-'+analysisId);
+            if(isNaN(hs)||isNaN(as_)){msg.textContent='❌ Maç sonu skorunu gir!';msg.style.color='#ef4444';return;}
+            try {
+                const resp=await fetch('/api/results/manual',{method:'POST',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({analysis_id:analysisId,home_score:hs,away_score:as_,ht_home_score:hths!==''?parseInt(hths):null,ht_away_score:htas!==''?parseInt(htas):null})});
+                const data=await resp.json();
+                if(data.status==='success'){msg.textContent='✅ Kaydedildi!';msg.style.color='#22c55e';setTimeout(()=>loadDate(currentDate),1000);}
+                else{msg.textContent='❌ Hata!';msg.style.color='#ef4444';}
+            } catch(e){msg.textContent='❌ Hata!';msg.style.color='#ef4444';}
+        }
+
+        async function sendReport() {
+            const btn=document.querySelector('.btn-report');
+            const msgEl=document.getElementById('reportMsg');
+            btn.disabled=true; btn.textContent='⏳ Gönderiliyor...'; msgEl.textContent='';
+            try {
+                const resp=await fetch('/api/report/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:currentDate})});
+                const data=await resp.json();
+                if(data.status==='success'){msgEl.textContent='✅ Rapor gönderildi!';msgEl.style.color='#22c55e';}
+                else{msgEl.textContent='❌ Hata!';msgEl.style.color='#ef4444';}
+            } catch(e){msgEl.textContent='❌ Hata!';msgEl.style.color='#ef4444';}
+            btn.disabled=false; btn.textContent="📊 Telegram'a Rapor Gönder";
+        }
+
+        function formatDate(d){const[y,m,day]=d.split('-');return `${day}/${m}/${y}`;}
+        function formatTime(dateStr){try{const d=new Date(dateStr);return d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Istanbul'});}catch{return '--:--';}}
+
+        loadDates();
+    </script>
+</body>
+</html>
