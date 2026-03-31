@@ -323,49 +323,101 @@ async function downloadCard(matchId, homeTeam, awayTeam, format) {
 }
 
 function buildStoryElement(card, homeTeam, awayTeam) {
-    // Karttan verileri oku
-    const league   = (card.querySelector('.league-badge') || {}).textContent || '';
-    const time     = (card.querySelector('.match-time') || {}).textContent || '';
-    const conf     = (card.querySelector('.confidence-badge') || {}).textContent || '';
+    const league  = (card.querySelector('.league-badge') || {}).textContent || '';
+    const time    = (card.querySelector('.match-time') || {}).textContent || '';
+    const conf    = (card.querySelector('.confidence-badge') || {}).textContent || '';
+    const stats   = card.querySelectorAll('.stat-box');
+    const over25  = stats[0] ? (stats[0].querySelector('.stat-value') || {}).textContent || '-' : '-';
+    const ht2g    = stats[1] ? (stats[1].querySelector('.stat-value') || {}).textContent || '-' : '-';
+    const btts    = stats[2] ? (stats[2].querySelector('.stat-value') || {}).textContent || '-' : '-';
+    const winner  = (card.querySelector('.score-value') || {}).textContent || '-';
     const leagueClean = league.replace('⚽','').trim();
     const confClean   = conf.replace('Taraf Guveni:','').trim();
 
-    // Hikaye kartı için kartın içeriğini klonla — sadece wrapper boyutunu değiştir
-    const clone = card.cloneNode(true);
+    function statColor(val) {
+        const n = parseInt(val) || 0;
+        if (n >= 70) return '#22c55e';
+        if (n >= 50) return '#f59e0b';
+        return '#ef4444';
+    }
+    function pctBar(val) {
+        const n = parseInt(val) || 0;
+        const color = statColor(val);
+        return `<div style="height:4px;background:#1e1e3a;border-radius:2px;margin-top:6px;overflow:hidden;">
+            <div style="height:4px;width:${n}%;background:${color};border-radius:2px;"></div>
+        </div>`;
+    }
 
-    // Klondaki butonları kaldır
-    clone.querySelectorAll('button').forEach(b => b.remove());
-
-    // Wrapper div: 400x711 (9:16), kart içeriğini ortala
     const wrapper = document.createElement('div');
     wrapper.style.cssText = [
-        'position:fixed', 'left:-9999px', 'top:0',
-        'width:400px', 'height:711px',
+        'position:fixed','left:-9999px','top:0',
+        'width:400px','height:711px',
         'background:linear-gradient(160deg,#0d0d1a 0%,#1a0a2e 100%)',
-        'display:flex', 'flex-direction:column', 'justify-content:center',
-        'font-family:Syne,sans-serif', 'box-sizing:border-box',
-        'border:1px solid #2a1a4e', 'overflow:hidden', 'padding:20px 0'
+        'display:flex','flex-direction:column','justify-content:space-between',
+        'font-family:Syne,sans-serif','box-sizing:border-box',
+        'border:1px solid #2a1a4e','overflow:hidden','padding:28px 24px'
     ].join(';');
 
-    // Klonun stilini ayarla — border ve border-radius kaldır, margin sıfırla
-    clone.style.cssText = 'margin:0;border-radius:0;border:none;border-left:none;background:transparent;padding:0 20px;width:100%;box-sizing:border-box;';
+    wrapper.innerHTML = `
+        <div style="position:absolute;top:-50px;right:-50px;width:180px;height:180px;
+            background:radial-gradient(circle,rgba(124,58,237,0.2) 0%,transparent 70%);pointer-events:none;"></div>
+        <div style="position:absolute;bottom:-40px;left:-40px;width:140px;height:140px;
+            background:radial-gradient(circle,rgba(124,58,237,0.1) 0%,transparent 70%);pointer-events:none;"></div>
 
-    // Üstte logo + lig + saat satırı ekle
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:0 20px 12px 20px;border-bottom:1px solid #1e1e3a;margin-bottom:12px;';
-    header.innerHTML = `
-        <img src="/static/img/logo.png" style="height:28px;object-fit:contain;" onerror="this.style.display='none'">
-        <div style="font-size:11px;color:#555;background:#1a1a2e;padding:3px 10px;border-radius:20px;">${leagueClean} ${time ? '· '+time : ''}</div>
+        <!-- HEADER: Logo + Lig + Saat -->
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <img src="/static/img/logo.png" style="height:30px;object-fit:contain;" onerror="this.style.display='none'">
+            <div style="font-size:11px;color:#555;background:#1a1a2e;padding:3px 12px;border-radius:20px;">
+                ${time || ''}
+            </div>
+        </div>
+
+        <!-- LİG -->
+        <div style="text-align:center;font-size:11px;color:#555;
+            background:#111827;border:1px solid #1f2937;border-radius:20px;
+            padding:5px 12px;">
+            ${leagueClean}
+        </div>
+
+        <!-- TAKIMLAR -->
+        <div style="text-align:center;padding:8px 0;">
+            <div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">${homeTeam}</div>
+            <div style="font-size:13px;color:#3a3a5a;margin:8px 0;font-weight:700;letter-spacing:2px;">VS</div>
+            <div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">${awayTeam}</div>
+        </div>
+
+        <!-- İSTATİSTİKLER -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 16px;">
+                <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">🎯 2.5 GOL USTU</div>
+                <div style="font-size:30px;font-weight:800;color:${statColor(over25)};">${over25}</div>
+                ${pctBar(over25)}
+            </div>
+            <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 16px;">
+                <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">⚽ IY 0.5 UST</div>
+                <div style="font-size:30px;font-weight:800;color:${statColor(ht2g)};">${ht2g}</div>
+                ${pctBar(ht2g)}
+            </div>
+            <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 16px;">
+                <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">🔁 KG VAR (BTTS)</div>
+                <div style="font-size:30px;font-weight:800;color:${statColor(btts)};">${btts}</div>
+                ${pctBar(btts)}
+            </div>
+            <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;">
+                <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:6px;">🏆 KAZANAN</div>
+                <div style="font-size:14px;font-weight:800;color:#fff;line-height:1.3;">${winner}</div>
+            </div>
+        </div>
+
+        <!-- FOOTER: Güven -->
+        <div style="display:flex;justify-content:center;">
+            <div style="font-size:12px;color:#7c3aed;font-weight:700;
+                background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);
+                border-radius:20px;padding:6px 20px;">
+                Taraf Guveni: ${confClean}
+            </div>
+        </div>
     `;
-    wrapper.appendChild(header);
-    wrapper.appendChild(clone);
-
-    // Altta güven badge ekle
-    const footer = document.createElement('div');
-    footer.style.cssText = 'padding:12px 20px 0 20px;border-top:1px solid #1e1e3a;margin-top:12px;display:flex;justify-content:center;';
-    footer.innerHTML = `<div style="font-size:12px;color:#7c3aed;font-weight:700;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:20px;padding:4px 16px;">Taraf Guveni: ${confClean}</div>`;
-    wrapper.appendChild(footer);
-
     return wrapper;
 }
 
