@@ -292,133 +292,22 @@ function cardConfidenceClass(c) {
     return {'Cok Yuksek':'card-confidence-very-high','Yuksek':'card-confidence-high','Orta':'card-confidence-medium','Dusuk':'card-confidence-low'}[c]||'card-confidence-medium';
 }
 
-// ===== KARE + HİKAYE İNDİRME =====
-async function downloadCard(matchId, homeTeam, awayTeam, format) {
-    format = format || 'square';
-    const card = document.getElementById('matchcard-' + matchId);
-    if (!card) return;
-    const allBtns = card.querySelectorAll('button');
-    allBtns.forEach(b => b.style.display = 'none');
+async function downloadCard(matchId, homeTeam, awayTeam) {
+    const card=document.getElementById(`matchcard-${matchId}`); if(!card) return;
+    const btn=document.getElementById(`dlbtn-${matchId}`);
+    if(btn){btn.textContent='⏳';btn.disabled=true;}
+    // İndirme sırasında butonları gizle
+    const btns = card.querySelectorAll('button');
+    btns.forEach(b => b.style.display='none');
     try {
-        if (format === 'square') {
-            const canvas = await html2canvas(card, {scale:4, backgroundColor:null, useCORS:true, logging:false});
-            const link = document.createElement('a');
-            link.download = (homeTeam + '_vs_' + awayTeam + '.png').replace(/\s+/g,'_');
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        } else {
-            // Hikaye kartı — 400x711 (9:16)
-            const storyEl = buildStoryElement(card, homeTeam, awayTeam);
-            document.body.appendChild(storyEl);
-            await new Promise(r => setTimeout(r, 120));
-            const canvas = await html2canvas(storyEl, {scale:2, backgroundColor:'#0d0d1a', useCORS:true, logging:false});
-            document.body.removeChild(storyEl);
-            const link = document.createElement('a');
-            link.download = (homeTeam + '_vs_' + awayTeam + '_hikaye.png').replace(/\s+/g,'_');
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        }
-    } catch(e) { alert('Indirme hatasi: ' + e.message); }
-    allBtns.forEach(b => b.style.display = '');
-}
-
-function buildStoryElement(card, homeTeam, awayTeam) {
-    const league  = (card.querySelector('.league-badge') || {}).textContent || '';
-    const time    = (card.querySelector('.match-time') || {}).textContent || '';
-    const conf    = (card.querySelector('.confidence-badge') || {}).textContent || '';
-    const stats   = card.querySelectorAll('.stat-box');
-    const over25  = stats[0] ? (stats[0].querySelector('.stat-value') || {}).textContent || '-' : '-';
-    const ht2g    = stats[1] ? (stats[1].querySelector('.stat-value') || {}).textContent || '-' : '-';
-    const btts    = stats[2] ? (stats[2].querySelector('.stat-value') || {}).textContent || '-' : '-';
-    const winner  = (card.querySelector('.score-value') || {}).textContent || '-';
-    const leagueClean = league.replace('⚽','').trim();
-    const confClean   = conf.replace('Taraf Guveni:','').trim();
-
-    function statColor(val) {
-        const n = parseInt(val) || 0;
-        if (n >= 70) return '#22c55e';
-        if (n >= 50) return '#f59e0b';
-        return '#ef4444';
-    }
-    function pctBar(val) {
-        const n = parseInt(val) || 0;
-        const color = statColor(val);
-        return `<div style="height:4px;background:#1e1e3a;border-radius:2px;margin-top:6px;overflow:hidden;">
-            <div style="height:4px;width:${n}%;background:${color};border-radius:2px;"></div>
-        </div>`;
-    }
-
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = [
-        'position:fixed','left:-9999px','top:0',
-        'width:400px','height:711px',
-        'background:linear-gradient(160deg,#0d0d1a 0%,#1a0a2e 100%)',
-        'display:flex','flex-direction:column','justify-content:space-between',
-        'font-family:Syne,sans-serif','box-sizing:border-box',
-        'border:1px solid #2a1a4e','overflow:hidden','padding:28px 24px'
-    ].join(';');
-
-    wrapper.innerHTML = `
-        <div style="position:absolute;top:-50px;right:-50px;width:180px;height:180px;
-            background:radial-gradient(circle,rgba(124,58,237,0.2) 0%,transparent 70%);pointer-events:none;"></div>
-        <div style="position:absolute;bottom:-40px;left:-40px;width:140px;height:140px;
-            background:radial-gradient(circle,rgba(124,58,237,0.1) 0%,transparent 70%);pointer-events:none;"></div>
-
-        <!-- HEADER: Logo + Lig + Saat -->
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <img src="/static/img/logo.png" style="height:30px;object-fit:contain;" onerror="this.style.display='none'">
-            <div style="font-size:11px;color:#555;background:#1a1a2e;padding:3px 12px;border-radius:20px;">
-                ${time || ''}
-            </div>
-        </div>
-
-        <!-- LİG -->
-        <div style="text-align:center;font-size:11px;color:#555;
-            background:#111827;border:1px solid #1f2937;border-radius:20px;
-            padding:5px 12px;">
-            ${leagueClean}
-        </div>
-
-        <!-- TAKIMLAR -->
-        <div style="text-align:center;padding:8px 0;">
-            <div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">${homeTeam}</div>
-            <div style="font-size:13px;color:#3a3a5a;margin:8px 0;font-weight:700;letter-spacing:2px;">VS</div>
-            <div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">${awayTeam}</div>
-        </div>
-
-        <!-- İSTATİSTİKLER -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 16px;">
-                <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">🎯 2.5 GOL USTU</div>
-                <div style="font-size:30px;font-weight:800;color:${statColor(over25)};">${over25}</div>
-                ${pctBar(over25)}
-            </div>
-            <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 16px;">
-                <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">⚽ IY 0.5 UST</div>
-                <div style="font-size:30px;font-weight:800;color:${statColor(ht2g)};">${ht2g}</div>
-                ${pctBar(ht2g)}
-            </div>
-            <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 16px;">
-                <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">🔁 KG VAR (BTTS)</div>
-                <div style="font-size:30px;font-weight:800;color:${statColor(btts)};">${btts}</div>
-                ${pctBar(btts)}
-            </div>
-            <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;">
-                <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:6px;">🏆 KAZANAN</div>
-                <div style="font-size:14px;font-weight:800;color:#fff;line-height:1.3;">${winner}</div>
-            </div>
-        </div>
-
-        <!-- FOOTER: Güven -->
-        <div style="display:flex;justify-content:center;">
-            <div style="font-size:12px;color:#7c3aed;font-weight:700;
-                background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);
-                border-radius:20px;padding:6px 20px;">
-                Taraf Guveni: ${confClean}
-            </div>
-        </div>
-    `;
-    return wrapper;
+        const canvas=await html2canvas(card,{scale:4,backgroundColor:null,useCORS:true,logging:false});
+        const link=document.createElement('a');
+        link.download=`${homeTeam}_vs_${awayTeam}.png`.replace(/\s+/g,'_');
+        link.href=canvas.toDataURL('image/png'); link.click();
+    } catch(e){alert('Indirme hatasi: '+e.message);}
+    // Butonları geri getir
+    btns.forEach(b => b.style.display='');
+    if(btn){btn.textContent='📸';btn.disabled=false;}
 }
 
 function buildValueBetsHtml(match) {
@@ -478,10 +367,12 @@ function buildTrendHtml(match) {
     </div>`;
 }
 
+// ===== ANALİZ YORUMU BLOĞU =====
 function buildReasoningHtml(match) {
     let reasoning = null;
     try { reasoning = match.reasoning ? JSON.parse(match.reasoning) : null; } catch(e) {}
     if (!reasoning || reasoning.length === 0) return '';
+
     const icons = ['🏠', '✈️', '📊', '🚩', '⏱️'];
     const items = reasoning.map((r, i) => {
         const icon = icons[i] || '•';
@@ -490,68 +381,94 @@ function buildReasoningHtml(match) {
             <span style="font-size:11px;color:#aaa;line-height:1.5;">${r}</span>
         </div>`;
     }).join('');
+
     return `<div style="margin-top:10px;padding:10px 12px;background:#0d0d1a;border-radius:10px;border:1px solid #1e1e3a;">
         <div style="font-size:10px;color:#6366f1;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">🤖 AI ANALİZ YORUMU</div>
         ${items}
     </div>`;
 }
 
+// ===== KORNER BİLGİ BLOĞU =====
 function buildCornerInfoHtml(match) {
     let csv = match.csv_data;
     if (typeof csv === 'string') {
         try { csv = JSON.parse(csv); } catch(e) { csv = null; }
     }
     if (!csv) return '';
-    const avg=csv.avg_corners, over85=csv.avg_corners_85, over95=csv.avg_corners_95, over105=csv.avg_corners_105;
-    if (avg==null&&over85==null&&over95==null&&over105==null) return '';
+
+    const avg     = csv.avg_corners;
+    const over85  = csv.avg_corners_85;
+    const over95  = csv.avg_corners_95;
+    const over105 = csv.avg_corners_105;
+
+    if (avg == null && over85 == null && over95 == null && over105 == null) return '';
+
     function cornerBarColor(val) {
-        if(val==null)return '#3a3a5a';
-        if(val>=10)return '#22c55e';
-        if(val>=8)return '#f59e0b';
+        if (val == null) return '#3a3a5a';
+        if (val >= 10) return '#22c55e';
+        if (val >= 8)  return '#f59e0b';
         return '#60a5fa';
     }
+
     function fmtPct(val) {
-        if(val==null)return '—';
-        const v=val>1?val:val*100;
-        return v.toFixed(0)+'%';
+        if (val == null) return '—';
+        const v = val > 1 ? val : val * 100;
+        return v.toFixed(0) + '%';
     }
-    function fmtNum(val){return val!=null?parseFloat(val).toFixed(1):'—';}
-    const barWidth=avg!=null?Math.min(100,(avg/14)*100).toFixed(1):0;
-    const barColor=cornerBarColor(avg);
-    function pctColor(val){
-        if(val==null)return '#555';
-        const v=val>1?val:val*100;
-        if(v>=70)return '#22c55e';
-        if(v>=45)return '#f59e0b';
+
+    function fmtNum(val) {
+        return val != null ? parseFloat(val).toFixed(1) : '—';
+    }
+
+    const barWidth = avg != null ? Math.min(100, (avg / 14) * 100).toFixed(1) : 0;
+    const barColor = cornerBarColor(avg);
+
+    function pctColor(val) {
+        if (val == null) return '#555';
+        const v = val > 1 ? val : val * 100;
+        if (v >= 70) return '#22c55e';
+        if (v >= 45) return '#f59e0b';
         return '#60a5fa';
     }
-    const thresholds=[{label:'8.5 Üst',val:over85},{label:'9.5 Üst',val:over95},{label:'10.5 Üst',val:over105}].filter(t=>t.val!=null);
-    const thresholdHtml=thresholds.map(t=>`
+
+    const thresholds = [
+        { label: '8.5 Üst', val: over85 },
+        { label: '9.5 Üst', val: over95 },
+        { label: '10.5 Üst', val: over105 },
+    ].filter(t => t.val != null);
+
+    const thresholdHtml = thresholds.map(t => `
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px;
                     background:#0d0d1a;border:1px solid #1e1e3a;border-radius:8px;
                     padding:6px 10px;min-width:62px;">
             <span style="font-size:9px;color:#444;font-weight:600;white-space:nowrap;">${t.label}</span>
             <span style="font-size:13px;font-weight:800;color:${pctColor(t.val)};">${fmtPct(t.val)}</span>
-        </div>`).join('');
+        </div>`
+    ).join('');
+
     return `
     <div style="margin-top:10px;padding:10px 12px;background:#0a0a16;border-radius:10px;border:1px solid #1a1a2e;">
         <div style="font-size:10px;color:#3b82f6;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">
             🚩 KORNER İSTATİSTİKLERİ
         </div>
-        ${avg!=null?`
+        ${avg != null ? `
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <span style="font-size:11px;color:#555;">Ort. Korner</span>
             <div style="display:flex;align-items:center;gap:8px;flex:1;margin-left:12px;">
                 <div style="flex:1;height:6px;background:#1e1e3a;border-radius:3px;overflow:hidden;">
-                    <div style="height:100%;width:${barWidth}%;background:${barColor};border-radius:3px;"></div>
+                    <div style="height:100%;width:${barWidth}%;background:${barColor};border-radius:3px;transition:width 0.4s;"></div>
                 </div>
                 <span style="font-size:13px;font-weight:800;color:${barColor};min-width:28px;text-align:right;">${fmtNum(avg)}</span>
             </div>
-        </div>`:''}
-        ${thresholds.length>0?`<div style="display:flex;gap:6px;flex-wrap:wrap;">${thresholdHtml}</div>`:''}
+        </div>` : ''}
+        ${thresholds.length > 0 ? `
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            ${thresholdHtml}
+        </div>` : ''}
     </div>`;
 }
 
+// ─── Kupon ────────────────────────────────────────────────────────────────────
 async function generateCoupon() {
     const btn = document.getElementById('couponBtn');
     btn.disabled = true; btn.textContent = '⏳ Olusturuluyor...';
@@ -577,7 +494,9 @@ async function saveCoupon(coupon) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ items: coupon })
         });
-    } catch(e) { console.error('Kupon kaydetme hatasi:', e); }
+    } catch(e) {
+        console.error('Kupon kaydetme hatasi:', e);
+    }
 }
 
 function drawCouponCanvas(coupon) {
@@ -600,6 +519,7 @@ function drawCouponCanvas(coupon) {
         ctx.fillStyle='#7c3aed'; ctx.font='800 16px Syne,sans-serif'; ctx.fillText('GUNUN KUPONU',width-20,54);
         ctx.strokeStyle='#1e1e3a'; ctx.lineWidth=1;
         ctx.beginPath(); ctx.moveTo(20,headerH-6); ctx.lineTo(width-20,headerH-6); ctx.stroke();
+
         coupon.forEach((item,i)=>{
             const y=headerH+i*rowH;
             if(i%2===0){ctx.fillStyle='rgba(124,58,237,0.04)';ctx.fillRect(0,y,width,rowH);}
@@ -617,6 +537,7 @@ function drawCouponCanvas(coupon) {
             ctx.fillStyle=bc.bg; roundRect(ctx,bX,bY,bW,bH,10); ctx.fill();
             ctx.strokeStyle=bc.border; ctx.lineWidth=1.5; roundRect(ctx,bX,bY,bW,bH,10); ctx.stroke();
             ctx.fillStyle=bc.text; ctx.textAlign='center';
+            // Font boyutunu metne göre otomatik küçült
             let fontSize=13;
             ctx.font=`700 ${fontSize}px Syne,sans-serif`;
             while(ctx.measureText(item.prediction_label).width>bW-10&&fontSize>8){
@@ -625,9 +546,11 @@ function drawCouponCanvas(coupon) {
             }
             ctx.fillText(item.prediction_label,bX+bW/2,bY+bH/2+5);
         });
-        const validOdds=coupon.filter(i=>i.odds).map(i=>parseFloat(i.odds));
-        const totalOdds=validOdds.length>0?validOdds.reduce((a,b)=>a*b,1):null;
-        const fy=headerH+coupon.length*rowH+extraPad/2;
+
+        const validOdds = coupon.filter(i=>i.odds).map(i=>parseFloat(i.odds));
+        const totalOdds = validOdds.length > 0 ? validOdds.reduce((a,b)=>a*b,1) : null;
+        const fy = headerH + coupon.length*rowH + extraPad/2;
+
         if(totalOdds){
             ctx.strokeStyle='#2a1a4e'; ctx.lineWidth=1;
             ctx.beginPath(); ctx.moveTo(20,fy+10); ctx.lineTo(width-20,fy+10); ctx.stroke();
@@ -636,8 +559,10 @@ function drawCouponCanvas(coupon) {
             ctx.fillStyle='#22c55e'; ctx.font='800 15px Syne,sans-serif'; ctx.textAlign='right';
             ctx.fillText('@'+totalOdds.toFixed(2),width-20,fy+28);
         }
+
         ctx.fillStyle='#2a2a3a'; ctx.font='400 9px Syne,sans-serif'; ctx.textAlign='center';
         ctx.fillText('Bu tahminler yapay zeka analizi ile olusturulmustur. Sorumluluk kabul edilmez.',width/2,fy+(totalOdds?48:32));
+
         couponCanvas=canvas; showCouponPreview(canvas,today);
         const b=document.getElementById('couponBtn'); if(b){b.disabled=false;b.textContent='🎫 Kupon Olustur';}
     };
@@ -646,10 +571,10 @@ function drawCouponCanvas(coupon) {
 
 function showCouponPreview(canvas, today) {
     document.getElementById('couponModal')?.remove();
-    const modal=document.createElement('div'); modal.id='couponModal';
-    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-    const imgSrc=canvas.toDataURL('image/png');
-    modal.innerHTML=`<div style="background:#0d0d1a;border:1px solid #2a1a4e;border-radius:16px;padding:20px;max-width:520px;width:100%;">
+    const modal = document.createElement('div'); modal.id = 'couponModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    const imgSrc = canvas.toDataURL('image/png');
+    modal.innerHTML = `<div style="background:#0d0d1a;border:1px solid #2a1a4e;border-radius:16px;padding:20px;max-width:520px;width:100%;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
             <span style="color:#fff;font-weight:700;font-size:14px;">🎫 Kupon Onizleme</span>
             <button onclick="document.getElementById('couponModal').remove()" style="background:transparent;border:none;color:#666;font-size:20px;cursor:pointer;">✕</button>
@@ -663,20 +588,20 @@ function showCouponPreview(canvas, today) {
             <button onclick="downloadCoupon('${today}')" style="padding:10px 20px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⬇️ PNG Indir</button>
         </div>
     </div>`;
-    modal.addEventListener('click',(e)=>{if(e.target===modal)modal.remove();});
+    modal.addEventListener('click', (e) => { if(e.target===modal) modal.remove(); });
     document.body.appendChild(modal);
 }
 
 function downloadCoupon(today) {
     if(!couponCanvas) return;
-    const link=document.createElement('a');
-    link.download=`gollazim_kupon_${today.replace(/\./g,'-')}.png`;
-    link.href=couponCanvas.toDataURL('image/png'); link.click();
+    const link = document.createElement('a');
+    link.download = `gollazim_kupon_${today.replace(/\./g,'-')}.png`;
+    link.href = couponCanvas.toDataURL('image/png'); link.click();
     document.getElementById('couponModal')?.remove();
 }
 
 function getBadgeColor(type) {
-    const map={
+    const map = {
         '1X2':{bg:'rgba(124,58,237,0.15)',border:'rgba(124,58,237,0.6)',text:'#a78bfa'},
         'IY 0.5 Ust':{bg:'rgba(168,85,247,0.12)',border:'rgba(168,85,247,0.5)',text:'#c084fc'},
         '2.5 Ust':{bg:'rgba(34,197,94,0.12)',border:'rgba(34,197,94,0.5)',text:'#4ade80'},
@@ -684,7 +609,7 @@ function getBadgeColor(type) {
         'KG Var':{bg:'rgba(245,158,11,0.12)',border:'rgba(245,158,11,0.5)',text:'#fbbf24'},
         'KG Yok':{bg:'rgba(239,68,68,0.12)',border:'rgba(239,68,68,0.5)',text:'#f87171'},
     };
-    return map[type]||map['1X2'];
+    return map[type] || map['1X2'];
 }
 
 function roundRect(ctx,x,y,w,h,r){
@@ -695,23 +620,23 @@ function roundRect(ctx,x,y,w,h,r){
 }
 
 async function loadFixtures() {
-    const container=document.getElementById('fixturesList');
-    container.innerHTML=`<div class="loading-fixtures"><div class="spinner"></div><span>Yukleniyor...</span></div>`;
+    const container = document.getElementById('fixturesList');
+    container.innerHTML = `<div class="loading-fixtures"><div class="spinner"></div><span>Yukleniyor...</span></div>`;
     try {
-        const resp=await fetch('/api/fixtures/today');
-        const fixtures=await resp.json();
-        if(!fixtures||fixtures.length===0){
-            container.innerHTML=`<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
+        const resp = await fetch('/api/fixtures/today');
+        const fixtures = await resp.json();
+        if (!fixtures || fixtures.length === 0) {
+            container.innerHTML = `<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
             return;
         }
-        const grouped={};
-        fixtures.forEach(f=>{const l=f.league||'Diger';if(!grouped[l])grouped[l]=[];grouped[l].push(f);});
-        let html='';
-        for(const[league,matches]of Object.entries(grouped)){
-            html+=`<div class="league-group"><div class="league-title">🏆 ${league}</div>`;
-            matches.forEach(f=>{
-                const time=formatTime(f.date);
-                html+=`<div class="fixture-item" data-id="${f.id}" onclick="toggleFixture(${f.id}, '${f.home_team.replace(/'/g,"\\'")}', '${f.away_team.replace(/'/g,"\\'")}', '${(f.league||'').replace(/'/g,"\\'")}', '${f.date||''}')">
+        const grouped = {};
+        fixtures.forEach(f => { const l=f.league||'Diger'; if(!grouped[l])grouped[l]=[]; grouped[l].push(f); });
+        let html = '';
+        for (const [league, matches] of Object.entries(grouped)) {
+            html += `<div class="league-group"><div class="league-title">🏆 ${league}</div>`;
+            matches.forEach(f => {
+                const time = formatTime(f.date);
+                html += `<div class="fixture-item" data-id="${f.id}" onclick="toggleFixture(${f.id}, '${f.home_team.replace(/'/g,"\\'")}', '${f.away_team.replace(/'/g,"\\'")}', '${(f.league||'').replace(/'/g,"\\'")}', '${f.date||''}')">
                     <div class="fixture-check" id="check-${f.id}">☐</div>
                     <div class="fixture-info">
                         <span class="fixture-teams">${f.home_team} vs ${f.away_team}</span>
@@ -719,62 +644,62 @@ async function loadFixtures() {
                     </div>
                 </div>`;
             });
-            html+=`</div>`;
+            html += `</div>`;
         }
-        container.innerHTML=html;
+        container.innerHTML = html;
         updateSelectedCount();
-    } catch(e){
-        container.innerHTML=`<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
+    } catch(e) {
+        container.innerHTML = `<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
     }
 }
 
-function toggleFixture(id,home,away,league,date){
-    if(selectedFixtures[id]){
+function toggleFixture(id, home, away, league, date) {
+    if (selectedFixtures[id]) {
         delete selectedFixtures[id];
-        document.getElementById(`check-${id}`).textContent='☐';
+        document.getElementById(`check-${id}`).textContent = '☐';
         document.querySelector(`[data-id="${id}"]`).classList.remove('selected');
     } else {
-        selectedFixtures[id]={id,home_team:home,away_team:away,league,date};
-        document.getElementById(`check-${id}`).textContent='✅';
+        selectedFixtures[id] = { id, home_team: home, away_team: away, league, date };
+        document.getElementById(`check-${id}`).textContent = '✅';
         document.querySelector(`[data-id="${id}"]`).classList.add('selected');
     }
     updateSelectedCount();
 }
 
-function selectAll(){
-    const items=document.querySelectorAll('.fixture-item');
-    const allSelected=items.length===Object.keys(selectedFixtures).length;
-    items.forEach(item=>{
-        const id=parseInt(item.dataset.id);
-        if(allSelected){delete selectedFixtures[id];document.getElementById(`check-${id}`).textContent='☐';item.classList.remove('selected');}
-        else{selectedFixtures[id]={id};document.getElementById(`check-${id}`).textContent='✅';item.classList.add('selected');}
+function selectAll() {
+    const items = document.querySelectorAll('.fixture-item');
+    const allSelected = items.length === Object.keys(selectedFixtures).length;
+    items.forEach(item => {
+        const id = parseInt(item.dataset.id);
+        if (allSelected) { delete selectedFixtures[id]; document.getElementById(`check-${id}`).textContent='☐'; item.classList.remove('selected'); }
+        else { selectedFixtures[id]={id}; document.getElementById(`check-${id}`).textContent='✅'; item.classList.add('selected'); }
     });
     updateSelectedCount();
 }
 
-function updateSelectedCount(){
-    const total=Object.keys(selectedFixtures).length+manualMatches.length;
-    document.getElementById('selectedCount').textContent=`${total} mac secildi`;
-    document.getElementById('analyzeBtn').disabled=total===0;
+function updateSelectedCount() {
+    const total = Object.keys(selectedFixtures).length + manualMatches.length;
+    document.getElementById('selectedCount').textContent = `${total} mac secildi`;
+    document.getElementById('analyzeBtn').disabled = total === 0;
 }
 
-function selectAiProvider(provider){
-    selectedAiProvider=provider;
-    document.querySelectorAll('.ai-btn').forEach(btn=>{
-        btn.style.background='transparent';
-        btn.style.color='#666';
-        btn.style.borderColor='#2a2a3a';
+function selectAiProvider(provider) {
+    selectedAiProvider = provider;
+    document.querySelectorAll('.ai-btn').forEach(btn => {
+        btn.style.background = 'transparent';
+        btn.style.color = '#666';
+        btn.style.borderColor = '#2a2a3a';
     });
-    const active=document.getElementById(`ai-btn-${provider}`);
-    if(active){
-        const colors={grok:'#10b981',gemini:'#3b82f6'};
-        active.style.background=(colors[provider]||'#7c3aed')+'22';
-        active.style.color=colors[provider]||'#a78bfa';
-        active.style.borderColor=colors[provider]||'#7c3aed';
+    const active = document.getElementById(`ai-btn-${provider}`);
+    if (active) {
+        const colors = { grok: '#10b981', gemini: '#3b82f6' };
+        active.style.background = (colors[provider] || '#7c3aed') + '22';
+        active.style.color = colors[provider] || '#a78bfa';
+        active.style.borderColor = colors[provider] || '#7c3aed';
     }
 }
 
-function initImageUpload(){
+function initImageUpload() {
     const btn=document.getElementById('imageUploadBtn');
     const input=document.getElementById('imageUpload');
     btn.addEventListener('click',()=>input.click());
@@ -807,7 +732,7 @@ function fileToBase64(file){
     });
 }
 
-function addManualMatch(){
+function addManualMatch() {
     const home=document.getElementById('homeTeam').value.trim();
     const away=document.getElementById('awayTeam').value.trim();
     const league=document.getElementById('leagueName').value.trim()||'Manuel Mac';
@@ -823,7 +748,7 @@ function addManualMatch(){
 
 function removeManual(index){manualMatches.splice(index,1);renderManualList();updateSelectedCount();}
 
-function renderManualList(){
+function renderManualList() {
     const container=document.getElementById('manualList');
     if(manualMatches.length===0){container.innerHTML='';return;}
     container.innerHTML=manualMatches.map((m,i)=>{
@@ -835,12 +760,12 @@ function renderManualList(){
     }).join('');
 }
 
-async function runAnalysis(){
+async function runAnalysis() {
     const btn=document.getElementById('analyzeBtn');
     const statusDiv=document.getElementById('analysisStatus');
-    const fixtureIds=Object.keys(selectedFixtures).map(Number);
-    const total=fixtureIds.length+manualMatches.length;
-    const aiLabel=selectedAiProvider==='grok'?'Grok':selectedAiProvider==='gemini'?'Gemini':'Claude';
+    const fixtureIds = Object.keys(selectedFixtures).map(Number);
+    const total = fixtureIds.length + manualMatches.length;
+    const aiLabel = selectedAiProvider === 'grok' ? 'Grok' : selectedAiProvider === 'gemini' ? 'Gemini' : 'Claude';
     btn.disabled=true; btn.innerHTML='⏳ Analiz baslatiliyor...';
     statusDiv.style.display='block';
     statusDiv.innerHTML=`<div class="status-box"><div class="status-spinner"></div><div class="status-text">
@@ -859,7 +784,7 @@ async function runAnalysis(){
     });
     try {
         const resp=await fetch('/api/analyze/selected',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fixture_ids:fixtureIds,manual_matches:manualMatches,ai_provider:selectedAiProvider})});
+            body:JSON.stringify({fixture_ids: fixtureIds, manual_matches: manualMatches, ai_provider: selectedAiProvider})});
         const data=await resp.json();
         if(data.status==='success'){
             selectedFixtures={};
@@ -868,7 +793,7 @@ async function runAnalysis(){
     } catch(e){showError(statusDiv,btn,e.message);}
 }
 
-async function checkAndReload(statusDiv,btn,total){
+async function checkAndReload(statusDiv,btn,total) {
     try {
         const res=await fetch('/api/matches/today'); const matches=await res.json();
         if(matches&&matches.length>0){
@@ -886,7 +811,7 @@ function showError(statusDiv,btn,message){
     btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et';
 }
 
-async function sendToTelegram(){
+async function sendToTelegram() {
     const btn=document.getElementById('telegramBtn'); btn.disabled=true; btn.innerHTML='⏳ Gonderiliyor...';
     try {
         const resp=await fetch('/api/telegram/send',{method:'POST'}); const data=await resp.json();
@@ -895,7 +820,7 @@ async function sendToTelegram(){
     } catch(e){btn.innerHTML='❌ Hata!';alert('Hata: '+e.message);btn.disabled=false;}
 }
 
-async function loadMatches(){
+async function loadMatches() {
     const container=document.getElementById('matchesContainer');
     try {
         const resp=await fetch('/api/matches/today'); const matches=await resp.json();
@@ -906,7 +831,7 @@ async function loadMatches(){
     } catch(e){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;}
 }
 
-function renderMatches(matches){
+function renderMatches(matches) {
     const container=document.getElementById('matchesContainer');
     if(!matches||matches.length===0){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;return;}
     container.innerHTML=`
@@ -920,7 +845,7 @@ function renderMatches(matches){
         <div id="matchCardsList">${matches.map(m=>createMatchCard(m)).join('')}</div>`;
 }
 
-function createMatchCard(match){
+function createMatchCard(match) {
     const prediction=match.prediction_1x2||'?';
     const confidence=match.confidence||'Orta';
     const confidenceClass={'Cok Yuksek':'confidence-very-high','Yuksek':'confidence-high','Orta':'confidence-medium','Dusuk':'confidence-low'}[confidence]||'confidence-medium';
@@ -934,16 +859,11 @@ function createMatchCard(match){
     const valueBetsHtml=buildValueBetsHtml(match);
     const cornerInfoHtml=buildCornerInfoHtml(match);
     const reasoningHtml=buildReasoningHtml(match);
-    const ht=match.home_team.replace(/'/g,"\\'");
-    const at=match.away_team.replace(/'/g,"\\'");
     return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
-            <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${ht}','${at}','square')"
+            <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${match.home_team.replace(/'/g,"\\'")}','${match.away_team.replace(/'/g,"\\'")}' )"
                 style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
-                onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#555'" title="Kare Indir">📸</button>
-            <button id="storybtn-${match.id}" onclick="downloadCard(${match.id},'${ht}','${at}','story')"
-                style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
-                onmouseover="this.style.color='#a78bfa'" onmouseout="this.style.color='#555'" title="Hikaye Indir">📱</button>
+                onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#555'" title="Karti Indir">📸</button>
             <button onclick="deleteMatch(${match.id})"
                 style="background:transparent;border:none;color:#444;font-size:15px;cursor:pointer;padding:0;line-height:1;"
                 onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#444'" title="Sil">🗑️</button>
@@ -976,7 +896,7 @@ function createMatchCard(match){
     </div>`;
 }
 
-async function deleteMatch(id){
+async function deleteMatch(id) {
     if(!confirm('Bu analizi silmek istedigine emin misin?')) return;
     try {
         await fetch(`/api/matches/delete/${id}`,{method:'DELETE'});
@@ -986,7 +906,7 @@ async function deleteMatch(id){
     } catch(e){alert('Silme hatasi: '+e.message);}
 }
 
-async function clearAllMatches(){
+async function clearAllMatches() {
     if(!confirm('Bugünün tüm analizleri silinecek. Emin misin?')) return;
     try {
         await fetch('/api/matches/clear',{method:'DELETE'});
@@ -994,7 +914,7 @@ async function clearAllMatches(){
     } catch(e){alert('Silme hatasi: '+e.message);}
 }
 
-function formatTime(dateStr){
+function formatTime(dateStr) {
     if(!dateStr) return '';
     try {
         const d=new Date(dateStr); if(isNaN(d.getTime())) return '';
