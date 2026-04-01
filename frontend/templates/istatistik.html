@@ -69,18 +69,6 @@
         .vb-stat .vb-lbl { font-size: 10px; color: #555; margin-top: 2px; }
         .vb-bar-wrap { background: #0d0d1a; border-radius: 4px; height: 6px; flex: 1; min-width: 80px; }
         .vb-bar-fill { height: 6px; border-radius: 4px; }
-        .calib-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-        .calib-card { background: #0d0d1a; border: 1px solid #1e1e3a; border-radius: 10px; padding: 14px; }
-        .calib-bucket { font-size: 11px; color: #555; margin-bottom: 8px; font-weight: 600; }
-        .calib-actual { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
-        .calib-bar { background: #111; border-radius: 4px; height: 5px; margin-bottom: 8px; overflow: hidden; }
-        .calib-bar-fill { height: 5px; border-radius: 4px; }
-        .calib-meta { display: flex; justify-content: space-between; font-size: 10px; }
-        .calib-diff { font-weight: 700; }
-        .calib-count { color: #444; }
-        .calib-empty { opacity: 0.3; }
-        .no-data { text-align: center; padding: 40px; color: #444; font-size: 13px; }
-        .loading { text-align: center; padding: 40px; color: #555; }
         .calib-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 4px; }
         .calib-card { background: #0d0d1a; border: 1px solid #1e1e3a; border-radius: 10px; padding: 14px; }
         .calib-card.calib-empty { opacity: 0.35; }
@@ -91,6 +79,14 @@
         .calib-meta { display: flex; justify-content: space-between; align-items: center; font-size: 10px; }
         .calib-diff { font-weight: 700; }
         .calib-count { color: #444; }
+
+        .month-picker-wrap { display:flex; align-items:center; gap:12px; margin-bottom:24px; flex-wrap:wrap; background:#12121f; border:1px solid #2a2a3e; border-radius:12px; padding:14px 16px; }
+        .month-picker-label { font-size:13px; color:#666; }
+        .month-select { padding:8px 14px; border-radius:8px; border:1px solid #333; background:#1a1a2e; color:#fff; font-size:13px; font-family:inherit; cursor:pointer; outline:none; }
+        .month-select:focus { border-color:#7c3aed; }
+        .month-badge { padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; background:rgba(124,58,237,0.15); color:#a78bfa; border:1px solid rgba(124,58,237,0.3); }
+        .no-data { text-align: center; padding: 40px; color: #444; font-size: 13px; }
+        .loading { text-align: center; padding: 40px; color: #555; }
     </style>
 </head>
 <body>
@@ -107,12 +103,21 @@
                     <a href="/gecmis" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">&#128197; Gecmis</a>
                     <a href="/istatistik" style="padding:7px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;text-decoration:none;">&#128202; Istatistik</a>
                     <a href="/kuponlar" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">&#127915; Kuponlar</a>
+                    <a href="/debug" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">&#128269; Debug</a>
                 </nav>
             </div>
         </header>
         <main class="main-content">
             <div class="stats-container">
                 <h2 style="color:#fff; margin-bottom:20px;">&#128202; Istatistikler</h2>
+
+                <div class="month-picker-wrap">
+                    <span class="month-picker-label">📅 Dönem seç:</span>
+                    <select class="month-select" id="monthSelect" onchange="onMonthChange()">
+                        <option value="">Tüm Zamanlar</option>
+                    </select>
+                    <span class="month-badge" id="monthBadge">Tüm Zamanlar</span>
+                </div>
 
                 <div class="section">
                     <div class="section-title">&#127942; Genel Ozet</div>
@@ -184,11 +189,65 @@
 
     <script>
         let dailyChartInstance = null;
+        let currentMonth = '';
+
+        function buildMonthParam() {
+            return currentMonth ? '?month=' + currentMonth : '';
+        }
+
+        async function populateMonths() {
+            // Mevcut tarihleri çek, ay listesi oluştur
+            const resp = await fetch('/api/dates');
+            const dates = await resp.json();
+            if (!dates.length) return;
+            const months = [...new Set(dates.map(d => d.substring(0, 7)))].sort().reverse();
+            const select = document.getElementById('monthSelect');
+            months.forEach(m => {
+                const [y, mo] = m.split('-');
+                const label = new Date(y, mo - 1).toLocaleDateString('tr-TR', {month:'long', year:'numeric'});
+                const opt = document.createElement('option');
+                opt.value = m; opt.textContent = label;
+                select.appendChild(opt);
+            });
+            // Varsayılan: bu ay
+            const now = new Date();
+            const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+            if (months.includes(thisMonth)) {
+                select.value = thisMonth;
+                currentMonth = thisMonth;
+                updateBadge();
+            }
+        }
+
+        function updateBadge() {
+            const badge = document.getElementById('monthBadge');
+            if (!currentMonth) { badge.textContent = 'Tüm Zamanlar'; return; }
+            const [y, mo] = currentMonth.split('-');
+            badge.textContent = new Date(y, mo - 1).toLocaleDateString('tr-TR', {month:'long', year:'numeric'});
+        }
+
+        function onMonthChange() {
+            currentMonth = document.getElementById('monthSelect').value;
+            updateBadge();
+            reloadAll();
+        }
+
+        function reloadAll() {
+            loadOverview();
+            loadDailyChart();
+            loadCategories();
+            loadValueBets();
+            loadComboBets();
+            loadCalibration();
+            loadConfidence();
+            loadLeagues();
+            loadBestWorst();
+        }
         function pctColor(pct) { return pct >= 60 ? 'pct-high' : pct >= 40 ? 'pct-mid' : 'pct-low'; }
         function formatDate(d) { const [y,m,day]=d.split('-'); return day+'/'+m; }
 
         async function loadOverview() {
-            const resp = await fetch('/api/stats/overview');
+            const resp = await fetch('/api/stats/overview' + buildMonthParam());
             const d = await resp.json();
             if (d.error) { document.getElementById('overviewGrid').innerHTML = '<div class="no-data">Veri yok</div>'; return; }
             document.getElementById('overviewGrid').innerHTML = `
@@ -201,7 +260,7 @@
         }
 
         async function loadDailyChart() {
-            const resp = await fetch('/api/stats/daily');
+            const resp = await fetch('/api/stats/daily' + buildMonthParam());
             const data = await resp.json();
             if (!data.length) return;
             const labels = data.map(d => formatDate(d.date));
@@ -213,6 +272,7 @@
                     { label: '1X2 %', data: data.map(d=>d.pct_1x2), borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.08)', tension: 0.4, fill: true, pointRadius: 3 },
                     { label: '2.5 Ust %', data: data.map(d=>d.pct_over25), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.05)', tension: 0.4, fill: false, pointRadius: 3 },
                     { label: 'KG %', data: data.map(d=>d.pct_btts), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.05)', tension: 0.4, fill: false, pointRadius: 3 },
+                    { label: 'IY 0.5 %', data: data.map(d=>d.pct_ht), borderColor: '#ec4899', backgroundColor: 'rgba(236,72,153,0.05)', tension: 0.4, fill: false, pointRadius: 3 },
                 ]},
                 options: { responsive: true, plugins: { legend: { labels: { color: '#888', font: { size: 11 } } }, tooltip: { mode: 'index', intersect: false } },
                     scales: { x: { ticks: { color: '#555', font: { size: 10 } }, grid: { color: '#111' } }, y: { ticks: { color: '#555', font: { size: 10 }, callback: v => v+'%' }, grid: { color: '#111' }, min: 0, max: 100 } } }
@@ -220,7 +280,7 @@
         }
 
         async function loadCategories() {
-            const resp = await fetch('/api/stats/by-category');
+            const resp = await fetch('/api/stats/by-category' + buildMonthParam());
             const data = await resp.json();
             if (!data.length) { document.getElementById('categoryBody').innerHTML = '<tr><td colspan="4" class="no-data">Veri yok</td></tr>'; return; }
             document.getElementById('categoryBody').innerHTML = data.map(c => `
@@ -235,7 +295,7 @@
         async function loadValueBets() {
             const container = document.getElementById('valueBetGrid');
             try {
-                const resp = await fetch('/api/stats/value-bets');
+                const resp = await fetch('/api/stats/value-bets' + buildMonthParam());
                 const data = await resp.json();
                 if (!data || data.error || data.length === 0) { container.innerHTML = '<div class="no-data">Henuz veri yok</div>'; return; }
                 container.innerHTML = data.map(v => {
@@ -254,7 +314,7 @@
         async function loadCalibration() {
             const container = document.getElementById('calibrationContent');
             try {
-                const resp = await fetch('/api/stats/calibration');
+                const resp = await fetch('/api/stats/calibration' + buildMonthParam());
                 const data = await resp.json();
                 if (data.error) { container.innerHTML = '<div class="no-data">Veri yok</div>'; return; }
                 const types = [
@@ -298,7 +358,7 @@
         }
 
         async function loadConfidence() {
-            const resp = await fetch('/api/stats/by-confidence');
+            const resp = await fetch('/api/stats/by-confidence' + buildMonthParam());
             const data = await resp.json();
             const container = document.getElementById('confidenceGrid');
             if (!data.length) { container.innerHTML = '<div class="no-data">Veri yok</div>'; return; }
@@ -318,7 +378,7 @@
         }
 
         async function loadLeagues() {
-            const resp = await fetch('/api/stats/by-league');
+            const resp = await fetch('/api/stats/by-league' + buildMonthParam());
             const data = await resp.json();
             const container = document.getElementById('leagueGrid');
             if (!data.length) { container.innerHTML = '<div class="no-data">Veri yok (min 3 mac gerekli)</div>'; return; }
@@ -334,7 +394,7 @@
         }
 
         async function loadBestWorst() {
-            const resp = await fetch('/api/stats/best-worst-days');
+            const resp = await fetch('/api/stats/best-worst-days' + buildMonthParam());
             const data = await resp.json();
             const container = document.getElementById('dayCards');
             if (!data.best || !data.best.length) { container.innerHTML = '<div class="no-data">Veri yok (min 2 macli gun gerekli)</div>'; return; }
@@ -355,7 +415,7 @@
         async function loadComboBets() {
             const container = document.getElementById('comboBetGrid');
             try {
-                const resp = await fetch('/api/stats/combo-bets');
+                const resp = await fetch('/api/stats/combo-bets' + buildMonthParam());
                 const data = await resp.json();
                 if (!data || data.error || data.length === 0) {
                     container.innerHTML = '<div class="no-data">Henuz yeterli veri yok</div>';
@@ -365,23 +425,15 @@
                     const barColor = c.pct >= 60 ? '#22c55e' : c.pct >= 40 ? '#f59e0b' : '#ef4444';
                     return `<div class="vb-row">
                         <div class="vb-label">&#128279; ${c.label}</div>
-                        <div class="vb-stat">
-                            <div class="vb-val" style="color:#666;">${c.correct}/${c.total}</div>
-                            <div class="vb-lbl">Sonuc</div>
-                        </div>
-                        <div class="vb-stat">
-                            <div class="vb-val ${pctColor(c.pct)}">%${c.pct}</div>
-                            <div class="vb-lbl">Basari</div>
-                        </div>
-                        <div class="vb-bar-wrap">
-                            <div class="vb-bar-fill" style="width:${c.pct}%;background:${barColor};"></div>
-                        </div>
+                        <div class="vb-stat"><div class="vb-val" style="color:#666;">${c.correct}/${c.total}</div><div class="vb-lbl">Sonuc</div></div>
+                        <div class="vb-stat"><div class="vb-val ${pctColor(c.pct)}">%${c.pct}</div><div class="vb-lbl">Basari</div></div>
+                        <div class="vb-bar-wrap"><div class="vb-bar-fill" style="width:${c.pct}%;background:${barColor};"></div></div>
                     </div>`;
                 }).join('');
             } catch(e) { container.innerHTML = '<div class="no-data">Yuklenemedi</div>'; }
         }
 
-        Promise.all([loadOverview(), loadDailyChart(), loadCategories(), loadValueBets(), loadComboBets(), loadCalibration(), loadConfidence(), loadLeagues(), loadBestWorst()]);
+        populateMonths().then(() => reloadAll());
     </script>
 </body>
 </html>
