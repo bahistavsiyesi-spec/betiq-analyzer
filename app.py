@@ -18,6 +18,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 init_db()
 
+def _get_month_filter(request):
+    """?month=2026-04 parametresinden WHERE clause ve params döndürür"""
+    month = request.args.get('month', '')
+    if month and len(month) == 7:  # YYYY-MM formatı
+        try:
+            year, mon = month.split('-')
+            from datetime import date
+            import calendar
+            last_day = calendar.monthrange(int(year), int(mon))[1]
+            date_from = f"{year}-{mon}-01"
+            date_to   = f"{year}-{mon}-{last_day:02d}"
+            return "AND a.analysis_date BETWEEN %s AND %s", (date_from, date_to)
+        except:
+            pass
+    return "", ()
+
+
 def scheduled_result_check():
     try:
         from backend.results_checker import check_and_send_results
@@ -120,7 +137,8 @@ def api_stats_overview():
         import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
+        month_clause, month_params = _get_month_filter(request)
+        cur.execute(f'''
             SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
                 COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
                 SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
@@ -132,7 +150,8 @@ def api_stats_overview():
                 SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
-        ''')
+            WHERE 1=1 {{month_clause}}
+        '''.format(month_clause=month_clause), month_params)
         row = dict(cur.fetchone())
         total = row['total'] or 0
         total_1x2 = row['total_1x2'] or 0
@@ -160,7 +179,8 @@ def api_stats_daily():
         import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
+        month_clause, month_params = _get_month_filter(request)
+        cur.execute(f'''
             SELECT a.analysis_date, COUNT(*) as total,
                 SUM(r.pred_1x2_correct) as c1x2,
                 SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
@@ -170,8 +190,9 @@ def api_stats_daily():
                 SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht,
                 COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-            GROUP BY a.analysis_date ORDER BY a.analysis_date DESC LIMIT 30
-        ''')
+            WHERE 1=1 {{month_clause}}
+            GROUP BY a.analysis_date ORDER BY a.analysis_date DESC LIMIT 31
+        '''.format(month_clause=month_clause), month_params)
         rows = [dict(r) for r in cur.fetchall()]
         rows.reverse()
         daily = []
@@ -199,7 +220,8 @@ def api_stats_by_category():
         import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
+        month_clause, month_params = _get_month_filter(request)
+        cur.execute(f'''
             SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
                 COUNT(CASE WHEN a.confidence IN ('Yuksek','Coc Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
                 SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
@@ -211,7 +233,8 @@ def api_stats_by_category():
                 SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
-        ''')
+            WHERE 1=1 {{month_clause}}
+        '''.format(month_clause=month_clause), month_params)
         row = dict(cur.fetchone())
         total = row['total'] or 0
         total_1x2 = row['total_1x2'] or 0
@@ -237,7 +260,8 @@ def api_stats_by_league():
         import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
+        month_clause, month_params = _get_month_filter(request)
+        cur.execute(f'''
             SELECT a.league, COUNT(*) as total,
                 SUM(r.pred_1x2_correct) as c1x2,
                 SUM(r.over25_correct) as cover25,
@@ -245,8 +269,9 @@ def api_stats_by_league():
                 COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
                 SUM(r.ht_correct) as cht
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+            WHERE 1=1 {{month_clause}}
             GROUP BY a.league HAVING COUNT(*) >= 3 ORDER BY COUNT(*) DESC
-        ''')
+        '''.format(month_clause=month_clause), month_params)
         rows = [dict(r) for r in cur.fetchall()]
         leagues = []
         for r in rows:
@@ -272,14 +297,16 @@ def api_stats_by_confidence():
         import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
+        month_clause, month_params = _get_month_filter(request)
+        cur.execute(f'''
             SELECT a.confidence, COUNT(*) as total,
                 SUM(r.pred_1x2_correct) as c1x2,
                 SUM(r.over25_correct) as cover25,
                 SUM(r.btts_correct) as cbtts
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+            WHERE 1=1 {{month_clause}}
             GROUP BY a.confidence ORDER BY COUNT(*) DESC
-        ''')
+        '''.format(month_clause=month_clause), month_params)
         rows = [dict(r) for r in cur.fetchall()]
 
         def normalize_conf(c):
@@ -330,12 +357,14 @@ def api_stats_best_worst_days():
         import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
+        month_clause, month_params = _get_month_filter(request)
+        cur.execute(f'''
             SELECT a.analysis_date, COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+            WHERE 1=1 {{month_clause}}
             GROUP BY a.analysis_date HAVING COUNT(*) >= 2
             ORDER BY (SUM(r.pred_1x2_correct)::float / COUNT(*)) DESC
-        ''')
+        '''.format(month_clause=month_clause), month_params)
         rows = [dict(r) for r in cur.fetchall()]
         all_days = [{'date': r['analysis_date'], 'total': r['total'] or 0, 'correct': r['c1x2'] or 0,
                      'pct': round((r['c1x2'] or 0)/(r['total'] or 1)*100)} for r in rows]
