@@ -183,6 +183,17 @@
                     <div class="section-title">&#127885; En Iyi & En Kotu Gunler</div>
                     <div class="day-cards" id="dayCards"><div class="loading">Yukleniyor...</div></div>
                 </div>
+
+                <div class="section">
+                    <div class="section-title">&#128260; IY Kacti Ama 2. Yari Kurtardi Mi?</div>
+                    <div class="chart-box">
+                        <div style="font-size:11px;color:#555;margin-bottom:16px;">
+                            IY 0.5 Ust tahmini yapilan (%65+) ancak ilk yari golsuz biten maclarda,
+                            ikinci yari 1.5 ustu olma orani. "Mac gec acildi" analizi.
+                        </div>
+                        <div id="htRecoveryContent"><div class="loading">Yukleniyor...</div></div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -242,6 +253,7 @@
             loadConfidence();
             loadLeagues();
             loadBestWorst();
+            loadHtRecovery();
         }
         function pctColor(pct) { return pct >= 60 ? 'pct-high' : pct >= 40 ? 'pct-mid' : 'pct-low'; }
         function formatDate(d) { const [y,m,day]=d.split('-'); return day+'/'+m; }
@@ -430,6 +442,66 @@
                         <div class="vb-bar-wrap"><div class="vb-bar-fill" style="width:${c.pct}%;background:${barColor};"></div></div>
                     </div>`;
                 }).join('');
+            } catch(e) { container.innerHTML = '<div class="no-data">Yuklenemedi</div>'; }
+        }
+
+        async function loadHtRecovery() {
+            const container = document.getElementById('htRecoveryContent');
+            try {
+                const resp = await fetch('/api/stats/ht-recovery' + buildMonthParam());
+                const data = await resp.json();
+                if (data.error) { container.innerHTML = '<div class="no-data">Veri yok</div>'; return; }
+
+                const total = data.total_ht_eligible || 0;
+                const missed = data.total_missed || 0;
+                const recovered = data.recovered || 0;
+                const rate = data.recovery_rate || 0;
+                const htCorrect = data.ht_correct || 0;
+
+                if (total === 0) { container.innerHTML = '<div class="no-data">Henuz yeterli veri yok (IY skoru girilmis mac gerekli)</div>'; return; }
+
+                const rateColor = rate >= 60 ? '#22c55e' : rate >= 40 ? '#f59e0b' : '#ef4444';
+
+                let html = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;">
+                        <div class="overview-card"><div class="ov-value">${total}</div><div class="ov-label">IY Skoru Girilen</div></div>
+                        <div class="overview-card green"><div class="ov-value">${htCorrect}</div><div class="ov-label">IY Tuttu</div></div>
+                        <div class="overview-card" style="border-color:rgba(239,68,68,0.3)"><div class="ov-value" style="color:#ef4444;">${missed}</div><div class="ov-label">IY Golsuz Bitti</div></div>
+                        <div class="overview-card" style="border-color:rgba(59,130,246,0.3)"><div class="ov-value" style="color:#3b82f6;">${recovered}</div><div class="ov-label">2Y 1.5 Ust Tuttu</div></div>
+                        <div class="overview-card"><div class="ov-value" style="color:${rateColor};">%${rate}</div><div class="ov-label">Kurtarma Orani</div></div>
+                    </div>`;
+
+                if (missed > 0) {
+                    html += `<div style="font-size:12px;color:#555;margin-bottom:10px;font-weight:700;">Son Kaybedilen Maclar (IY 0.5 Tutmadi)</div>`;
+                    html += `<div style="display:grid;gap:8px;">`;
+                    (data.recent_missed || []).forEach(m => {
+                        const recIcon = m.recovered ? '🔄' : '❌';
+                        const recColor = m.recovered ? '#22c55e' : '#ef4444';
+                        const recText = m.recovered ? `2Y: ${m.ht2_goals} gol — Kurtarildi` : `2Y: ${m.ht2_goals} gol — Kurtarilamadi`;
+                        html += `<div style="background:#0d0d1a;border:1px solid #1e1e3a;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <div style="flex:1;min-width:140px;">
+                                <div style="font-size:13px;font-weight:700;color:#fff;">${m.home_team} vs ${m.away_team}</div>
+                                <div style="font-size:11px;color:#555;margin-top:2px;">${m.league} · ${m.date}</div>
+                            </div>
+                            <div style="text-align:center;min-width:60px;">
+                                <div style="font-size:12px;color:#888;">IY</div>
+                                <div style="font-size:14px;font-weight:800;color:#ef4444;">${m.ht_score}</div>
+                            </div>
+                            <div style="text-align:center;min-width:60px;">
+                                <div style="font-size:12px;color:#888;">Mac Sonu</div>
+                                <div style="font-size:14px;font-weight:800;color:#7c3aed;">${m.ft_score}</div>
+                            </div>
+                            <div style="text-align:center;min-width:60px;">
+                                <div style="font-size:12px;color:#888;">IY Tahmin</div>
+                                <div style="font-size:13px;font-weight:700;color:#a78bfa;">%${m.ht2g_pct}</div>
+                            </div>
+                            <div style="font-size:13px;font-weight:700;color:${recColor};">${recIcon} ${recText}</div>
+                        </div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                container.innerHTML = html;
             } catch(e) { container.innerHTML = '<div class="no-data">Yuklenemedi</div>'; }
         }
 
