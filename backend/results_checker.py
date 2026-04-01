@@ -340,6 +340,8 @@ def check_and_send_results():
             outcomes['btts_correct']     = int(outcomes['btts_correct'])
             outcomes['score_correct']    = int(outcomes['score_correct'])
             outcomes['ht_correct']       = int(outcomes['ht_correct'])
+            # ht2_over15_correct DB'ye kaydedilmiyor, save_match_result'e gönderme
+            ht2_val = outcomes.pop('ht2_over15_correct', None)
 
             vb_results = calculate_value_bet_results(analysis, outcomes)
 
@@ -352,7 +354,9 @@ def check_and_send_results():
                 value_bet_results=vb_results,
                 **outcomes
             )
+            outcomes['ht2_over15_correct'] = ht2_val  # telegram için geri ekle
             send_result_to_telegram(analysis, result['home_score'], result['away_score'], outcomes)
+            outcomes.pop('ht2_over15_correct', None)  # tekrar çıkar
             mark_telegram_sent(analysis['id'])
             updated += 1
             logger.info(f"Result sent: {analysis['home_team']} vs {analysis['away_team']} {result['home_score']}-{result['away_score']}")
