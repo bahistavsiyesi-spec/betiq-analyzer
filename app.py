@@ -635,6 +635,8 @@ def api_manual_result():
         outcomes = calculate_outcomes(analysis, home_score, away_score, ht_hs, ht_as)
         for k in ['pred_1x2_correct','actual_over25','over25_correct','actual_btts','btts_correct','score_correct','ht_correct']:
             outcomes[k] = int(outcomes[k])
+        # ht2_over15_correct DB'ye kaydedilmiyor, outcomes'dan çıkar
+        outcomes.pop('ht2_over15_correct', None)
         vb_results = calculate_value_bet_results(analysis, outcomes)
         save_match_result(analysis_id=analysis_id, fixture_id=analysis.get('fixture_id'),
                           home_score=home_score, away_score=away_score,
