@@ -588,6 +588,33 @@ def api_analyze_selected():
 
 
 # Diger Endpointler
+
+@app.route('/api/telegram/send-card', methods=['POST'])
+def api_telegram_send_card():
+    try:
+        import base64, requests as req
+        data = request.get_json()
+        image_data = data.get('image')  # base64 PNG
+        caption = data.get('caption', '')
+        if not image_data:
+            return jsonify({"status": "error", "message": "Gorsel eksik"}), 400
+        token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+        chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
+        if not token or not chat_id:
+            return jsonify({"status": "error", "message": "Telegram ayarlari eksik"}), 400
+        img_bytes = base64.b64decode(image_data)
+        resp = req.post(
+            f'https://api.telegram.org/bot{token}/sendPhoto',
+            data={'chat_id': chat_id, 'caption': caption, 'parse_mode': 'HTML'},
+            files={'photo': ('card.png', img_bytes, 'image/png')},
+            timeout=30
+        )
+        resp.raise_for_status()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Telegram send card error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/telegram/send', methods=['POST'])
 def api_telegram_send():
     try:
