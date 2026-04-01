@@ -383,6 +383,67 @@ def api_stats_value_bets():
         logger.error(f"Stats value bets error: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/stats/ht-recovery')
+def api_stats_ht_recovery():
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        month_clause, month_params = _get_month_filter(request)
+        cur.execute('''
+            SELECT
+                COUNT(*) FILTER (WHERE r.ht_correct = 0 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL) as total_missed,
+                COUNT(*) FILTER (WHERE r.ht_correct = 0 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL
+                    AND (r.home_score - r.ht_home_score + r.away_score - r.ht_away_score) > 1) as recovered,
+                COUNT(*) FILTER (WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL) as total_ht_eligible,
+                COUNT(*) FILTER (WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL AND r.ht_correct = 1) as ht_correct_count
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE r.ht_home_score IS NOT NULL AND r.home_score IS NOT NULL
+        ''' + ((' ' + month_clause) if month_clause else ''), month_params)
+        row = dict(cur.fetchone())
+        total_missed = row['total_missed'] or 0
+        recovered = row['recovered'] or 0
+        total_ht = row['total_ht_eligible'] or 0
+        ht_correct = row['ht_correct_count'] or 0
+
+        cur.execute('''
+            SELECT a.home_team, a.away_team, a.league, a.analysis_date,
+                   r.ht_home_score, r.ht_away_score, r.home_score, r.away_score,
+                   a.ht2g_pct,
+                   (r.home_score - r.ht_home_score + r.away_score - r.ht_away_score) as ht2_goals
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE r.ht_correct = 0 AND a.ht2g_pct >= 65
+              AND r.ht_home_score IS NOT NULL AND r.home_score IS NOT NULL
+        ''' + ((' ' + month_clause) if month_clause else '') + '''
+            ORDER BY a.analysis_date DESC LIMIT 10
+        ''', month_params)
+
+        recent = []
+        for r in cur.fetchall():
+            r = dict(r)
+            ht2_goals = int(r.get('ht2_goals') or 0)
+            recent.append({
+                'home_team': r['home_team'], 'away_team': r['away_team'],
+                'league': r['league'], 'date': str(r['analysis_date']),
+                'ht_score': f"{r['ht_home_score']}-{r['ht_away_score']}",
+                'ft_score': f"{r['home_score']}-{r['away_score']}",
+                'ht2g_pct': r['ht2g_pct'], 'ht2_goals': ht2_goals,
+                'recovered': ht2_goals > 1,
+            })
+        cur.close(); conn.close()
+        return jsonify({
+            'total_ht_eligible': total_ht, 'ht_correct': ht_correct,
+            'total_missed': total_missed, 'recovered': recovered,
+            'recovery_rate': round(recovered / total_missed * 100) if total_missed else 0,
+            'recent_missed': recent,
+        })
+    except Exception as e:
+        logger.error(f"Stats ht-recovery error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/stats/combo-bets')
 def api_stats_combo_bets():
     try:
