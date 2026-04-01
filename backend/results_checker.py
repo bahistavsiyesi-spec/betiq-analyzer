@@ -184,7 +184,7 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
         score_correct = False
 
     ht_correct = False
-    ht2_over15_correct = None  # İY %65+ tutmadı ama 2. yarı 1.5 üstü tuttu
+    ht2_over15_correct = None
 
     if ht_home_score is not None and ht_away_score is not None:
         ht_pct = int(analysis.get('ht2g_pct', 0))
@@ -195,18 +195,15 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
         else:
             ht_correct = False
 
-        # 2. yarı gol hesabı
         ht2_home = home_score - ht_home_score
         ht2_away = away_score - ht_away_score
         ht2_total = ht2_home + ht2_away
-        actual_ht2_over15 = ht2_total > 1.5  # 2. yarıda 2+ gol
+        actual_ht2_over15 = ht2_total > 1.5
 
-        # İstatistik: İY %65+ olan, ama İY golsüz biten, 2. yarı 1.5 üstü olan maçlar
         if ht_pct >= 65 and not actual_ht_goal:
-            # İY tutmadı → 2. yarı kurtardı mı?
             ht2_over15_correct = actual_ht2_over15
         else:
-            ht2_over15_correct = None  # Bu kategoriye girmiyor
+            ht2_over15_correct = None
 
     return {
         'actual_1x2': actual_1x2,
@@ -244,23 +241,41 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
     }.get(pred, pred)
 
     over25_pct = int(analysis.get('over25_pct', 0))
-    btts_pct = int(analysis.get('btts_pct', 0))
+    btts_pct   = int(analysis.get('btts_pct', 0))
+    confidence = analysis.get('confidence', 'Orta')
+    high_conf  = confidence in ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
 
-    over25_label = f"2.5 Üst (%{over25_pct})" if over25_pct >= 65 else f"2.5 Alt (%{100 - over25_pct})"
-    over25_result = f"{'Üstü ✓' if outcomes['actual_over25'] else 'Altı ✗'}"
+    # 1X2 — sadece Yüksek/Çok Yüksek güvende
+    if high_conf:
+        line_1x2 = f"{tick(outcomes['pred_1x2_correct'])} 1X2: {pred_text} → <b>{outcomes['actual_1x2']}</b>"
+    else:
+        line_1x2 = f"— 1X2: Oynanmadı 🚫"
 
-    btts_label = f"KG Var (%{btts_pct})" if btts_pct >= 65 else f"KG Yok (%{100 - btts_pct})"
-    btts_result = f"{'Var ✓' if outcomes['actual_btts'] else 'Yok ✗'}"
+    # 2.5 — sadece eşik üstünde
+    if over25_pct >= 65:
+        over25_result = 'Üstü ✓' if outcomes['actual_over25'] else 'Altı ✗'
+        line_over25 = f"{tick(outcomes['over25_correct'])} 2.5 Üst (%{over25_pct}) → <b>{over25_result}</b>"
+    else:
+        line_over25 = f"— 2.5 Gol: Oynanmadı 🚫"
 
+    # KG — sadece eşik üstünde
+    if btts_pct >= 65:
+        btts_result = 'Var ✓' if outcomes['actual_btts'] else 'Yok ✗'
+        line_btts = f"{tick(outcomes['btts_correct'])} KG Var (%{btts_pct}) → <b>{btts_result}</b>"
+    else:
+        line_btts = f"— KG Var: Oynanmadı 🚫"
+
+    # İY 0.5
     ht_line = ''
     ht2_line = ''
     if ht_home_score is not None and ht_away_score is not None:
         ht_pct = int(analysis.get('ht2g_pct', 0))
-        ht_label = f"İY 0.5 Üst (%{ht_pct})" if ht_pct >= 65 else f"İY 0.5 Alt (%{100 - ht_pct})"
         ht_result = f"İY {ht_home_score}-{ht_away_score} ({'Var ✓' if (ht_home_score + ht_away_score) >= 1 else 'Yok ✗'})"
-        ht_line = f"\n{tick(outcomes['ht_correct'])} {ht_label} → <b>{ht_result}</b>"
+        if ht_pct >= 65:
+            ht_line = f"\n{tick(outcomes['ht_correct'])} İY 0.5 Üst (%{ht_pct}) → <b>{ht_result}</b>"
+        else:
+            ht_line = f"\n— İY 0.5: Oynanmadı 🚫"
 
-        # 2. yarı bilgisi — İY tutmadıysa göster
         ht2_val = outcomes.get('ht2_over15_correct')
         if ht2_val is not None:
             ht2_home = home_score - ht_home_score
@@ -278,9 +293,9 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
 🎯 Tahmini Skor: {analysis.get('predicted_score','?-?')} {tick(outcomes['score_correct'])}
 
 <b>Tahmin Sonuçları:</b>
-{tick(outcomes['pred_1x2_correct'])} 1X2: {pred_text} → <b>{outcomes['actual_1x2']}</b>
-{tick(outcomes['over25_correct'])} {over25_label} → <b>{over25_result}</b>
-{tick(outcomes['btts_correct'])} {btts_label} → <b>{btts_result}</b>{ht_line}{ht2_line}"""
+{line_1x2}
+{line_over25}
+{line_btts}{ht_line}{ht2_line}"""
 
     send_message(msg)
 
@@ -319,13 +334,12 @@ def check_and_send_results():
 
             outcomes = calculate_outcomes(analysis, result['home_score'], result['away_score'])
             outcomes['pred_1x2_correct'] = int(outcomes['pred_1x2_correct'])
-            outcomes['actual_over25'] = int(outcomes['actual_over25'])
-            outcomes['over25_correct'] = int(outcomes['over25_correct'])
-            outcomes['actual_btts'] = int(outcomes['actual_btts'])
-            outcomes['btts_correct'] = int(outcomes['btts_correct'])
-            outcomes['score_correct'] = int(outcomes['score_correct'])
-            outcomes['ht_correct'] = int(outcomes['ht_correct'])
-            # ht2_over15_correct None kalabilir — save_match_result bunu handle eder
+            outcomes['actual_over25']    = int(outcomes['actual_over25'])
+            outcomes['over25_correct']   = int(outcomes['over25_correct'])
+            outcomes['actual_btts']      = int(outcomes['actual_btts'])
+            outcomes['btts_correct']     = int(outcomes['btts_correct'])
+            outcomes['score_correct']    = int(outcomes['score_correct'])
+            outcomes['ht_correct']       = int(outcomes['ht_correct'])
 
             vb_results = calculate_value_bet_results(analysis, outcomes)
 
