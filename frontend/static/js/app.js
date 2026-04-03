@@ -720,6 +720,9 @@ function getBadgeColor(type) {
         '2.5 Alt':{bg:'rgba(59,130,246,0.12)',border:'rgba(59,130,246,0.5)',text:'#60a5fa'},
         'KG Var':{bg:'rgba(245,158,11,0.12)',border:'rgba(245,158,11,0.5)',text:'#fbbf24'},
         'KG Yok':{bg:'rgba(239,68,68,0.12)',border:'rgba(239,68,68,0.5)',text:'#f87171'},
+        'COMBO_O25_BTTS':{bg:'rgba(34,197,94,0.2)',border:'rgba(34,197,94,0.7)',text:'#4ade80'},
+        'COMBO_1X2_O15':{bg:'rgba(99,102,241,0.2)',border:'rgba(99,102,241,0.7)',text:'#818cf8'},
+        'COMBO_1X2_BTTS':{bg:'rgba(245,158,11,0.2)',border:'rgba(245,158,11,0.7)',text:'#fbbf24'},
     };
     return map[type]||map['1X2'];
 }
