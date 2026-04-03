@@ -12,7 +12,6 @@ def get_conn():
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
-
     cur.execute('''
         CREATE TABLE IF NOT EXISTS analyses (
             id SERIAL PRIMARY KEY,
@@ -42,7 +41,6 @@ def init_db():
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
-
     cur.execute('''
         CREATE TABLE IF NOT EXISTS run_logs (
             id SERIAL PRIMARY KEY,
@@ -54,7 +52,6 @@ def init_db():
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
-
     cur.execute('''
         CREATE TABLE IF NOT EXISTS match_results (
             id SERIAL PRIMARY KEY,
@@ -81,7 +78,6 @@ def init_db():
             FOREIGN KEY (analysis_id) REFERENCES analyses(id)
         )
     ''')
-
     cur.execute('''
         CREATE TABLE IF NOT EXISTS pending_matches (
             id SERIAL PRIMARY KEY,
@@ -94,7 +90,6 @@ def init_db():
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
-
     cur.execute('''
         CREATE TABLE IF NOT EXISTS coupons (
             id SERIAL PRIMARY KEY,
@@ -107,7 +102,6 @@ def init_db():
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
-
     for sql in [
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER',
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_away_score INTEGER',
@@ -124,13 +118,10 @@ def init_db():
             conn.commit()
         except:
             conn.rollback()
-
     conn.commit()
     cur.close()
     conn.close()
 
-
-# Pending Matches
 
 def save_pending_matches(matches: list):
     today = datetime.now().strftime('%Y-%m-%d')
@@ -189,8 +180,6 @@ def clear_old_pending_matches():
     cur.close()
     conn.close()
 
-
-# Coupons
 
 def save_coupon(items: list):
     today = datetime.now().strftime('%Y-%m-%d')
@@ -289,6 +278,13 @@ def update_coupon_results(date_str):
                     item_result = (row.get('total_goals') or 0) > 1
                 elif pred_type == 'Over 3.5':
                     item_result = (row.get('total_goals') or 0) > 3
+                # Kombine kurallar
+                elif pred_type == 'COMBO_O25_BTTS':
+                    item_result = bool(row.get('over25_correct')) and bool(row.get('btts_correct'))
+                elif pred_type == 'COMBO_1X2_O15':
+                    item_result = bool(row.get('pred_1x2_correct')) and (row.get('total_goals') or 0) > 1
+                elif pred_type == 'COMBO_1X2_BTTS':
+                    item_result = bool(row.get('pred_1x2_correct')) and bool(row.get('btts_correct'))
         item['result'] = item_result
         if item_result is True:
             correct += 1
@@ -307,15 +303,10 @@ def update_coupon_results(date_str):
     conn.close()
 
 
-# Value Bet Istatistikleri
-
 def get_value_bet_stats():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('''
-        SELECT value_bet_results FROM match_results
-        WHERE value_bet_results IS NOT NULL
-    ''')
+    cur.execute('SELECT value_bet_results FROM match_results WHERE value_bet_results IS NOT NULL')
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -348,8 +339,6 @@ def get_value_bet_stats():
     result.sort(key=lambda x: x['total'], reverse=True)
     return result
 
-
-# Analyses
 
 def save_analysis(data: dict):
     conn = get_conn()
