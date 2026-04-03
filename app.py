@@ -817,10 +817,13 @@ def api_coupon_today():
                 elif '1X2 (Beraberlik)' in label:
                     vb_type = '1X2'; vb_label = 'Beraberlik'
                 elif 'Over 2.5' in label:
+                    if float(m.get('over25_pct') or 0) < 65: continue
                     vb_type = '2.5 Ust'; vb_label = '2.5 Gol Ustu'
                 elif 'KG Var' in label:
+                    if float(m.get('btts_pct') or 0) < 65: continue
                     vb_type = 'KG Var'; vb_label = 'KG Var'
                 elif 'İY 0.5 Üst' in label or 'IY 0.5' in label:
+                    if float(m.get('ht2g_pct') or 0) < 65: continue
                     vb_type = 'IY 0.5 Ust'; vb_label = 'IY 0.5 Ustu'
                 else:
                     continue
@@ -846,8 +849,8 @@ def api_coupon_today():
             very_high   = confidence in ('Cok Yuksek', 'Çok Yüksek')
             high_or_vhigh = confidence in ('Yuksek', 'Cok Yuksek', 'Yüksek', 'Çok Yüksek')
             pred_label  = {
-                '1': f"{m['home_team']} Kazanir",
-                '2': f"{m['away_team']} Kazanir",
+                '1': 'Ev Kazanir',
+                '2': 'Dep Kazanir',
                 'X': 'Beraberlik'
             }.get(pred, pred)
 
