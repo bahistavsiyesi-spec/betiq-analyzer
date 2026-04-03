@@ -835,12 +835,109 @@ def api_coupon_today():
             except Exception:
                 continue
 
+        # ─── KOMBİNE KURALLAR ───────────────────────────────────────────
+        # Her maç için kombine tahminler oluştur — tekli tahminlerden önce değerlendirilir
+        combo_items = []
+        for m in matches:
+            confidence  = m.get('confidence', '')
+            over25_pct  = float(m.get('over25_pct') or 0)
+            btts_pct    = float(m.get('btts_pct') or 0)
+            pred        = m.get('prediction_1x2', '?')
+            very_high   = confidence in ('Cok Yuksek', 'Çok Yüksek')
+            high_or_vhigh = confidence in ('Yuksek', 'Cok Yuksek', 'Yüksek', 'Çok Yüksek')
+            pred_label  = {
+                '1': f"{m['home_team']} Kazanir",
+                '2': f"{m['away_team']} Kazanir",
+                'X': 'Beraberlik'
+            }.get(pred, pred)
+
+            # Kural 1: 2.5 Üst + KG Var — ikisi de %75+
+            if over25_pct >= 75 and btts_pct >= 75:
+                combo_items.append({
+                    'type': 'COMBO_O25_BTTS',
+                    'label': '2.5 Ust + KG Var',
+                    'pct': round((over25_pct + btts_pct) / 2),
+                    'conf_score': 5,
+                    'match': m,
+                    'is_combo': True,
+                    'odds_keys': ['odds_over25', 'odds_btts_yes'],
+                })
+
+            # Kural 2: Taraf Kazanır + 1.5 Üst — Yüksek/ÇY + over25 %70+
+            if high_or_vhigh and over25_pct >= 70 and pred in ('1', '2'):
+                over15_label = f"{pred_label} + 1.5 Ust"
+                combo_items.append({
+                    'type': 'COMBO_1X2_O15',
+                    'label': over15_label,
+                    'pct': round((over25_pct + (5 if very_high else 3)) ),  # güven bonusu
+                    'conf_score': 6 if very_high else 5,
+                    'match': m,
+                    'is_combo': True,
+                    'odds_keys': ['odds_over15'],
+                })
+
+            # Kural 3: Taraf Kazanır + KG Var — ÇY güven + btts %75+
+            if very_high and btts_pct >= 75 and pred in ('1', '2'):
+                combo_items.append({
+                    'type': 'COMBO_1X2_BTTS',
+                    'label': f"{pred_label} + KG Var",
+                    'pct': round((btts_pct + 5)),
+                    'conf_score': 6,
+                    'match': m,
+                    'is_combo': True,
+                    'odds_keys': ['odds_btts_yes'],
+                })
+
+        # Kombine öncelikleri en yüksek, sonra tekli
+        combo_items.sort(key=lambda x: (x['conf_score'], x['pct']), reverse=True)
         all_candidates.sort(key=lambda x: (x['conf_score'], TYPE_PRIORITY.get(x['type'], 0), x['pct']), reverse=True)
 
         coupon = []
         type_counts = {}
         used_combos = set()
         used_match_ids = set()
+
+        # Önce kombine kuralları değerlendir
+        for c in combo_items:
+            if len(coupon) >= max_count: break
+            match_id = c['match'].get('id')
+            if match_id in used_match_ids: continue
+            combo_key = f"{match_id}_{c['type']}"
+            if combo_key in used_combos: continue
+            used_combos.add(combo_key)
+            used_match_ids.add(match_id)
+            m = c['match']
+            # Kombine için oran bul — odds_keys'teki oranları çarp
+            combo_odds = None
+            try:
+                import json as _jc, re as _rc
+                def _norm_keys(d):
+                    r = {}
+                    for k, v in (d or {}).items():
+                        nk = _rc.sub(r'_+', '_', str(k).strip().lower().replace('%','pct').replace('.','').replace('-','_').replace(' ','_'))
+                        r[nk] = v
+                    return r
+                csv_d = m.get('csv_data')
+                if isinstance(csv_d, str): csv_d = _jc.loads(csv_d)
+                nd = _norm_keys(csv_d or {})
+                odds_vals = []
+                for ok in c.get('odds_keys', []):
+                    v = nd.get(ok)
+                    if v and float(v) > 1: odds_vals.append(float(v))
+                if len(odds_vals) == len(c.get('odds_keys', [])) and odds_vals:
+                    combo_odds = round(1.0, 2)
+                    for ov in odds_vals: combo_odds = round(combo_odds * ov, 2)
+            except: pass
+            coupon.append({
+                'home_team': m['home_team'], 'away_team': m['away_team'],
+                'league': m.get('league', ''), 'match_time': m.get('match_time', ''),
+                'prediction_type': c['type'], 'prediction_label': c['label'],
+                'pct': c['pct'], 'confidence': m.get('confidence', 'Orta'),
+                'analysis_id': m.get('id'),
+                'odds': combo_odds,
+                'is_combo': True,
+            })
+            logger.info(f"Kupon kombine: {m['home_team']} vs {m['away_team']} → {c['label']}")
 
         for c in priority_items:
             if len(coupon) >= max_count: break
