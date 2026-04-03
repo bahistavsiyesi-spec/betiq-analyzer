@@ -671,7 +671,7 @@ def api_manual_result():
                           home_score=home_score, away_score=away_score,
                           ht_home_score=ht_hs, ht_away_score=ht_as, source='manual',
                           value_bet_results=vb_results, **outcomes)
-        send_telegram = data.get('send_telegram', True)
+        send_telegram = data.get('send_telegram', False)
         if send_telegram:
             # Telegram'ı arka planda gönder — kullanıcı beklemeden yanıt dönsün
             def _send_tg():
