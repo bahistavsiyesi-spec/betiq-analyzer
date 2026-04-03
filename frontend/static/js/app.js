@@ -975,6 +975,9 @@ function createMatchCard(match){
     const at=match.away_team.replace(/'/g,"\\'");
     return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
+            <button id="tgbtn-${match.id}" onclick="sendCardToTelegram(${match.id},'${ht}','${at}')"
+                style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
+                onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#555'" title="Telegram'a Gonder">📨</button>
             <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${ht}','${at}','square')"
                 style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
                 onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#555'" title="Kare Indir">📸</button>
