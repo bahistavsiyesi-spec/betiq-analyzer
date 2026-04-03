@@ -671,8 +671,10 @@ def api_manual_result():
                           home_score=home_score, away_score=away_score,
                           ht_home_score=ht_hs, ht_away_score=ht_as, source='manual',
                           value_bet_results=vb_results, **outcomes)
-        send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_hs, ht_as)
-        mark_telegram_sent(analysis_id)
+        send_telegram = data.get('send_telegram', True)  # varsayılan: gönder (eski davranış)
+        if send_telegram:
+            send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_hs, ht_as)
+            mark_telegram_sent(analysis_id)
         try:
             analysis_date = analysis.get('analysis_date', datetime.now().strftime('%Y-%m-%d'))
             update_coupon_results(analysis_date)
