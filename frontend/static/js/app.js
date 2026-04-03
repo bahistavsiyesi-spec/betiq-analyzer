@@ -645,10 +645,7 @@ function drawCouponCanvas(coupon) {
             while(ctx.measureText(mt).width>220&&mt.length>10) mt=mt.slice(0,-4)+'...';
             ctx.fillText(mt,20,y+22);
             ctx.fillStyle='#444'; ctx.font='500 10px Syne,sans-serif'; ctx.fillText(item.league||'',20,y+38);
-            if(item.odds){
-                ctx.fillStyle='#22c55e'; ctx.font='700 11px Syne,sans-serif';
-                ctx.fillText('@'+parseFloat(item.odds).toFixed(2),20,y+56);
-            }
+
             const bc=getBadgeColor(item.prediction_type);
             const bW=118,bH=44,bX=width-bW-20,bY=y+(rowH-bH)/2;
             ctx.fillStyle=bc.bg; roundRect(ctx,bX,bY,bW,bH,10); ctx.fill();
@@ -662,19 +659,9 @@ function drawCouponCanvas(coupon) {
             }
             ctx.fillText(item.prediction_label,bX+bW/2,bY+bH/2+5);
         });
-        const validOdds=coupon.filter(i=>i.odds).map(i=>parseFloat(i.odds));
-        const totalOdds=validOdds.length>0?validOdds.reduce((a,b)=>a*b,1):null;
         const fy=headerH+coupon.length*rowH+extraPad/2;
-        if(totalOdds){
-            ctx.strokeStyle='#2a1a4e'; ctx.lineWidth=1;
-            ctx.beginPath(); ctx.moveTo(20,fy+10); ctx.lineTo(width-20,fy+10); ctx.stroke();
-            ctx.fillStyle='#666'; ctx.font='500 11px Syne,sans-serif'; ctx.textAlign='left';
-            ctx.fillText('Toplam Oran',20,fy+28);
-            ctx.fillStyle='#22c55e'; ctx.font='800 15px Syne,sans-serif'; ctx.textAlign='right';
-            ctx.fillText('@'+totalOdds.toFixed(2),width-20,fy+28);
-        }
         ctx.fillStyle='#2a2a3a'; ctx.font='400 9px Syne,sans-serif'; ctx.textAlign='center';
-        ctx.fillText('Bu tahminler yapay zeka analizi ile olusturulmustur. Sorumluluk kabul edilmez.',width/2,fy+(totalOdds?48:32));
+        ctx.fillText('Bu tahminler yapay zeka analizi ile olusturulmustur. Sorumluluk kabul edilmez.',width/2,fy+20);
         couponCanvas=canvas; showCouponPreview(canvas,today);
         const b=document.getElementById('couponBtn'); if(b){b.disabled=false;b.textContent='🎫 Kupon Olustur';}
     };
