@@ -46,6 +46,9 @@
         .delete-btn:hover { background:#ef444422; }
         .no-coupons { text-align:center; padding:60px 20px; color:#444; font-size:14px; }
         .no-coupons a { color:#7c3aed; text-decoration:none; font-weight:600; }
+        .refresh-bar { padding:0 20px 12px; max-width:640px; margin:0 auto; display:flex; gap:8px; align-items:center; }
+        .refresh-btn { padding:8px 16px; border-radius:8px; border:none; background:#1e1e3a; color:#a78bfa; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+        .refresh-btn:hover { background:#2a1a4e; }
     </style>
 </head>
 <body>
@@ -54,6 +57,10 @@
         <h1>🎫 Kuponlarım</h1>
     </div>
     <div class="summary-bar" id="summaryBar"></div>
+    <div class="refresh-bar">
+        <button class="refresh-btn" onclick="refreshResults()" id="refreshBtn">🔄 Sonuçları Güncelle</button>
+        <span id="refreshMsg" style="font-size:12px;color:#555;"></span>
+    </div>
     <div class="coupons-list" id="couponsList">
         <div style="text-align:center;padding:40px;color:#444">Yükleniyor...</div>
     </div>
@@ -67,19 +74,40 @@
             const lost = coupons.filter(c => c.status === 'completed' && c.won === 0).length;
             const pending = coupons.filter(c => c.status === 'pending').length;
             document.getElementById('summaryBar').innerHTML = `
-                <div class="summary-box"><div class="val val-won">${won}</div><div class="lbl">Kazandı ✅</div></div>
-                <div class="summary-box"><div class="val val-lost">${lost}</div><div class="lbl">Kaybetti ❌</div></div>
-                <div class="summary-box"><div class="val val-pending">${pending}</div><div class="lbl">Bekliyor ⏳</div></div>`;
+                <div class="summary-box"><div class="val val-won">${won}</div><div class="lbl">Kazandi</div></div>
+                <div class="summary-box"><div class="val val-lost">${lost}</div><div class="lbl">Kaybetti</div></div>
+                <div class="summary-box"><div class="val val-pending">${pending}</div><div class="lbl">Bekliyor</div></div>`;
             if (!coupons.length) {
                 document.getElementById('couponsList').innerHTML = `
-                    <div class="no-coupons">🎫<br><br>Henüz kaydedilmiş kupon yok.<br><br>
-                    <a href="/">Ana sayfadan kupon oluştur</a></div>`;
+                    <div class="no-coupons">Henuz kaydedilmis kupon yok.<br><br>
+                    <a href="/">Ana sayfadan kupon olustur</a></div>`;
                 return;
             }
             document.getElementById('couponsList').innerHTML = coupons.map(c => buildCouponCard(c)).join('');
         } catch(e) {
-            document.getElementById('couponsList').innerHTML = `<div class="no-coupons">❌ Yükleme hatası: ${e.message}</div>`;
+            document.getElementById('couponsList').innerHTML = `<div class="no-coupons">Yukleme hatasi: ${e.message}</div>`;
         }
+    }
+
+    async function refreshResults() {
+        const btn = document.getElementById('refreshBtn');
+        const msg = document.getElementById('refreshMsg');
+        btn.disabled = true; btn.textContent = 'Guncelleniyor...';
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const resp = await fetch(`/api/coupon/update/${today}`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.status === 'success') {
+                msg.textContent = 'Guncellendi!'; msg.style.color = '#22c55e';
+                await loadCoupons();
+            } else {
+                msg.textContent = 'Hata!'; msg.style.color = '#ef4444';
+            }
+        } catch(e) {
+            msg.textContent = e.message; msg.style.color = '#ef4444';
+        }
+        btn.disabled = false; btn.textContent = 'Sonuclari Guncelle';
+        setTimeout(() => { msg.textContent = ''; }, 3000);
     }
 
     function buildCouponCard(c) {
@@ -87,14 +115,14 @@
         const isCompleted = c.status === 'completed';
         const cardClass = isWon ? 'won' : isCompleted ? 'lost' : '';
         const statusHtml = isWon
-            ? '<span class="coupon-status status-won">🎉 KAZANDI</span>'
+            ? '<span class="coupon-status status-won">KAZANDI</span>'
             : isCompleted
-            ? '<span class="coupon-status status-lost">❌ KAYBETTİ</span>'
-            : '<span class="coupon-status status-pending">⏳ Bekliyor</span>';
+            ? '<span class="coupon-status status-lost">KAYBETTI</span>'
+            : '<span class="coupon-status status-pending">Bekliyor</span>';
         const items = (c.items || []).map(item => {
             const res = item.result;
             const itemClass = res === true ? 'item-won' : res === false ? 'item-lost' : '';
-            const icon = res === true ? '✅' : res === false ? '❌' : '⏳';
+            const icon = res === true ? 'OK' : res === false ? 'X' : '...';
             return `<div class="coupon-item ${itemClass}">
                 <div class="item-left">
                     <div class="item-teams">${item.home_team} vs ${item.away_team}</div>
@@ -111,16 +139,16 @@
             : `${c.total_items} tahmin`;
         return `<div class="coupon-card ${cardClass}" id="coupon-${c.id}">
             <div class="coupon-header">
-                <span class="coupon-date">📅 ${c.coupon_date}</span>
+                <span class="coupon-date">${c.coupon_date}</span>
                 <div style="display:flex;align-items:center;gap:8px;">
                     ${statusHtml}
-                    <button class="delete-btn" onclick="deleteCoupon(${c.id})" title="Kuponu Sil">🗑️</button>
+                    <button class="delete-btn" onclick="deleteCoupon(${c.id})">Sil</button>
                 </div>
             </div>
             <div class="coupon-items">${items}</div>
             <div class="coupon-footer">
                 <span class="coupon-score">${scoreText}</span>
-                <button class="download-btn" onclick="downloadCouponCard(${c.id}, '${c.coupon_date}')">📸 PNG İndir</button>
+                <button class="download-btn" onclick="downloadCouponCard(${c.id}, '${c.coupon_date}')">PNG Indir</button>
             </div>
         </div>`;
     }
@@ -130,30 +158,23 @@
         try {
             const resp = await fetch(`/api/coupon/delete/${id}`, { method: 'DELETE' });
             const data = await resp.json();
-            if (data.status === 'success') {
-                document.getElementById(`coupon-${id}`)?.remove();
-                loadCoupons();
-            } else {
-                alert('Silme hatası: ' + data.message);
-            }
-        } catch(e) {
-            alert('Hata: ' + e.message);
-        }
+            if (data.status === 'success') { document.getElementById(`coupon-${id}`)?.remove(); loadCoupons(); }
+            else { alert('Silme hatasi: ' + data.message); }
+        } catch(e) { alert('Hata: ' + e.message); }
     }
 
     async function downloadCouponCard(id, date) {
         const card = document.getElementById(`coupon-${id}`);
         if (!card) return;
         const btn = card.querySelector('.download-btn');
-        if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+        if (btn) { btn.textContent = '...'; btn.disabled = true; }
         try {
             const canvas = await html2canvas(card, { scale: 3, backgroundColor: '#12121f', useCORS: true, logging: false });
             const link = document.createElement('a');
             link.download = `betiq_kupon_${date}.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
+            link.href = canvas.toDataURL('image/png'); link.click();
         } catch(e) { alert('Hata: ' + e.message); }
-        if (btn) { btn.textContent = '📸 PNG İndir'; btn.disabled = false; }
+        if (btn) { btn.textContent = 'PNG Indir'; btn.disabled = false; }
     }
 
     loadCoupons();
