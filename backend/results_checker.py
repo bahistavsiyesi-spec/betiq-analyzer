@@ -290,7 +290,6 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
 🏆 {analysis.get('league', '')}  🕐 {time_str}
 
 📊 <b>Gerçek Skor: {home_score}-{away_score}</b>
-🎯 Tahmini Skor: {analysis.get('predicted_score','?-?')} {tick(outcomes['score_correct'])}
 
 <b>Tahmin Sonuçları:</b>
 {line_1x2}
