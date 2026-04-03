@@ -338,6 +338,10 @@
                         </div>
                         <div style="margin-top:10px;">
                             <button class="btn-save-score" onclick="saveScore(${m.id})">💾 Kaydet</button>
+                            <label style="display:inline-flex;align-items:center;gap:6px;margin-left:12px;cursor:pointer;font-size:12px;color:#888;">
+                                <input type="checkbox" id="tgCheck-${m.id}" style="accent-color:#2563eb;width:14px;height:14px;">
+                                📨 Telegram
+                            </label>
                             <span class="save-msg" id="saveMsg-${m.id}"></span>
                         </div>
                     </div>
@@ -551,13 +555,20 @@
             const hths=document.getElementById('hths-'+analysisId).value;
             const htas=document.getElementById('htas-'+analysisId).value;
             const msg=document.getElementById('saveMsg-'+analysisId);
+            const sendTg=document.getElementById('tgCheck-'+analysisId)?.checked||false;
             if(isNaN(hs)||isNaN(as_)){msg.textContent='❌ Maç sonu skorunu gir!';msg.style.color='#ef4444';return;}
             try {
                 const resp=await fetch('/api/results/manual',{method:'POST',headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({analysis_id:analysisId,home_score:hs,away_score:as_,ht_home_score:hths!==''?parseInt(hths):null,ht_away_score:htas!==''?parseInt(htas):null})});
+                    body:JSON.stringify({analysis_id:analysisId,home_score:hs,away_score:as_,
+                        ht_home_score:hths!==''?parseInt(hths):null,
+                        ht_away_score:htas!==''?parseInt(htas):null,
+                        send_telegram:sendTg})});
                 const data=await resp.json();
-                if(data.status==='success'){msg.textContent='✅ Kaydedildi!';msg.style.color='#22c55e';setTimeout(()=>loadDate(currentDate),1000);}
-                else{msg.textContent='❌ Hata!';msg.style.color='#ef4444';}
+                if(data.status==='success'){
+                    msg.textContent=sendTg?'✅ Kaydedildi & Telegram'a gönderildi!':'✅ Kaydedildi!';
+                    msg.style.color='#22c55e';
+                    setTimeout(()=>loadDate(currentDate),1000);
+                } else{msg.textContent='❌ Hata!';msg.style.color='#ef4444';}
             } catch(e){msg.textContent='❌ Hata!';msg.style.color='#ef4444';}
         }
 
