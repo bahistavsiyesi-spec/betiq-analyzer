@@ -23,14 +23,13 @@ def send_message(text, parse_mode='HTML'):
                 'text': text,
                 'parse_mode': parse_mode
             },
-            timeout=10
+            timeout=30
         )
         resp.raise_for_status()
         return True
     except Exception as e:
         logger.error(f"Telegram send failed: {e}")
         return False
-
 
 def pct_bar(pct, length=10):
     pct = int(pct)
