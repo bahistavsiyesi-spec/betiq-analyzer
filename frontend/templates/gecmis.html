@@ -565,7 +565,7 @@
                         send_telegram:sendTg})});
                 const data=await resp.json();
                 if(data.status==='success'){
-                    msg.textContent=sendTg?'✅ Kaydedildi & Telegram'a gönderildi!':'✅ Kaydedildi!';
+                    msg.textContent=sendTg?'✅ Kaydedildi & Telegrama gonderildi!':'✅ Kaydedildi!';
                     msg.style.color='#22c55e';
                     setTimeout(()=>loadDate(currentDate),1000);
                 } else{msg.textContent='❌ Hata!';msg.style.color='#ef4444';}
