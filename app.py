@@ -450,7 +450,8 @@ def api_stats_combo_bets():
         import psycopg2, psycopg2.extras
         conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
+        month_clause, month_params = _get_month_filter(request)
+        cur.execute(f'''
             SELECT
                 COUNT(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 THEN 1 END) as total_o25_btts,
                 SUM(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 THEN
@@ -470,7 +471,8 @@ def api_stats_combo_bets():
                 END) as correct_all3
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
-        ''')
+            WHERE 1=1 {{month_clause}}
+        '''.format(month_clause=month_clause), month_params)
         row = dict(cur.fetchone())
         cur.close(); conn.close()
 
