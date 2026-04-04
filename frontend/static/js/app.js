@@ -890,7 +890,7 @@ async function runAnalysis(){
         const data=await resp.json();
         if(data.status==='success'){
             selectedFixtures={};
-            setTimeout(async()=>await checkAndReload(statusDiv,btn,total),duration+5000);
+            setTimeout(async()=>await checkAndReload(statusDiv,btn,total),duration+2000);
         } else showError(statusDiv,btn,data.message);
     } catch(e){showError(statusDiv,btn,e.message);}
 }
@@ -904,8 +904,8 @@ async function checkAndReload(statusDiv,btn,total){
             statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} mac analiz edildi!</span></div>`;
             renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et'; statusDiv.style.display='none';
             await loadFixtures();
-        } else setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);
-    } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total),15000);}
+        } else setTimeout(()=>checkAndReload(statusDiv,btn,total),5000);
+    } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total),5000);}
 }
 
 function showError(statusDiv,btn,message){
