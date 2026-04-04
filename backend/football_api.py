@@ -4,6 +4,7 @@ import os
 import logging
 import csv
 import io
+import re
 from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
@@ -57,37 +58,18 @@ FDCO_LEAGUES = {
 
 # ─── CollectAPI lig key eşleştirmesi ─────────────────────────────────────────
 COLLECT_API_LEAGUE_MAP = {
-    # Türkiye
-    'super lig': 'super-lig',
-    'süper lig': 'super-lig',
-    'trendyol süper lig': 'super-lig',
-    'trendyol super lig': 'super-lig',
-    'turkey': 'super-lig',
-    'türkiye': 'super-lig',
-    'tff 1. lig': 'tff-1-lig',
-    'tff 1 lig': 'tff-1-lig',
-    'trendyol 1. lig': 'tff-1-lig',
-    '1. lig': 'tff-1-lig',
-    # İngiltere
-    'premier league': 'ingiltere-premier-ligi',
-    'england': 'ingiltere-premier-ligi',
-    'championship': 'ingiltere-sampiyonluk-ligi',
-    'efl championship': 'ingiltere-sampiyonluk-ligi',
-    # Almanya
-    'bundesliga': 'almanya-bundesliga',
-    'germany': 'almanya-bundesliga',
+    'super lig': 'super-lig', 'süper lig': 'super-lig',
+    'trendyol süper lig': 'super-lig', 'trendyol super lig': 'super-lig',
+    'turkey': 'super-lig', 'türkiye': 'super-lig',
+    'tff 1. lig': 'tff-1-lig', 'tff 1 lig': 'tff-1-lig',
+    'trendyol 1. lig': 'tff-1-lig', '1. lig': 'tff-1-lig',
+    'premier league': 'ingiltere-premier-ligi', 'england': 'ingiltere-premier-ligi',
+    'championship': 'ingiltere-sampiyonluk-ligi', 'efl championship': 'ingiltere-sampiyonluk-ligi',
+    'bundesliga': 'almanya-bundesliga', 'germany': 'almanya-bundesliga',
     '2. bundesliga': 'almanya-bundesliga-2-ligi',
-    # İspanya
-    'la liga': 'ispanya-la-liga',
-    'laliga': 'ispanya-la-liga',
-    'spain': 'ispanya-la-liga',
-    # İtalya
-    'serie a': 'italya-serie-a-ligi',
-    'italy': 'italya-serie-a-ligi',
-    # Fransa
-    'ligue 1': 'fransa-ligue-1',
-    'france': 'fransa-ligue-1',
-    'ligue 2': 'fransa-ligue-2',
+    'la liga': 'ispanya-la-liga', 'laliga': 'ispanya-la-liga', 'spain': 'ispanya-la-liga',
+    'serie a': 'italya-serie-a-ligi', 'italy': 'italya-serie-a-ligi',
+    'ligue 1': 'fransa-ligue-1', 'france': 'fransa-ligue-1', 'ligue 2': 'fransa-ligue-2',
 }
 
 # ─── Gençlik/Rezerv takım suffix'leri ────────────────────────────────────────
@@ -124,12 +106,27 @@ def normalize_name(name):
 
 
 def teams_match(name_a, name_b):
+    def _nv2(name):
+        name = name.lower().strip()
+        name = re.sub(r'\b(club|de|del|el|los|las|the)\b', ' ', name)
+        name = re.sub(r'\s+', ' ', name).strip()
+        for o, n in {'é': 'e', 'è': 'e', 'ñ': 'n', 'á': 'a', 'í': 'i', 'ó': 'o', 'ú': 'u',
+                     'ö': 'o', 'ü': 'u', 'ä': 'a', 'ß': 'ss', '.': '', '-': '', "'": '',
+                     'oe': 'o', 'ue': 'u', 'ae': 'a'}.items():
+            name = name.replace(o, n)
+        return name.replace(' ', '')
     a = normalize_name(name_a)
     b = normalize_name(name_b)
     if a in b or b in a:
         return True
     if len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]:
         return True
+    a2, b2 = _nv2(name_a), _nv2(name_b)
+    if a2 and b2 and len(a2) >= 4 and len(b2) >= 4:
+        if a2 in b2 or b2 in a2:
+            return True
+        if len(a2) >= 5 and len(b2) >= 5 and a2[:5] == b2[:5]:
+            return True
     return False
 
 
@@ -265,14 +262,11 @@ def _fetch_fdco_csv(country_code):
         cached = _shots_cache[country_code]
         if cached['date'] == today:
             return cached['data']
-
     league_info = FDCO_LEAGUES.get(country_code)
     if not league_info:
         return []
-
     season, league_code = league_info
     url = f'https://www.football-data.co.uk/mmz4281/{season}/{league_code}.csv'
-
     try:
         resp = requests.get(url, timeout=15)
         resp.raise_for_status()
@@ -290,20 +284,15 @@ def get_team_shot_stats(team_name, country_code, last=5):
     rows = _fetch_fdco_csv(country_code)
     if not rows:
         return None
-
     team_norm = normalize_name(team_name)
     team_matches = []
-
     for row in rows:
         home_norm = normalize_name(row.get('HomeTeam', ''))
         away_norm = normalize_name(row.get('AwayTeam', ''))
-
         is_home = team_norm in home_norm or home_norm in team_norm
         is_away = team_norm in away_norm or away_norm in team_norm
-
         if not is_home and not is_away:
             continue
-
         try:
             if is_home:
                 shots = int(row.get('HS', 0) or 0)
@@ -315,39 +304,21 @@ def get_team_shot_stats(team_name, country_code, last=5):
                 shots_on = int(row.get('AST', 0) or 0)
                 corners = int(row.get('AC', 0) or 0)
                 shots_conceded = int(row.get('HS', 0) or 0)
-
             if shots > 0:
-                team_matches.append({
-                    'shots': shots,
-                    'shots_on': shots_on,
-                    'corners': corners,
-                    'shots_conceded': shots_conceded,
-                })
+                team_matches.append({'shots': shots, 'shots_on': shots_on, 'corners': corners, 'shots_conceded': shots_conceded})
         except:
             continue
-
     if not team_matches:
         return None
-
     recent = team_matches[-last:]
     n = len(recent)
-
     shots_avg = round(sum(m['shots'] for m in recent) / n, 1)
     shots_on_avg = round(sum(m['shots_on'] for m in recent) / n, 1)
     corners_avg = round(sum(m['corners'] for m in recent) / n, 1)
     shots_conceded_avg = round(sum(m['shots_conceded'] for m in recent) / n, 1)
     accuracy = round(shots_on_avg / shots_avg * 100, 1) if shots_avg > 0 else 0
-
     logger.info(f'FDCO shots {team_name}: {shots_avg} şut, {shots_on_avg} isabet, {corners_avg} korner (son {n} maç)')
-
-    return {
-        'shots_avg': shots_avg,
-        'shots_on_target_avg': shots_on_avg,
-        'corners_avg': corners_avg,
-        'shots_conceded_avg': shots_conceded_avg,
-        'shot_accuracy': accuracy,
-        'matches_used': n,
-    }
+    return {'shots_avg': shots_avg, 'shots_on_target_avg': shots_on_avg, 'corners_avg': corners_avg, 'shots_conceded_avg': shots_conceded_avg, 'shot_accuracy': accuracy, 'matches_used': n}
 
 
 # ─── football-data.org API ────────────────────────────────────────────────────
@@ -370,9 +341,7 @@ def _get_football_data(endpoint, params={}):
 
 def _footballdata_last_matches(team_id, team_name, last=10):
     try:
-        result = _get_football_data('teams/' + str(team_id) + '/matches', {
-            'status': 'FINISHED', 'limit': last
-        })
+        result = _get_football_data('teams/' + str(team_id) + '/matches', {'status': 'FINISHED', 'limit': last})
         if not result or not result.get('matches'):
             return []
         converted = []
@@ -383,10 +352,7 @@ def _footballdata_last_matches(team_id, team_name, last=10):
                         'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
                         'away': {'name': m['awayTeam']['name'], 'id': m['awayTeam']['id']}
                     },
-                    'goals': {
-                        'home': m['score']['fullTime']['home'],
-                        'away': m['score']['fullTime']['away']
-                    }
+                    'goals': {'home': m['score']['fullTime']['home'], 'away': m['score']['fullTime']['away']}
                 })
             except:
                 continue
@@ -399,9 +365,7 @@ def _footballdata_last_matches(team_id, team_name, last=10):
 
 def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
     try:
-        result = _get_football_data('teams/' + str(team_id) + '/matches', {
-            'status': 'FINISHED', 'limit': 20
-        })
+        result = _get_football_data('teams/' + str(team_id) + '/matches', {'status': 'FINISHED', 'limit': 20})
         if not result or not result.get('matches'):
             return []
         h2h = []
@@ -417,10 +381,7 @@ def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
                             'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
                             'away': {'name': m['awayTeam']['name'], 'id': m['awayTeam']['id']}
                         },
-                        'goals': {
-                            'home': m['score']['fullTime']['home'],
-                            'away': m['score']['fullTime']['away']
-                        }
+                        'goals': {'home': m['score']['fullTime']['home'], 'away': m['score']['fullTime']['away']}
                     })
             except:
                 continue
@@ -438,11 +399,9 @@ def get_standings_cached(league_code):
         cached = _standings_cache[league_code]
         if cached['date'] == today:
             return cached['data']
-
     result = _get_football_data('competitions/' + league_code + '/standings')
     if not result:
         return None
-
     try:
         standings = []
         for standing in result.get('standings', []):
@@ -472,7 +431,6 @@ def get_standings_cached(league_code):
 # ─── Puan Durumu (CollectAPI) ─────────────────────────────────────────────────
 
 def _get_collectapi_league_key(league_name):
-    """Lig adından CollectAPI key'ini bul."""
     league_lower = league_name.lower().strip()
     logger.info(f'CollectAPI league key aranıyor: "{league_lower}"')
     for key, collect_key in COLLECT_API_LEAGUE_MAP.items():
@@ -484,31 +442,22 @@ def _get_collectapi_league_key(league_name):
 
 
 def _get_collectapi_standings(league_key):
-    """CollectAPI'den puan durumu çek — günde 1 kez cache'le."""
     if not COLLECT_API_KEY:
         return None
-
     today = date.today()
     if league_key in _collectapi_standings_cache:
         cached = _collectapi_standings_cache[league_key]
         if cached['date'] == today:
             return cached['data']
-
     try:
         resp = requests.get(
             f'{COLLECT_API_BASE}/league',
-            headers={
-                'authorization': f'apikey {COLLECT_API_KEY}',
-                'content-type': 'application/json',
-            },
+            headers={'authorization': f'apikey {COLLECT_API_KEY}', 'content-type': 'application/json'},
             params={'league': league_key},
             timeout=15,
         )
         resp.raise_for_status()
         data = resp.json()
-        logger.info(f'CollectAPI raw response type: {type(data).__name__}')
-
-        # Response liste veya dict olabilir
         if isinstance(data, list):
             raw_list = data
         elif isinstance(data, dict):
@@ -517,9 +466,7 @@ def _get_collectapi_standings(league_key):
                 return None
             raw_list = data.get('result', [])
         else:
-            logger.warning(f'CollectAPI unexpected response for {league_key}')
             return None
-
         standings = []
         for item in raw_list:
             standings.append({
@@ -534,18 +481,15 @@ def _get_collectapi_standings(league_key):
                 'goals_against': item.get('goalagainst', 0),
                 'goal_diff': item.get('goaldistance', 0),
             })
-
         _collectapi_standings_cache[league_key] = {'date': today, 'data': standings}
         logger.info(f'CollectAPI standings cached for {league_key}: {len(standings)} teams')
         return standings
-
     except Exception as e:
         logger.warning(f'CollectAPI standings error for {league_key}: {e}')
         return None
 
 
 def _find_team_in_standings(team_name, standings):
-    """Standings listesinde takımı bul."""
     if not standings:
         return None
     team_norm = normalize_name(team_name)
@@ -557,12 +501,7 @@ def _find_team_in_standings(team_name, standings):
 
 
 def get_team_standing(team_name, country_code, league_name=None):
-    """
-    Puan durumu çek.
-    Önce football-data.org dene, bulamazsa CollectAPI'ye bak.
-    """
     logger.info(f'get_team_standing: {team_name} | country_code={country_code} | league_name={league_name}')
-    # ── 1. football-data.org (büyük ligler) ──────────────────────────────────
     league_code = LEAGUE_CODES.get(country_code)
     if league_code:
         standings = get_standings_cached(league_code)
@@ -577,23 +516,14 @@ def get_team_standing(team_name, country_code, league_name=None):
             if result:
                 logger.info(f'Standing {team_name}: {result["position"]}. sira, {result["points"]} puan (football-data.org)')
                 return result
-
-    # ── 2. CollectAPI fallback ────────────────────────────────────────────────
     if not COLLECT_API_KEY:
         return None
-
     search_league = league_name or ''
     collect_key = _get_collectapi_league_key(search_league)
-
     if not collect_key and country_code:
-        country_to_league = {
-            'TUR': 'super-lig',
-        }
-        collect_key = country_to_league.get(country_code)
-
+        collect_key = {'TUR': 'super-lig'}.get(country_code)
     if not collect_key:
         return None
-
     standings = _get_collectapi_standings(collect_key)
     result = _find_team_in_standings(team_name, standings)
     if result:
@@ -606,11 +536,9 @@ def get_team_standing(team_name, country_code, league_name=None):
 def get_team_home_away_stats(team_name, matches):
     if not matches:
         return None
-
     team_norm = normalize_name(team_name)
     home_results = []
     away_results = []
-
     for m in matches:
         try:
             home_name_norm = normalize_name(m['teams']['home']['name'])
@@ -620,33 +548,24 @@ def get_team_home_away_stats(team_name, matches):
                 continue
             is_home = team_norm in home_name_norm or home_name_norm in team_norm
             if is_home:
-                home_results.append({'scored': hg, 'conceded': ag,
-                                     'result': 'W' if hg > ag else ('D' if hg == ag else 'L')})
+                home_results.append({'scored': hg, 'conceded': ag, 'result': 'W' if hg > ag else ('D' if hg == ag else 'L')})
             else:
-                away_results.append({'scored': ag, 'conceded': hg,
-                                     'result': 'W' if ag > hg else ('D' if ag == hg else 'L')})
+                away_results.append({'scored': ag, 'conceded': hg, 'result': 'W' if ag > hg else ('D' if ag == hg else 'L')})
         except:
             continue
-
     result = {}
     if home_results:
         result['home_form'] = ''.join([r['result'] for r in home_results[-5:]])
         result['home_goals_avg'] = round(sum(r['scored'] for r in home_results) / len(home_results), 1)
         result['home_conceded_avg'] = round(sum(r['conceded'] for r in home_results) / len(home_results), 1)
     else:
-        result['home_form'] = ''
-        result['home_goals_avg'] = 0
-        result['home_conceded_avg'] = 0
-
+        result['home_form'] = ''; result['home_goals_avg'] = 0; result['home_conceded_avg'] = 0
     if away_results:
         result['away_form'] = ''.join([r['result'] for r in away_results[-5:]])
         result['away_goals_avg'] = round(sum(r['scored'] for r in away_results) / len(away_results), 1)
         result['away_conceded_avg'] = round(sum(r['conceded'] for r in away_results) / len(away_results), 1)
     else:
-        result['away_form'] = ''
-        result['away_goals_avg'] = 0
-        result['away_conceded_avg'] = 0
-
+        result['away_form'] = ''; result['away_goals_avg'] = 0; result['away_conceded_avg'] = 0
     return result
 
 
@@ -673,10 +592,7 @@ def get_todays_fixtures():
             fixtures.append({
                 'fixture': {'id': i + 900000, 'date': None},
                 'league': {'id': 0, 'name': country if country else 'Bilinmeyen Lig'},
-                'teams': {
-                    'home': {'id': 0, 'name': home},
-                    'away': {'id': 0, 'name': away}
-                },
+                'teams': {'home': {'id': 0, 'name': home}, 'away': {'id': 0, 'name': away}},
                 'goals': {'home': None, 'away': None}
             })
         logger.info('ClubElo fixtures today: ' + str(len(fixtures)) + ' matches')
@@ -692,7 +608,6 @@ def get_team_last_matches(team_name, last=10):
     if is_youth_or_reserve(team_name):
         logger.info(f'Youth/reserve team skipped for stats: {team_name}')
         return []
-
     if is_german_team(team_name):
         team_id = _find_team_id(team_name, GERMAN_TEAM_NORMALIZED)
         if team_id:
@@ -721,28 +636,23 @@ def get_h2h(team1_name, team2_name, last=5):
     if is_youth_or_reserve(team1_name) or is_youth_or_reserve(team2_name):
         logger.info(f'Youth/reserve team H2H skipped: {team1_name} vs {team2_name}')
         return []
-
     if is_german_team(team1_name) or is_german_team(team2_name):
-        team_id = _find_team_id(team1_name, GERMAN_TEAM_NORMALIZED) or \
-                  _find_team_id(team2_name, GERMAN_TEAM_NORMALIZED)
+        team_id = _find_team_id(team1_name, GERMAN_TEAM_NORMALIZED) or _find_team_id(team2_name, GERMAN_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
     if is_english_team(team1_name) or is_english_team(team2_name):
-        team_id = _find_team_id(team1_name, ENGLISH_TEAM_NORMALIZED) or \
-                  _find_team_id(team2_name, ENGLISH_TEAM_NORMALIZED)
+        team_id = _find_team_id(team1_name, ENGLISH_TEAM_NORMALIZED) or _find_team_id(team2_name, ENGLISH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
     if is_spanish_team(team1_name) or is_spanish_team(team2_name):
-        team_id = _find_team_id(team1_name, SPANISH_TEAM_NORMALIZED) or \
-                  _find_team_id(team2_name, SPANISH_TEAM_NORMALIZED)
+        team_id = _find_team_id(team1_name, SPANISH_TEAM_NORMALIZED) or _find_team_id(team2_name, SPANISH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
     if is_italian_team(team1_name) or is_italian_team(team2_name):
-        team_id = _find_team_id(team1_name, ITALIAN_TEAM_NORMALIZED) or \
-                  _find_team_id(team2_name, ITALIAN_TEAM_NORMALIZED)
+        team_id = _find_team_id(team1_name, ITALIAN_TEAM_NORMALIZED) or _find_team_id(team2_name, ITALIAN_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
@@ -786,6 +696,10 @@ API_FOOTBALL_LEAGUE_MAP = {
     'swiss super league': 207,
     'ekstraklasa': 106,
     'greek super league': 233,
+    'la liga': 140, 'laliga': 140, 'spain': 140,
+    'serie a': 135, 'italy': 135,
+    'bundesliga': 78, 'germany': 78,
+    'ligue 1': 61, 'france': 61,
 }
 
 _apifootball_standings_cache = {}
@@ -840,19 +754,16 @@ def get_team_standing_apifootball(team_name, league_name, season=2024):
     if not league_id:
         logger.info('API-Football: league ID not found for ' + league_name)
         return None
-
     cache_key = str(league_id) + '_' + str(season)
     today = date.today()
     if cache_key in _apifootball_standings_cache:
         cached = _apifootball_standings_cache[cache_key]
         if cached['date'] == today:
             return _find_team_in_apifootball_standings(team_name, cached['data'])
-
     result = _get_api_football('standings', {'league': league_id, 'season': 2025})
     if not result or not result.get('response'):
         logger.warning('API-Football standings empty for league ' + str(league_id))
         return None
-
     try:
         standings = []
         for entry in result['response']:
@@ -871,15 +782,12 @@ def get_team_standing_apifootball(team_name, league_name, season=2024):
                         'goal_diff': team.get('goalsDiff', 0),
                     })
         _apifootball_standings_cache[cache_key] = {'date': today, 'data': standings}
-        team_names = [s['team'] for s in standings[:6]]
-        logger.info('API-Football standings cached: league ' + str(league_id) + ', ' + str(len(standings)) + ' teams: ' + str(team_names))
+        logger.info('API-Football standings cached: league ' + str(league_id) + ', ' + str(len(standings)) + ' teams')
         return _find_team_in_apifootball_standings(team_name, standings)
     except Exception as e:
         logger.warning('API-Football standings parse failed: ' + str(e))
         return None
 
-
-# ─── API-Football Son Maçlar + H2H (Türkiye Süper Lig) ───────────────────────
 
 _apifootball_team_id_cache = {}
 _apifootball_fixtures_cache = {}
@@ -892,7 +800,6 @@ def _get_apifootball_team_id(team_name, league_id=203, season=2025):
     cache_key = normalize_name(team_name)
     if cache_key in _apifootball_team_id_cache:
         return _apifootball_team_id_cache[cache_key]
-
     result = _get_api_football('teams', {'name': team_name, 'league': league_id, 'season': season})
     if result and result.get('response'):
         for entry in result['response']:
@@ -902,7 +809,6 @@ def _get_apifootball_team_id(team_name, league_id=203, season=2025):
                 _apifootball_team_id_cache[cache_key] = team_id
                 logger.info('API-Football team ID: ' + name + ' -> ' + str(team_id))
                 return team_id
-
     short_name = team_name.split()[0]
     if short_name != team_name:
         result2 = _get_api_football('teams', {'name': short_name, 'league': league_id, 'season': season})
@@ -914,7 +820,6 @@ def _get_apifootball_team_id(team_name, league_id=203, season=2025):
                     _apifootball_team_id_cache[cache_key] = team_id
                     logger.info('API-Football team ID (fuzzy): ' + name + ' -> ' + str(team_id))
                     return team_id
-
     _apifootball_team_id_cache[cache_key] = None
     logger.info('API-Football team ID not found: ' + team_name)
     return None
@@ -942,28 +847,19 @@ def _convert_apifootball_fixture(fixture, team_name):
 def get_team_last_matches_apifootball(team_name, league_id=203, season=2025, last=10):
     if not API_FOOTBALL_KEY:
         return []
-
     team_id = _get_apifootball_team_id(team_name, league_id, season)
     if not team_id:
         return []
-
     result = _get_api_football('fixtures', {
-        'team': team_id,
-        'league': league_id,
-        'season': season,
-        'last': last,
-        'status': 'FT'
+        'team': team_id, 'league': league_id, 'season': season, 'last': last, 'status': 'FT'
     })
-
     if not result or not result.get('response'):
         return []
-
     matches = []
     for fix in result['response']:
         converted = _convert_apifootball_fixture(fix, team_name)
         if converted:
             matches.append(converted)
-
     logger.info('API-Football last matches: ' + team_name + ' -> ' + str(len(matches)) + ' mac')
     return matches
 
@@ -971,27 +867,18 @@ def get_team_last_matches_apifootball(team_name, league_id=203, season=2025, las
 def get_h2h_apifootball(team1_name, team2_name, league_id=203, season=2025, last=5):
     if not API_FOOTBALL_KEY:
         return []
-
     team1_id = _get_apifootball_team_id(team1_name, league_id, season)
     team2_id = _get_apifootball_team_id(team2_name, league_id, season)
-
     if not team1_id or not team2_id:
         return []
-
-    result = _get_api_football('fixtures/headtohead', {
-        'h2h': str(team1_id) + '-' + str(team2_id),
-        'last': last
-    })
-
+    result = _get_api_football('fixtures/headtohead', {'h2h': str(team1_id) + '-' + str(team2_id), 'last': last})
     if not result or not result.get('response'):
         return []
-
     matches = []
     for fix in result['response']:
         converted = _convert_apifootball_fixture(fix, team1_name)
         if converted:
             matches.append(converted)
-
     logger.info('API-Football H2H: ' + team1_name + ' vs ' + team2_name + ' -> ' + str(len(matches)) + ' mac')
     return matches
 
