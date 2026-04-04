@@ -213,16 +213,26 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     away_matches = get_team_last_matches(away_name, last=10)
     h2h = get_h2h(home_name, away_name, last=5)
 
-    # Türkiye Süper Lig fallback — football-data.org'da yok
-    if not home_matches and is_turkish_superlig_team(home_name):
-        home_matches = get_team_last_matches_apifootball(home_name) or []
-        logger.info(f'API-Football matches fallback: {home_name} -> {len(home_matches)} mac')
-    if not away_matches and is_turkish_superlig_team(away_name):
-        away_matches = get_team_last_matches_apifootball(away_name) or []
-        logger.info(f'API-Football matches fallback: {away_name} -> {len(away_matches)} mac')
-    if not h2h and (is_turkish_superlig_team(home_name) or is_turkish_superlig_team(away_name)):
-        h2h = get_h2h_apifootball(home_name, away_name) or []
-        logger.info(f'API-Football H2H fallback: {home_name} vs {away_name} -> {len(h2h)} mac')
+    # API-Football genel fallback — football-data.org'dan veri gelmeyen tüm takımlar için
+    from backend.football_api import _find_league_id
+    _fb_league_id = _find_league_id(league_name)
+    if not _fb_league_id and (is_turkish_superlig_team(home_name) or is_turkish_superlig_team(away_name)):
+        _fb_league_id = 203
+    if not _fb_league_id:
+        _fb_league_id = 140  # La Liga varsayılan
+
+    if not home_matches:
+        home_matches = get_team_last_matches_apifootball(home_name, league_id=_fb_league_id) or []
+        if home_matches:
+            logger.info(f'API-Football matches fallback: {home_name} -> {len(home_matches)} mac')
+    if not away_matches:
+        away_matches = get_team_last_matches_apifootball(away_name, league_id=_fb_league_id) or []
+        if away_matches:
+            logger.info(f'API-Football matches fallback: {away_name} -> {len(away_matches)} mac')
+    if not h2h:
+        h2h = get_h2h_apifootball(home_name, away_name, league_id=_fb_league_id) or []
+        if h2h:
+            logger.info(f'API-Football H2H fallback: {home_name} vs {away_name} -> {len(h2h)} mac')
 
     home_form = extract_form_from_fixtures(home_matches or [], home_name)
     away_form = extract_form_from_fixtures(away_matches or [], away_name)
@@ -288,7 +298,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
 
     odds_data = _build_csv_odds_data(csv_data, home_name, away_name)
 
-    logger.info(f'Stats: {home_name} form={home_form} avg={home_goals_avg}, {away_name} form={away_form} avg={away_goals_avg}')
+    logger.info(f'Stats: {home_name} form={home_form} avg={home_goals_avg} matches={len(home_matches)}, {away_name} form={away_form} avg={away_goals_avg} matches={len(away_matches)}')
 
     if csv_data:
         logger.info(
