@@ -292,16 +292,15 @@ function cardConfidenceClass(c) {
     return {'Cok Yuksek':'card-confidence-very-high','Yuksek':'card-confidence-high','Orta':'card-confidence-medium','Dusuk':'card-confidence-low'}[c]||'card-confidence-medium';
 }
 
-// ===== Güven seviyesi badge inline stil =====
-function confidenceBadgeStyle(confidence) {
-    const styles = {
-        'Cok Yuksek': 'background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.5);color:#22c55e;',
-        'Yuksek':     'background:rgba(34,197,94,0.10);border:1px solid rgba(34,197,94,0.4);color:#4ade80;',
-        'Orta':       'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);color:#f59e0b;',
-        'Dusuk':      'background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;',
+// ===== Güven seviyesi badge CSS class =====
+function confidenceBadgeClass(confidence) {
+    const map = {
+        'Cok Yuksek': 'confidence-very-high',
+        'Yuksek':     'confidence-high',
+        'Orta':       'confidence-medium',
+        'Dusuk':      'confidence-low',
     };
-    const base = 'display:inline-block;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;';
-    return base + (styles[confidence] || styles['Orta']);
+    return map[confidence] || 'confidence-medium';
 }
 
 // ===== KARE + HİKAYE İNDİRME =====
@@ -953,7 +952,7 @@ function createMatchCard(match){
     const prediction=match.prediction_1x2||'?';
     const confidence=match.confidence||'Orta';
     const cardClass=cardConfidenceClass(confidence);
-    const badgeStyle=confidenceBadgeStyle(confidence);
+    const badgeClass=confidenceBadgeClass(confidence);
     const timeStr=formatTime(match.match_time);
     const homeLogo=teamLogoHtml(match.home_team);
     const awayLogo=teamLogoHtml(match.away_team);
@@ -999,7 +998,7 @@ function createMatchCard(match){
         </div>
         <div class="prediction-row">
             <div class="predicted-score"><span class="score-label">${winner.icon} KAZANAN TAHMINI</span><span class="score-value">${winner.label}</span></div>
-            <span class="confidence-badge" style="${badgeStyle}">Taraf Guveni: ${confidence}</span>
+            <span class="confidence-badge ${badgeClass}">Taraf Guveni: ${confidence}</span>
         </div>
         ${valueBetsHtml}
         ${trendHtml}
