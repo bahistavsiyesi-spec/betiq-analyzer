@@ -294,13 +294,16 @@ function cardConfidenceClass(c) {
 
 // ===== Güven seviyesi badge CSS class =====
 function confidenceBadgeClass(confidence) {
-    const map = {
-        'Cok Yuksek': 'confidence-very-high',
-        'Yuksek':     'confidence-high',
-        'Orta':       'confidence-medium',
-        'Dusuk':      'confidence-low',
-    };
-    return map[confidence] || 'confidence-medium';
+    if (!confidence) return 'confidence-medium';
+    const c = confidence.toLowerCase()
+        .replace(/ç/g,'c').replace(/ş/g,'s').replace(/ğ/g,'g')
+        .replace(/ü/g,'u').replace(/ö/g,'o').replace(/ı/g,'i')
+        .replace(/\s+/g,'');
+    if (c === 'cokyuksek') return 'confidence-very-high';
+    if (c === 'yuksek')    return 'confidence-high';
+    if (c === 'orta')      return 'confidence-medium';
+    if (c === 'dusuk')     return 'confidence-low';
+    return 'confidence-medium';
 }
 
 // ===== KARE + HİKAYE İNDİRME =====
