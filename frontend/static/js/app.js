@@ -593,6 +593,35 @@ function buildCornerInfoHtml(match) {
     </div>`;
 }
 
+
+function build2ndHalfHtml(match) {
+    let csv = match.csv_data;
+    if (typeof csv === 'string') {
+        try { csv = JSON.parse(csv); } catch(e) { csv = null; }
+    }
+    if (!csv) return '';
+    const over05 = csv.ht2_over05_avg;
+    const over15 = csv.ht2_over15_avg;
+    if (over05 == null && over15 == null) return '';
+    function fmtPct(val) {
+        if (val == null) return '—';
+        const v = val > 1 ? val : val * 100;
+        return v.toFixed(0) + '%';
+    }
+    function pctColor(val) {
+        if (val == null) return '#555';
+        const v = val > 1 ? val : val * 100;
+        if (v >= 70) return '#22c55e';
+        if (v >= 45) return '#f59e0b';
+        return '#60a5fa';
+    }
+    const items = [
+        { label: '0.5 Üst', val: over05 },
+        { label: '1.5 Üst', val: over15 },
+    ].filter(t => t.val != null);
+    const itemsHtml = items.map(t => `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;background:#0d0d1a;border:1px solid #1e1e3a;border-radius:8px;padding:6px 14px;min-width:72px;"><span style="font-size:9px;color:#444;font-weight:600;white-space:nowrap;">2Y ${t.label}</span><span style="font-size:13px;font-weight:800;color:${pctColor(t.val)};">${fmtPct(t.val)}</span></div>`).join('');
+    return `<div style="margin-top:10px;padding:10px 12px;background:#0a0a16;border-radius:10px;border:1px solid #1a1a2e;"><div style="font-size:10px;color:#a855f7;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">⏱️ İKİNCİ YARI İSTATİSTİKLERİ</div><div style="display:flex;gap:6px;flex-wrap:wrap;">${itemsHtml}</div></div>`;
+}
 async function generateCoupon() {
     const btn = document.getElementById('couponBtn');
     btn.disabled = true; btn.textContent = '⏳ Olusturuluyor...';
@@ -964,6 +993,7 @@ function createMatchCard(match){
     const trendHtml=buildTrendHtml(match);
     const valueBetsHtml=buildValueBetsHtml(match);
     const cornerInfoHtml=buildCornerInfoHtml(match);
+    const secondHalfHtml=build2ndHalfHtml(match);
     const reasoningHtml=buildReasoningHtml(match);
     const ht=match.home_team.replace(/'/g,"\\'");
     const at=match.away_team.replace(/'/g,"\\'");
@@ -1006,6 +1036,7 @@ function createMatchCard(match){
         ${valueBetsHtml}
         ${trendHtml}
         ${cornerInfoHtml}
+        ${secondHalfHtml}
         ${reasoningHtml}
     </div>`;
 }
