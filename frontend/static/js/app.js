@@ -292,6 +292,18 @@ function cardConfidenceClass(c) {
     return {'Cok Yuksek':'card-confidence-very-high','Yuksek':'card-confidence-high','Orta':'card-confidence-medium','Dusuk':'card-confidence-low'}[c]||'card-confidence-medium';
 }
 
+// ===== Güven seviyesi badge inline stil =====
+function confidenceBadgeStyle(confidence) {
+    const styles = {
+        'Cok Yuksek': 'background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.5);color:#22c55e;',
+        'Yuksek':     'background:rgba(34,197,94,0.10);border:1px solid rgba(34,197,94,0.4);color:#4ade80;',
+        'Orta':       'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);color:#f59e0b;',
+        'Dusuk':      'background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;',
+    };
+    const base = 'display:inline-block;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;';
+    return base + (styles[confidence] || styles['Orta']);
+}
+
 // ===== KARE + HİKAYE İNDİRME =====
 
 async function sendCardToTelegram(matchId, homeTeam, awayTeam) {
@@ -299,16 +311,13 @@ async function sendCardToTelegram(matchId, homeTeam, awayTeam) {
     if (!card) return;
     const tgBtn = document.getElementById(`tgbtn-${matchId}`);
     if (tgBtn) { tgBtn.textContent = '⏳'; tgBtn.disabled = true; }
-    // Butonları gizle
     const btns = card.querySelectorAll('button');
     btns.forEach(b => b.style.display = 'none');
     try {
         const canvas = await html2canvas(card, { scale: 3, backgroundColor: null, useCORS: true, logging: false });
-        // base64 PNG — data:image/png;base64,... kısmını çıkar
         const dataUrl = canvas.toDataURL('image/png');
         const base64 = dataUrl.split(',')[1];
-        const caption = `⚽ <b>${homeTeam} vs ${awayTeam}</b>
-📊 GOLLAZIM Analiz`;
+        const caption = `⚽ <b>${homeTeam} vs ${awayTeam}</b>\n📊 GOLLAZIM Analiz`;
         const resp = await fetch('/api/telegram/send-card', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -326,7 +335,6 @@ async function sendCardToTelegram(matchId, homeTeam, awayTeam) {
         alert('Hata: ' + e.message);
         if (tgBtn) { tgBtn.textContent = '📨'; tgBtn.disabled = false; }
     }
-    // Butonları geri getir
     btns.forEach(b => b.style.display = '');
 }
 
@@ -344,7 +352,6 @@ async function downloadCard(matchId, homeTeam, awayTeam, format) {
             link.href = canvas.toDataURL('image/png');
             link.click();
         } else {
-            // Hikaye kartı — 400x711 (9:16)
             const storyEl = buildStoryElement(card, homeTeam, awayTeam);
             document.body.appendChild(storyEl);
             await new Promise(r => setTimeout(r, 120));
@@ -401,7 +408,6 @@ function buildStoryElement(card, homeTeam, awayTeam) {
         <div style="position:absolute;bottom:-40px;left:-40px;width:140px;height:140px;
             background:radial-gradient(circle,rgba(124,58,237,0.1) 0%,transparent 70%);pointer-events:none;"></div>
 
-        <!-- HEADER: Logo + Lig + Saat -->
         <div style="display:flex;justify-content:space-between;align-items:center;">
             <img src="/static/img/logo.png" style="height:30px;object-fit:contain;" onerror="this.style.display='none'">
             <div style="font-size:11px;color:#555;background:#1a1a2e;padding:3px 12px;border-radius:20px;">
@@ -409,21 +415,18 @@ function buildStoryElement(card, homeTeam, awayTeam) {
             </div>
         </div>
 
-        <!-- LİG -->
         <div style="text-align:center;font-size:11px;color:#555;
             background:#111827;border:1px solid #1f2937;border-radius:20px;
             padding:5px 12px;">
             ${leagueClean}
         </div>
 
-        <!-- TAKIMLAR -->
         <div style="text-align:center;padding:8px 0;">
             <div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">${homeTeam}</div>
             <div style="font-size:13px;color:#3a3a5a;margin:8px 0;font-weight:700;letter-spacing:2px;">VS</div>
             <div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">${awayTeam}</div>
         </div>
 
-        <!-- İSTATİSTİKLER -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 16px;">
                 <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:0.5px;margin-bottom:4px;">🎯 2.5 GOL USTU</div>
@@ -446,7 +449,6 @@ function buildStoryElement(card, homeTeam, awayTeam) {
             </div>
         </div>
 
-        <!-- FOOTER: Güven -->
         <div style="display:flex;justify-content:center;">
             <div style="font-size:12px;color:#7c3aed;font-weight:700;
                 background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);
@@ -950,8 +952,8 @@ function renderMatches(matches){
 function createMatchCard(match){
     const prediction=match.prediction_1x2||'?';
     const confidence=match.confidence||'Orta';
-    const confidenceClass={'Cok Yuksek':'confidence-very-high','Yuksek':'confidence-high','Orta':'confidence-medium','Dusuk':'confidence-low'}[confidence]||'confidence-medium';
     const cardClass=cardConfidenceClass(confidence);
+    const badgeStyle=confidenceBadgeStyle(confidence);
     const timeStr=formatTime(match.match_time);
     const homeLogo=teamLogoHtml(match.home_team);
     const awayLogo=teamLogoHtml(match.away_team);
@@ -997,7 +999,7 @@ function createMatchCard(match){
         </div>
         <div class="prediction-row">
             <div class="predicted-score"><span class="score-label">${winner.icon} KAZANAN TAHMINI</span><span class="score-value">${winner.label}</span></div>
-            <span class="confidence-badge ${confidenceClass}">Taraf Guveni: ${confidence}</span>
+            <span class="confidence-badge" style="${badgeStyle}">Taraf Guveni: ${confidence}</span>
         </div>
         ${valueBetsHtml}
         ${trendHtml}
