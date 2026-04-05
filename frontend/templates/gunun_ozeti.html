@@ -19,11 +19,6 @@
             border-bottom: 1px solid #1e1e3a;
         }
         .ozet-header h1 { font-size: 20px; font-weight: 800; color: #fff; }
-        .ozet-header .date-badge {
-            font-size: 12px; color: #555;
-            background: #12121f; border: 1px solid #1e1e3a;
-            padding: 4px 12px; border-radius: 20px;
-        }
 
         .ai-selector {
             display: flex;
@@ -53,6 +48,7 @@
             gap: 10px;
             margin-bottom: 24px;
             flex-wrap: wrap;
+            align-items: center;
         }
         .btn-generate {
             padding: 10px 22px;
@@ -77,10 +73,53 @@
             font-weight: 700;
             cursor: pointer;
             font-family: inherit;
-            transition: opacity 0.2s;
         }
         .btn-telegram-oz:disabled { opacity: 0.4; cursor: not-allowed; }
 
+        /* Tarih navigasyonu */
+        .date-picker-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 12px 16px;
+            background: #0d0d1a;
+            border: 1px solid #1e1e3a;
+            border-radius: 12px;
+            flex-wrap: wrap;
+        }
+        .date-picker-row label { font-size: 11px; color: #555; font-weight: 700; letter-spacing: 0.5px; }
+        .date-nav { display: flex; gap: 6px; align-items: center; }
+        .btn-nav {
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid #1e1e3a;
+            background: transparent;
+            color: #666;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-nav:hover:not(:disabled) { border-color: #7c3aed; color: #a78bfa; }
+        .btn-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+        .current-date-label {
+            font-size: 13px; font-weight: 700; color: #a78bfa;
+            min-width: 120px; text-align: center;
+        }
+        .date-input {
+            padding: 6px 12px;
+            background: #12121f;
+            border: 1px solid #1e1e3a;
+            border-radius: 8px;
+            color: #ddd;
+            font-size: 12px;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .date-input:focus { outline: none; border-color: #7c3aed; }
+
+        /* Özet kutusu */
         .summary-box {
             background: #0d0d1a;
             border: 1px solid #1e1e3a;
@@ -89,7 +128,7 @@
             margin-bottom: 24px;
             min-height: 120px;
         }
-        .summary-box .summary-meta {
+        .summary-meta {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -97,87 +136,66 @@
             padding-bottom: 12px;
             border-bottom: 1px solid #1e1e3a;
         }
-        .summary-box .summary-meta .ai-tag {
-            font-size: 10px;
-            font-weight: 700;
-            color: #a78bfa;
+        .ai-tag {
+            font-size: 10px; font-weight: 700; color: #a78bfa;
             background: rgba(124,58,237,0.12);
             border: 1px solid rgba(124,58,237,0.25);
-            padding: 3px 10px;
-            border-radius: 20px;
-            letter-spacing: 0.5px;
+            padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;
         }
-        .summary-box .summary-meta .created-tag {
-            font-size: 10px;
-            color: #444;
+        .created-tag { font-size: 10px; color: #444; }
+
+        /* Markdown stilleri */
+        .summary-content { font-size: 13px; color: #bbb; line-height: 1.8; }
+        .md-h1 {
+            font-size: 15px; font-weight: 800; color: #fff;
+            margin: 4px 0 16px; padding-bottom: 8px;
+            border-bottom: 1px solid #1e1e3a;
         }
-        .summary-content {
-            font-size: 13px;
-            color: #bbb;
-            line-height: 1.8;
-            white-space: pre-wrap;
+        .md-h2 {
+            font-size: 13px; font-weight: 700; color: #a78bfa;
+            margin: 20px 0 8px; letter-spacing: 0.3px;
         }
-        .summary-content .section-title {
-            font-size: 11px;
-            font-weight: 700;
-            color: #7c3aed;
-            letter-spacing: 0.5px;
-            margin-top: 12px;
-            margin-bottom: 4px;
+        .md-bullet {
+            display: flex; gap: 8px; margin-bottom: 6px;
+            align-items: flex-start; padding-left: 4px;
         }
+        .md-bullet .dot { color: #7c3aed; flex-shrink: 0; margin-top: 2px; }
+        .md-bold { color: #fff; font-weight: 700; }
+        .md-p { margin-bottom: 6px; color: #888; font-style: italic; }
+        .md-space { height: 6px; }
+
         .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #333;
-            font-size: 13px;
+            text-align: center; padding: 40px 20px;
+            color: #333; font-size: 13px;
         }
         .loading-state {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 20px;
-            color: #555;
-            font-size: 13px;
+            display: flex; align-items: center; gap: 12px;
+            padding: 20px; color: #555; font-size: 13px;
         }
         .spinner-sm {
             width: 18px; height: 18px;
             border: 2px solid #1e1e3a;
             border-top-color: #7c3aed;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            flex-shrink: 0;
+            animation: spin 0.8s linear infinite; flex-shrink: 0;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Geçmiş özet listesi */
+        /* Geçmiş */
         .history-section { margin-top: 32px; }
-        .history-section h2 {
-            font-size: 13px;
-            font-weight: 700;
-            color: #555;
-            margin-bottom: 12px;
-            letter-spacing: 0.5px;
-        }
+        .history-section h2 { font-size: 11px; font-weight: 700; color: #555; margin-bottom: 12px; letter-spacing: 0.5px; }
         .history-list { display: flex; flex-direction: column; gap: 6px; }
         .history-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 14px;
-            background: #0d0d1a;
-            border: 1px solid #1e1e3a;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: border-color 0.2s;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; background: #0d0d1a;
+            border: 1px solid #1e1e3a; border-radius: 10px;
+            cursor: pointer; transition: border-color 0.2s;
         }
         .history-item:hover { border-color: #7c3aed44; }
         .history-item.active { border-color: #7c3aed; background: #12121f; }
-        .history-item .h-date { font-size: 13px; font-weight: 700; color: #ddd; }
-        .history-item .h-ai {
-            font-size: 10px; color: #666;
-            background: #1a1a2e; padding: 2px 8px; border-radius: 10px;
-        }
-        .history-item .h-time { font-size: 10px; color: #333; }
+        .h-date { font-size: 13px; font-weight: 700; color: #ddd; }
+        .h-ai { font-size: 10px; color: #666; background: #1a1a2e; padding: 2px 8px; border-radius: 10px; }
+        .h-time { font-size: 10px; color: #333; }
     </style>
 </head>
 <body>
@@ -205,12 +223,22 @@
         <div class="ozet-container">
             <div class="ozet-header">
                 <h1>📋 Günün Özeti</h1>
-                <span class="date-badge" id="todayBadge">—</span>
+            </div>
+
+            <!-- Tarih Navigasyonu -->
+            <div class="date-picker-row">
+                <label>📅 TARİH</label>
+                <div class="date-nav">
+                    <button class="btn-nav" id="prevBtn" onclick="navigateDate(-1)">← Önceki</button>
+                    <span class="current-date-label" id="currentDateLabel">—</span>
+                    <button class="btn-nav" id="nextBtn" onclick="navigateDate(1)">Sonraki →</button>
+                </div>
+                <input type="date" class="date-input" id="datePicker" onchange="onDatePickerChange()">
             </div>
 
             <!-- AI Seçimi -->
             <div class="ai-selector">
-                <span>AI:</span>
+                <span>🤖 AI:</span>
                 <button class="ai-btn-oz active-claude" id="oz-claude" onclick="selectAi('claude')">Claude</button>
                 <button class="ai-btn-oz" id="oz-grok" onclick="selectAi('grok')">Grok</button>
                 <button class="ai-btn-oz" id="oz-gemini" onclick="selectAi('gemini')">Gemini</button>
@@ -229,8 +257,8 @@
             <!-- Özet Kutusu -->
             <div class="summary-box" id="summaryBox">
                 <div class="empty-state">
-                    📭 Henüz özet yok.<br>
-                    <small style="color:#2a2a3a;">Bugünün analizleri yapıldıktan sonra "Genel Değerlendirme Yap" butonuna bas.</small>
+                    📭 Bu tarihe ait özet yok.<br>
+                    <small style="color:#2a2a3a;">Analizler yapıldıktan sonra "Genel Değerlendirme Yap" butonuna bas.</small>
                 </div>
             </div>
 
@@ -248,24 +276,139 @@
 <script>
 let selectedAi = 'claude';
 let currentSummary = null;
+let currentDate = new Date().toISOString().split('T')[0];
 
-function selectAi(provider) {
-    selectedAi = provider;
-    document.querySelectorAll('.ai-btn-oz').forEach(b => {
-        b.className = 'ai-btn-oz';
-    });
-    const el = document.getElementById('oz-' + provider);
-    if (el) el.classList.add('active-' + provider);
+// ── Markdown Render ────────────────────────────────────────────────────────────
+function renderMarkdown(text) {
+    const categoryEmojis = [
+        [/güvenilir|güvenli/i,    '🏆'],
+        [/golcü|gol beklent/i,    '⚽'],
+        [/karşılıklı|kg var|btts/i,'🔁'],
+        [/korner/i,               '🚩'],
+        [/ikinci yarı|2\. yarı/i, '⏱️'],
+        [/risk/i,                 '⚠️'],
+        [/genel|özet/i,           '📊'],
+    ];
+
+    function addEmoji(title) {
+        for (const [re, emoji] of categoryEmojis) {
+            if (re.test(title)) return emoji + ' ';
+        }
+        return '';
+    }
+
+    function parseBold(str) {
+        return str.replace(/\*\*(.+?)\*\*/g, '<span class="md-bold">$1</span>');
+    }
+
+    let html = '';
+    for (let line of text.split('\n')) {
+        line = line.trim();
+        if (!line) { html += '<div class="md-space"></div>'; continue; }
+
+        if (/^#{1,2}\s/.test(line)) {
+            const t = line.replace(/^#+\s/, '');
+            html += `<div class="md-h1">${addEmoji(t)}${parseBold(t)}</div>`;
+        } else if (/^###\s/.test(line)) {
+            const t = line.replace(/^###\s/, '');
+            html += `<div class="md-h2">${addEmoji(t)}${parseBold(t)}</div>`;
+        } else if (/^\d+\.\s/.test(line)) {
+            const t = line.replace(/^\d+\.\s/, '');
+            html += `<div class="md-h2">${addEmoji(t)}${parseBold(t)}</div>`;
+        } else if (/^[-•*]\s/.test(line)) {
+            const t = line.replace(/^[-•*]\s/, '');
+            html += `<div class="md-bullet"><span class="dot">▸</span><span>${parseBold(t)}</span></div>`;
+        } else {
+            html += `<div class="md-p">${parseBold(line)}</div>`;
+        }
+    }
+    return html;
 }
 
-function formatDate(dateStr) {
+// ── Tarih ─────────────────────────────────────────────────────────────────────
+function formatDateTR(dateStr) {
     if (!dateStr) return '—';
     try {
         const [y, m, d] = dateStr.split('-');
-        return `${d}.${m}.${y}`;
+        const months = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+        return `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
     } catch { return dateStr; }
 }
 
+function updateDateUI() {
+    document.getElementById('currentDateLabel').textContent = formatDateTR(currentDate);
+    document.getElementById('datePicker').value = currentDate;
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('nextBtn').disabled = currentDate >= today;
+}
+
+function navigateDate(dir) {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + dir);
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (d > today) return;
+    currentDate = d.toISOString().split('T')[0];
+    updateDateUI();
+    loadSummaryForDate(currentDate);
+}
+
+function onDatePickerChange() {
+    const val = document.getElementById('datePicker').value;
+    if (!val) return;
+    const today = new Date().toISOString().split('T')[0];
+    if (val > today) return;
+    currentDate = val;
+    updateDateUI();
+    loadSummaryForDate(currentDate);
+}
+
+// ── AI Seçimi ─────────────────────────────────────────────────────────────────
+function selectAi(provider) {
+    selectedAi = provider;
+    document.querySelectorAll('.ai-btn-oz').forEach(b => b.className = 'ai-btn-oz');
+    document.getElementById('oz-' + provider)?.classList.add('active-' + provider);
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderSummary(content, aiProvider, createdAt) {
+    const aiLabel = aiProvider === 'grok' ? '⚡ Grok' : aiProvider === 'gemini' ? '✨ Gemini' : '🤖 Claude';
+    const timeStr = createdAt ? (createdAt.split(' ')[1] || '') : '';
+    document.getElementById('summaryBox').innerHTML = `
+        <div class="summary-meta">
+            <span class="ai-tag">${aiLabel}</span>
+            <span class="created-tag">${formatDateTR(currentDate)} · ${timeStr}</span>
+        </div>
+        <div class="summary-content">${renderMarkdown(content)}</div>
+    `;
+    document.getElementById('telegramOzBtn').style.display = '';
+}
+
+// ── Yükle ─────────────────────────────────────────────────────────────────────
+async function loadSummaryForDate(dateStr) {
+    const box = document.getElementById('summaryBox');
+    box.innerHTML = '<div class="loading-state"><div class="spinner-sm"></div><span>Yükleniyor...</span></div>';
+    document.getElementById('telegramOzBtn').style.display = 'none';
+    currentSummary = null;
+
+    try {
+        const resp = await fetch(`/api/summary/date/${dateStr}`);
+        const data = await resp.json();
+        if (data && data.content) {
+            currentSummary = data.content;
+            renderSummary(data.content, data.ai_provider, data.created_at);
+        } else {
+            box.innerHTML = `<div class="empty-state">📭 ${formatDateTR(dateStr)} tarihine ait özet yok.<br><small style="color:#2a2a3a;">Analizler yapıldıktan sonra "Genel Değerlendirme Yap" butonuna bas.</small></div>`;
+        }
+    } catch(e) {
+        box.innerHTML = `<div class="empty-state">❌ Hata: ${e.message}</div>`;
+    }
+
+    document.querySelectorAll('.history-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.date === dateStr);
+    });
+}
+
+// ── Üret ──────────────────────────────────────────────────────────────────────
 async function generateSummary() {
     const btn = document.getElementById('generateBtn');
     const box = document.getElementById('summaryBox');
@@ -282,11 +425,12 @@ async function generateSummary() {
         const data = await resp.json();
         if (data.status === 'success') {
             currentSummary = data.content;
+            currentDate = new Date().toISOString().split('T')[0];
+            updateDateUI();
             renderSummary(data.content, data.ai_provider, data.created_at);
-            document.getElementById('telegramOzBtn').style.display = '';
             await loadHistory();
         } else {
-            box.innerHTML = `<div class="empty-state">❌ Hata: ${data.message}</div>`;
+            box.innerHTML = `<div class="empty-state">❌ ${data.message}</div>`;
         }
     } catch(e) {
         box.innerHTML = `<div class="empty-state">❌ Hata: ${e.message}</div>`;
@@ -295,25 +439,7 @@ async function generateSummary() {
     btn.textContent = '🤖 Genel Değerlendirme Yap';
 }
 
-function renderSummary(content, aiProvider, createdAt) {
-    const box = document.getElementById('summaryBox');
-    const aiLabel = aiProvider === 'grok' ? 'Grok' : aiProvider === 'gemini' ? 'Gemini' : 'Claude';
-    const timeStr = createdAt ? createdAt.split(' ')[1] || '' : '';
-
-    // İçeriği formatla — numaralı maddeleri renklendir
-    const formatted = content
-        .replace(/^(\d+\.\s.+)$/gm, '<span style="color:#a78bfa;font-weight:700;">$1</span>')
-        .replace(/^(#+\s.+)$/gm, '<span style="color:#7c3aed;font-weight:700;">$1</span>');
-
-    box.innerHTML = `
-        <div class="summary-meta">
-            <span class="ai-tag">🤖 ${aiLabel}</span>
-            <span class="created-tag">${timeStr}</span>
-        </div>
-        <div class="summary-content">${formatted}</div>
-    `;
-}
-
+// ── Geçmiş ────────────────────────────────────────────────────────────────────
 async function loadHistory() {
     try {
         const resp = await fetch('/api/summary/list');
@@ -323,48 +449,33 @@ async function loadHistory() {
             container.innerHTML = '<div style="color:#333;font-size:12px;padding:12px;">Henüz kayıtlı özet yok.</div>';
             return;
         }
-        container.innerHTML = data.map(s => `
-            <div class="history-item" onclick="loadSummaryByDate('${s.summary_date}')">
-                <span class="h-date">📅 ${formatDate(s.summary_date)}</span>
+        container.innerHTML = data.map(s => {
+            const aiLabel = s.ai_provider === 'grok' ? '⚡ Grok' : s.ai_provider === 'gemini' ? '✨ Gemini' : '🤖 Claude';
+            const timeStr = (s.created_at || '').split(' ')[1] || '';
+            return `<div class="history-item ${s.summary_date === currentDate ? 'active' : ''}"
+                        data-date="${s.summary_date}"
+                        onclick="selectHistory('${s.summary_date}')">
+                <span class="h-date">📅 ${formatDateTR(s.summary_date)}</span>
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <span class="h-ai">${s.ai_provider || 'claude'}</span>
-                    <span class="h-time">${(s.created_at || '').split(' ')[1] || ''}</span>
+                    <span class="h-ai">${aiLabel}</span>
+                    <span class="h-time">${timeStr}</span>
                 </div>
-            </div>
-        `).join('');
-    } catch(e) {
-        console.error('History load failed:', e);
-    }
+            </div>`;
+        }).join('');
+    } catch(e) { console.error('History load failed:', e); }
 }
 
-async function loadSummaryByDate(dateStr) {
-    // Aktif item'ı işaretle
-    document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
-    event.currentTarget.classList.add('active');
-
-    const box = document.getElementById('summaryBox');
-    box.innerHTML = '<div class="loading-state"><div class="spinner-sm"></div><span>Yükleniyor...</span></div>';
-
-    try {
-        const resp = await fetch(`/api/summary/date/${dateStr}`);
-        const data = await resp.json();
-        if (data && data.content) {
-            currentSummary = data.content;
-            renderSummary(data.content, data.ai_provider, data.created_at);
-            document.getElementById('telegramOzBtn').style.display = '';
-        } else {
-            box.innerHTML = '<div class="empty-state">Bu tarihe ait özet bulunamadı.</div>';
-        }
-    } catch(e) {
-        box.innerHTML = `<div class="empty-state">❌ Hata: ${e.message}</div>`;
-    }
+function selectHistory(dateStr) {
+    currentDate = dateStr;
+    updateDateUI();
+    loadSummaryForDate(dateStr);
 }
 
+// ── Telegram ──────────────────────────────────────────────────────────────────
 async function sendSummaryToTelegram() {
     if (!currentSummary) return;
     const btn = document.getElementById('telegramOzBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ Gönderiliyor...';
+    btn.disabled = true; btn.textContent = '⏳ Gönderiliyor...';
     try {
         const resp = await fetch('/api/summary/telegram', {
             method: 'POST',
@@ -373,46 +484,22 @@ async function sendSummaryToTelegram() {
         });
         const data = await resp.json();
         if (data.status === 'success') {
-            btn.textContent = '✅ Gönderildi!';
-            btn.style.background = '#22c55e';
-            setTimeout(() => {
-                btn.textContent = "📨 Telegram'a Gönder";
-                btn.style.background = '';
-                btn.disabled = false;
-            }, 3000);
+            btn.textContent = '✅ Gönderildi!'; btn.style.background = '#22c55e';
+            setTimeout(() => { btn.textContent = "📨 Telegram'a Gönder"; btn.style.background = ''; btn.disabled = false; }, 3000);
         } else {
-            alert('Hata: ' + data.message);
-            btn.disabled = false;
-            btn.textContent = "📨 Telegram'a Gönder";
+            alert('Hata: ' + data.message); btn.disabled = false; btn.textContent = "📨 Telegram'a Gönder";
         }
     } catch(e) {
-        alert('Hata: ' + e.message);
-        btn.disabled = false;
-        btn.textContent = "📨 Telegram'a Gönder";
+        alert('Hata: ' + e.message); btn.disabled = false; btn.textContent = "📨 Telegram'a Gönder";
     }
 }
 
-async function init() {
-    // Bugünün tarihini göster
-    const today = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    document.getElementById('todayBadge').textContent = today;
-
-    // Bugünün özeti varsa yükle
-    try {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const resp = await fetch(`/api/summary/date/${todayStr}`);
-        const data = await resp.json();
-        if (data && data.content) {
-            currentSummary = data.content;
-            renderSummary(data.content, data.ai_provider, data.created_at);
-            document.getElementById('telegramOzBtn').style.display = '';
-        }
-    } catch(e) {}
-
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    updateDateUI();
+    await loadSummaryForDate(currentDate);
     await loadHistory();
-}
-
-document.addEventListener('DOMContentLoaded', init);
+});
 </script>
 </body>
 </html>
