@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         .ozet-container { max-width: 860px; margin: 0 auto; padding: 24px; }
 
@@ -252,6 +253,10 @@
                 <button class="btn-telegram-oz" id="telegramOzBtn" onclick="sendSummaryToTelegram()" style="display:none;">
                     📨 Telegram'a Gönder
                 </button>
+                <button class="btn-telegram-oz" id="downloadOzBtn" onclick="downloadSummary()"
+                    style="display:none;background:#7c3aed;">
+                    📸 PNG İndir
+                </button>
             </div>
 
             <!-- Özet Kutusu -->
@@ -381,6 +386,7 @@ function renderSummary(content, aiProvider, createdAt) {
         <div class="summary-content">${renderMarkdown(content)}</div>
     `;
     document.getElementById('telegramOzBtn').style.display = '';
+    document.getElementById('downloadOzBtn').style.display = '';
 }
 
 // ── Yükle ─────────────────────────────────────────────────────────────────────
@@ -388,6 +394,7 @@ async function loadSummaryForDate(dateStr) {
     const box = document.getElementById('summaryBox');
     box.innerHTML = '<div class="loading-state"><div class="spinner-sm"></div><span>Yükleniyor...</span></div>';
     document.getElementById('telegramOzBtn').style.display = 'none';
+    document.getElementById('downloadOzBtn').style.display = 'none';
     currentSummary = null;
 
     try {
@@ -471,16 +478,48 @@ function selectHistory(dateStr) {
     loadSummaryForDate(dateStr);
 }
 
-// ── Telegram ──────────────────────────────────────────────────────────────────
+// ── İndir ─────────────────────────────────────────────────────────────────────
+async function downloadSummary() {
+    const box = document.getElementById('summaryBox');
+    const btn = document.getElementById('downloadOzBtn');
+    btn.disabled = true; btn.textContent = '⏳ Hazırlanıyor...';
+    try {
+        const canvas = await html2canvas(box, {
+            scale: 3,
+            backgroundColor: '#0d0d1a',
+            useCORS: true,
+            logging: false
+        });
+        const link = document.createElement('a');
+        link.download = `gollazim_ozet_${currentDate}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    } catch(e) {
+        alert('İndirme hatası: ' + e.message);
+    }
+    btn.disabled = false; btn.textContent = '📸 PNG İndir';
+}
 async function sendSummaryToTelegram() {
     if (!currentSummary) return;
     const btn = document.getElementById('telegramOzBtn');
+    const box = document.getElementById('summaryBox');
     btn.disabled = true; btn.textContent = '⏳ Gönderiliyor...';
+
     try {
-        const resp = await fetch('/api/summary/telegram', {
+        // html2canvas ile özet kutusunu PNG'ye çevir
+        const canvas = await html2canvas(box, {
+            scale: 2,
+            backgroundColor: '#0d0d1a',
+            useCORS: true,
+            logging: false
+        });
+        const base64 = canvas.toDataURL('image/png').split(',')[1];
+        const caption = `📋 <b>Günün Özeti — ${formatDateTR(currentDate)}</b>\n📊 GOLLAZIM Analiz`;
+
+        const resp = await fetch('/api/telegram/send-card', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: currentSummary })
+            body: JSON.stringify({ image: base64, caption })
         });
         const data = await resp.json();
         if (data.status === 'success') {
