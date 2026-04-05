@@ -102,6 +102,17 @@ def init_db():
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
+    # ── YENİ: Günlük özet tablosu ────────────────────────────────────────────
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS daily_summaries (
+            id SERIAL PRIMARY KEY,
+            summary_date TEXT NOT NULL UNIQUE,
+            ai_provider TEXT DEFAULT 'claude',
+            content TEXT NOT NULL,
+            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    ''')
+    # ─────────────────────────────────────────────────────────────────────────
     for sql in [
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER',
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_away_score INTEGER',
@@ -121,6 +132,49 @@ def init_db():
     conn.commit()
     cur.close()
     conn.close()
+
+
+# ── Günlük Özet ──────────────────────────────────────────────────────────────
+
+def save_summary(date_str, content, ai_provider='claude'):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('''
+        INSERT INTO daily_summaries (summary_date, content, ai_provider)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (summary_date) DO UPDATE
+        SET content = EXCLUDED.content,
+            ai_provider = EXCLUDED.ai_provider,
+            created_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+    ''', (date_str, content, ai_provider))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_summary_by_date(date_str):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT * FROM daily_summaries WHERE summary_date = %s', (date_str,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_summary_list(limit=30):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        'SELECT summary_date, ai_provider, created_at FROM daily_summaries ORDER BY summary_date DESC LIMIT %s',
+        (limit,)
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [dict(r) for r in rows]
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def save_pending_matches(matches: list):
@@ -278,7 +332,6 @@ def update_coupon_results(date_str):
                     item_result = (row.get('total_goals') or 0) > 1
                 elif pred_type == 'Over 3.5':
                     item_result = (row.get('total_goals') or 0) > 3
-                # Kombine kurallar
                 elif pred_type == 'COMBO_O25_BTTS':
                     item_result = bool(row.get('over25_correct')) and bool(row.get('btts_correct'))
                 elif pred_type == 'COMBO_1X2_O15':
