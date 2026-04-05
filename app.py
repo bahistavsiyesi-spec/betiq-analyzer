@@ -10,7 +10,8 @@ from backend.database import (
     get_available_dates, save_pending_matches, get_pending_matches,
     clear_pending_matches, clear_old_pending_matches,
     save_coupon, get_coupons, update_coupon_results,
-    get_value_bet_stats
+    get_value_bet_stats,
+    save_summary, get_summary_by_date, get_summary_list
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static', static_url_path='/static')
@@ -1464,6 +1465,78 @@ def api_debug_analysis_data(analysis_id):
         logger.error(f"Debug analysis data error: {e}")
         import traceback
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+
+
+
+@app.route('/gunun-ozeti')
+def gunun_ozeti():
+    return render_template('gunun_ozeti.html')
+
+
+@app.route('/api/summary/generate', methods=['POST'])
+def api_summary_generate():
+    try:
+        from backend.ai_analyzer import generate_daily_summary
+        data = request.get_json() or {}
+        ai_provider = data.get('ai_provider', 'claude')
+        matches = get_today_matches()
+        if not matches:
+            return jsonify({"status": "error", "message": "Bugün analiz edilmiş maç yok"}), 404
+        content = generate_daily_summary(matches, ai_provider=ai_provider)
+        if not content:
+            return jsonify({"status": "error", "message": "Özet üretilemedi"}), 500
+        today = datetime.now().strftime('%Y-%m-%d')
+        save_summary(today, content, ai_provider=ai_provider)
+        summary = get_summary_by_date(today)
+        logger.info(f"Daily summary generated: {today} ({ai_provider})")
+        return jsonify({
+            "status": "success",
+            "content": content,
+            "ai_provider": ai_provider,
+            "created_at": summary.get('created_at', '') if summary else '',
+        })
+    except Exception as e:
+        logger.error(f"Summary generate error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/summary/date/<date_str>')
+def api_summary_by_date(date_str):
+    try:
+        summary = get_summary_by_date(date_str)
+        if not summary:
+            return jsonify({}), 200
+        return jsonify(summary)
+    except Exception as e:
+        logger.error(f"Summary by date error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/summary/list')
+def api_summary_list():
+    try:
+        summaries = get_summary_list(30)
+        return jsonify(summaries)
+    except Exception as e:
+        logger.error(f"Summary list error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/summary/telegram', methods=['POST'])
+def api_summary_telegram():
+    try:
+        from backend.telegram_sender import send_message
+        data = request.get_json() or {}
+        content = data.get('content', '')
+        if not content:
+            return jsonify({"status": "error", "message": "İçerik boş"}), 400
+        today = datetime.now().strftime('%d.%m.%Y')
+        msg = f"📋 GÜNÜN ÖZETİ — {today}\n\n{content}"
+        send_message(msg)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Summary telegram error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == '__main__':
