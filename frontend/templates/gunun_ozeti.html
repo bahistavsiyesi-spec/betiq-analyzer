@@ -483,6 +483,8 @@ async function downloadSummary() {
     const box = document.getElementById('summaryBox');
     const btn = document.getElementById('downloadOzBtn');
     btn.disabled = true; btn.textContent = '⏳ Hazırlanıyor...';
+    const meta = box.querySelector('.summary-meta');
+    if (meta) meta.style.display = 'none';
     try {
         const canvas = await html2canvas(box, {
             scale: 3,
@@ -497,16 +499,19 @@ async function downloadSummary() {
     } catch(e) {
         alert('İndirme hatası: ' + e.message);
     }
+    if (meta) meta.style.display = '';
     btn.disabled = false; btn.textContent = '📸 PNG İndir';
 }
+
+// ── Telegram (görsel olarak) ──────────────────────────────────────────────────
 async function sendSummaryToTelegram() {
     if (!currentSummary) return;
     const btn = document.getElementById('telegramOzBtn');
     const box = document.getElementById('summaryBox');
     btn.disabled = true; btn.textContent = '⏳ Gönderiliyor...';
-
+    const meta = box.querySelector('.summary-meta');
+    if (meta) meta.style.display = 'none';
     try {
-        // html2canvas ile özet kutusunu PNG'ye çevir
         const canvas = await html2canvas(box, {
             scale: 2,
             backgroundColor: '#0d0d1a',
@@ -515,7 +520,6 @@ async function sendSummaryToTelegram() {
         });
         const base64 = canvas.toDataURL('image/png').split(',')[1];
         const caption = `📋 <b>Günün Özeti — ${formatDateTR(currentDate)}</b>\n📊 GOLLAZIM Analiz`;
-
         const resp = await fetch('/api/telegram/send-card', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -531,6 +535,7 @@ async function sendSummaryToTelegram() {
     } catch(e) {
         alert('Hata: ' + e.message); btn.disabled = false; btn.textContent = "📨 Telegram'a Gönder";
     }
+    if (meta) meta.style.display = '';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
