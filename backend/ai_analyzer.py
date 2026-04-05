@@ -1327,3 +1327,127 @@ def mock_analysis(fixture, home_form='', away_form='', home_goals_avg=0, away_go
         'home_goals_trend': None, 'away_goals_trend': None,
         'value_bets': None,
     }
+
+
+# ─── Günlük Özet Fonksiyonları ────────────────────────────────────────────────
+
+def build_summary_prompt(matches):
+    """Günlük özet için AI prompt'u oluştur"""
+    today = datetime.now().strftime('%d.%m.%Y')
+    total = len(matches)
+
+    lines = [
+        f"Bugün ({today}) toplam {total} maç analiz edildi.",
+        "Aşağıdaki verilere dayanarak Türkçe, madde madde bir günlük özet yaz.",
+        "Teknik terimler kullanma, analist gibi sade ve anlaşılır yaz.",
+        "",
+        "── MAÇ VERİLERİ ──",
+    ]
+
+    for m in matches:
+        csv = m.get('csv_data') or {}
+        if isinstance(csv, str):
+            try:
+                csv = json.loads(csv)
+            except:
+                csv = {}
+
+        lines.append(f"\n{m['home_team']} vs {m['away_team']} ({m.get('league', '')})")
+        lines.append(f"  Tahmin: {m.get('prediction_1x2','?')} | Güven: {m.get('confidence','?')}")
+        lines.append(f"  2.5 Üst: %{m.get('over25_pct',0)} | KG Var: %{m.get('btts_pct',0)} | İY 0.5: %{m.get('ht2g_pct',0)}")
+
+        avg_corners = csv.get('avg_corners')
+        if avg_corners:
+            over85 = csv.get('avg_corners_85', '—')
+            over95 = csv.get('avg_corners_95', '—')
+            lines.append(f"  Korner ort: {avg_corners} | 8.5 üst: %{over85} | 9.5 üst: %{over95}")
+
+        ht2_05 = csv.get('ht2_over05_avg')
+        ht2_15 = csv.get('ht2_over15_avg')
+        if ht2_05 or ht2_15:
+            lines.append(f"  2Y 0.5 üst: %{ht2_05 or '—'} | 2Y 1.5 üst: %{ht2_15 or '—'}")
+
+    lines.append("\n── TALİMATLAR ──")
+    lines.append("Aşağıdaki başlıklar altında madde madde özet yaz:")
+    lines.append("1. En güvenilir maçlar (güven seviyesi Yüksek veya Çok Yüksek olanlar)")
+    lines.append("2. En golcü beklenen maçlar (2.5 üst yüzdesi yüksek olanlar)")
+    lines.append("3. Karşılıklı gol beklentisi yüksek maçlar (KG Var yüzdesi yüksek olanlar)")
+    lines.append("4. Korner açısından hareketli maçlar (ortalama korner 10+ olanlar)")
+    lines.append("5. İkinci yarı gol beklentisi yüksek maçlar (2Y 0.5 üst %70+ olanlar)")
+    lines.append("6. Genel risk değerlendirmesi ve günün kısa özeti")
+    lines.append("")
+    lines.append("Eğer bir kategoride öne çıkan maç yoksa 'Bu kategoride belirgin bir maç yok' de.")
+    lines.append("Yanıtın sadece madde madde metin olsun, JSON değil.")
+
+    return "\n".join(lines)
+
+
+def generate_daily_summary(matches, ai_provider='claude'):
+    """Bugünün maçları için AI özeti üret"""
+    if not matches:
+        return None
+
+    prompt = build_summary_prompt(matches)
+    raw = None
+
+    if ai_provider == 'grok':
+        if GROQ_API_KEY:
+            try:
+                raw = call_groq(prompt)
+                logger.info('Grok summary OK')
+            except Exception as e:
+                logger.error(f'Grok summary failed: {e}')
+        if not raw and ANTHROPIC_API_KEY:
+            try:
+                raw = call_anthropic(prompt)
+                logger.info('Claude summary (Grok fallback) OK')
+            except Exception as e:
+                logger.error(f'Claude summary fallback failed: {e}')
+
+    elif ai_provider == 'gemini':
+        if GEMINI_API_KEY:
+            try:
+                response = requests.post(
+                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY,
+                    headers={'Content-Type': 'application/json'},
+                    json={
+                        'contents': [{'parts': [{'text': 'Sen profesyonel bir futbol bahis analistisin. TÜRKÇE yaz.\n\n' + prompt}]}],
+                        'generationConfig': {'maxOutputTokens': 1500, 'temperature': 0.7}
+                    }, timeout=30
+                )
+                response.raise_for_status()
+                raw = response.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+                logger.info('Gemini summary OK')
+            except Exception as e:
+                logger.error(f'Gemini summary failed: {e}')
+        if not raw and ANTHROPIC_API_KEY:
+            try:
+                raw = call_anthropic(prompt)
+                logger.info('Claude summary (Gemini fallback) OK')
+            except Exception as e:
+                logger.error(f'Claude summary fallback failed: {e}')
+
+    else:  # claude (varsayılan)
+        if ANTHROPIC_API_KEY:
+            try:
+                raw = call_anthropic(prompt)
+                logger.info('Claude summary OK')
+            except Exception as e:
+                logger.error(f'Claude summary failed: {e}')
+        if not raw and GEMINI_API_KEY:
+            try:
+                response = requests.post(
+                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY,
+                    headers={'Content-Type': 'application/json'},
+                    json={
+                        'contents': [{'parts': [{'text': 'Sen profesyonel bir futbol bahis analistisin. TÜRKÇE yaz.\n\n' + prompt}]}],
+                        'generationConfig': {'maxOutputTokens': 1500, 'temperature': 0.7}
+                    }, timeout=30
+                )
+                response.raise_for_status()
+                raw = response.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+                logger.info('Gemini summary (Claude fallback) OK')
+            except Exception as e:
+                logger.error(f'Gemini summary fallback failed: {e}')
+
+    return raw
