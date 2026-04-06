@@ -54,6 +54,7 @@ FDCO_LEAGUES = {
     'ESP': ('2425', 'SP1'),
     'ITA': ('2425', 'I1'),
     'FRA': ('2425', 'F1'),
+    'NED': ('2425', 'N1'),
 }
 
 # ─── CollectAPI lig key eşleştirmesi ─────────────────────────────────────────
@@ -232,6 +233,32 @@ ITALIAN_TEAM_NORMALIZED = {
 }
 
 
+
+# ─── Hollanda Takımları ───────────────────────────────────────────────────────
+DUTCH_TEAM_NORMALIZED = {
+    'ajax': 678, 'psv': 674, 'feyenoord': 675,
+    'azalkmaar': 676, 'az': 676,
+    'utrecht': 679, 'fcutrecht': 679,
+    'vitesse': 677, 'twente': 680, 'fctwente': 680,
+    'groningen': 682, 'fcgroningen': 682,
+    'heerenveen': 683, 'scheerenveen': 683,
+    'heracles': 684, 'heraclesalmelo': 684,
+    'sparta': 685, 'spartarotterdam': 685,
+    'nijmegen': 686, 'nijmegen': 686, 'necnijmegen': 686,
+    'waalwijk': 1392, 'rkceagles': 1392,
+    'volendam': 1383, 'fcvolendam': 1383,
+    'almere': 6806, 'almerecity': 6806,
+    'pec': 687, 'peczwolle': 687, 'zwolle': 687,
+    'excelsior': 688, 'sbvexcelsior': 688,
+    'cambuur': 689, 'sccambuur': 689,
+    'denvhaag': 690, 'adovs': 690,
+    'gokeen': 691, 'goahead': 691, 'goaheadeagles': 691,
+    'emmen': 693, 'fcemmen': 693,
+    'fortuna': 694, 'fortunasittard': 694,
+    'nac': 340, 'nacbreda': 340,
+}
+
+
 def _find_team_id(team_name, table):
     normalized = normalize_name(team_name)
     if normalized in table:
@@ -252,6 +279,9 @@ def is_spanish_team(team_name):
 
 def is_italian_team(team_name):
     return _find_team_id(team_name, ITALIAN_TEAM_NORMALIZED) is not None
+
+def is_dutch_team(team_name):
+    return _find_team_id(team_name, DUTCH_TEAM_NORMALIZED) is not None
 
 
 # ─── football-data.co.uk Şut/Korner İstatistikleri ───────────────────────────
@@ -628,6 +658,11 @@ def get_team_last_matches(team_name, last=10):
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
+    if is_dutch_team(team_name):
+        team_id = _find_team_id(team_name, DUTCH_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_last_matches(team_id, team_name, last)
+        return []
     logger.info('No stats source for ' + team_name + ', using ClubElo only')
     return []
 
@@ -653,6 +688,11 @@ def get_h2h(team1_name, team2_name, last=5):
         return []
     if is_italian_team(team1_name) or is_italian_team(team2_name):
         team_id = _find_team_id(team1_name, ITALIAN_TEAM_NORMALIZED) or _find_team_id(team2_name, ITALIAN_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_h2h(team_id, team1_name, team2_name, last)
+        return []
+    if is_dutch_team(team1_name) or is_dutch_team(team2_name):
+        team_id = _find_team_id(team1_name, DUTCH_TEAM_NORMALIZED) or _find_team_id(team2_name, DUTCH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
@@ -696,6 +736,8 @@ API_FOOTBALL_LEAGUE_MAP = {
     'swiss super league': 207,
     'ekstraklasa': 106,
     'greek super league': 233,
+    'eredivisie': 88, 'netherlands': 88, 'dutch': 88, 'holland': 88,
+    'eerste divisie': 89,
     'la liga': 140, 'laliga': 140, 'spain': 140,
     'serie a': 135, 'italy': 135,
     'bundesliga': 78, 'germany': 78,
