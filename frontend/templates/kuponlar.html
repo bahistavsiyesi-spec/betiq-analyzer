@@ -37,7 +37,10 @@
         .item-league { font-size:10px; color:#444; }
         .item-right { display:flex; align-items:center; gap:8px; }
         .item-pred { font-size:11px; font-weight:700; color:#a78bfa; background:#2a1a4e; padding:3px 8px; border-radius:6px; white-space:nowrap; }
-        .item-result { font-size:18px; }
+        .item-result { font-size:11px; font-weight:800; padding:4px 10px; border-radius:20px; white-space:nowrap; }
+        .item-result.tuttu { background:#22c55e22; color:#22c55e; border:1px solid #22c55e44; }
+        .item-result.tutmadi { background:#ef444422; color:#ef4444; border:1px solid #ef444444; }
+        .item-result.bekliyor { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b44; }
         .coupon-footer { padding:12px 16px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid #1e1e3a; gap:8px; }
         .coupon-score { font-size:12px; color:#555; }
         .download-btn { padding:8px 16px; border-radius:8px; border:none; background:#7c3aed; color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
@@ -122,7 +125,8 @@
         const items = (c.items || []).map(item => {
             const res = item.result;
             const itemClass = res === true ? 'item-won' : res === false ? 'item-lost' : '';
-            const icon = res === true ? 'OK' : res === false ? 'X' : '...';
+            const resClass = res === true ? 'tuttu' : res === false ? 'tutmadi' : 'bekliyor';
+            const resLabel = res === true ? '✓ Tuttu' : res === false ? '✗ Tutmadı' : '⏳ Bekliyor';
             return `<div class="coupon-item ${itemClass}">
                 <div class="item-left">
                     <div class="item-teams">${item.home_team} vs ${item.away_team}</div>
@@ -130,16 +134,21 @@
                 </div>
                 <div class="item-right">
                     <span class="item-pred">${item.prediction_label}</span>
-                    <span class="item-result">${icon}</span>
+                    <span class="item-result ${resClass}">${resLabel}</span>
                 </div>
             </div>`;
         }).join('');
         const scoreText = isCompleted || c.correct_items > 0
             ? `${c.correct_items}/${c.total_items} tahmin tuttu`
             : `${c.total_items} tahmin`;
+        const typeMap = { guvenli: '🛡️ Güvenli', dengeli: '⚖️ Dengeli', riskli: '🔥 Riskli' };
+        const typeLabel = typeMap[c.coupon_type] || '⚖️ Dengeli';
         return `<div class="coupon-card ${cardClass}" id="coupon-${c.id}">
             <div class="coupon-header">
-                <span class="coupon-date">${c.coupon_date}</span>
+                <div style="display:flex;flex-direction:column;gap:3px;">
+                    <span class="coupon-date">${c.coupon_date}</span>
+                    <span style="font-size:11px;color:#a78bfa;font-weight:700;">${typeLabel}</span>
+                </div>
                 <div style="display:flex;align-items:center;gap:8px;">
                     ${statusHtml}
                     <button class="delete-btn" onclick="deleteCoupon(${c.id})">Sil</button>
