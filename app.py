@@ -1106,10 +1106,11 @@ def api_coupon_save():
     try:
         data = request.get_json()
         items = data.get('items', [])
+        coupon_type = data.get('coupon_type', 'dengeli')
         if not items:
             return jsonify({"status": "error", "message": "Kupon bos"}), 400
-        save_coupon(items)
-        logger.info(f"Kupon kaydedildi: {len(items)} mac")
+        save_coupon(items, coupon_type=coupon_type)
+        logger.info(f"Kupon kaydedildi: {len(items)} mac ({coupon_type})")
         return jsonify({"status": "success", "message": "Kupon kaydedildi!"})
     except Exception as e:
         logger.error(f"Coupon save error: {e}")
