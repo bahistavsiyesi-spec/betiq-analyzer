@@ -160,6 +160,8 @@ def _get_country_code(fixture):
         return 'POR'
     if any(x in league for x in ['netherlands', 'eredivisie', 'dutch']):
         return 'NED'
+    if any(x in league for x in ['brazil', 'brasileirao', 'serie a brasil', 'brasileiro', 'bsa']):
+        return 'BRA'
     return None
 
 
