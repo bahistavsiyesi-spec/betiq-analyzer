@@ -44,7 +44,7 @@ NAME_FIXES = {
 # ─── Lig kodu eşleştirmesi (football-data.org) ───────────────────────────────
 LEAGUE_CODES = {
     'GER': 'BL1', 'ENG': 'PL', 'ESP': 'PD',
-    'ITA': 'SA', 'FRA': 'FL1', 'POR': 'PPL', 'NED': 'DED',
+    'ITA': 'SA', 'FRA': 'FL1', 'POR': 'PPL', 'NED': 'DED', 'BRA': 'BSA',
 }
 
 # ─── football-data.co.uk lig CSV kodları ─────────────────────────────────────
@@ -259,6 +259,56 @@ DUTCH_TEAM_NORMALIZED = {
 }
 
 
+# ─── Portekiz Takımları ───────────────────────────────────────────────────────
+PORTUGUESE_TEAM_NORMALIZED = {
+    'sporting': 498, 'sportingcp': 498, 'sportinglisbon': 498,
+    'porto': 503, 'fcporto': 503,
+    'benfica': 499, 'slbenfica': 499,
+    'braga': 500, 'scbraga': 500,
+    'guimaraes': 5455, 'vitoriaguimaraes': 5455,
+    'estoril': 501, 'estorilpraia': 501,
+    'famalicao': 5456, 'fcfamalicao': 5456,
+    'vizela': 5457, 'fcvizela': 5457,
+    'arouca': 5458, 'fcarouca': 5458,
+    'portimonense': 502, 'portimoneense': 502,
+    'maritimo': 5459, 'csmaritimo': 5459,
+    'chaves': 5460, 'gdchaves': 5460,
+    'boavista': 504, 'boavistafc': 504,
+    'gilvicentfc': 5461, 'gilvicente': 5461,
+    'paco': 5462, 'pacosdeferreira': 5462,
+    'santaclara': 5463, 'cdsantaclara': 5463,
+    'nacional': 5464, 'cdnacional': 5464,
+    'casa': 5465, 'casapia': 5465,
+    'moreirense': 5466, 'morerense': 5466,
+}
+
+# ─── Brezilya Takımları ───────────────────────────────────────────────────────
+BRAZILIAN_TEAM_NORMALIZED = {
+    'flamengo': 71, 'crflamengo': 71,
+    'palmeiras': 72, 'sepalmerias': 72,
+    'atleticomineiro': 1062, 'atletico': 1062,
+    'fluminense': 73, 'fluminensefc': 73,
+    'corinthians': 74, 'sportcorinthians': 74,
+    'internacional': 75, 'scinteracional': 75,
+    'gremio': 76, 'gremiofc': 76,
+    'saopaulofc': 77, 'saopaulo': 77,
+    'botafogo': 1836, 'botafogorj': 1836,
+    'vasco': 1062, 'vascodagama': 1062,
+    'cruzeiro': 1063, 'cruzeiroec': 1063,
+    'bahia': 1064, 'ecbahia': 1064,
+    'fortaleza': 1065, 'fortalezaec': 1065,
+    'atleticoparanaense': 1066, 'athleticoparanaense': 1066, 'athletico': 1066,
+    'ceara': 1067, 'cearasc': 1067,
+    'sport': 1068, 'sportrecife': 1068,
+    'santos': 1069, 'santosfc': 1069,
+    'americamineiro': 1070, 'americafutebol': 1070,
+    'juventude': 1071, 'ecjuventude': 1071,
+    'goias': 1072, 'goiasec': 1072,
+    'coritiba': 1073, 'coritibafbc': 1073,
+    'avai': 1074, 'avaifc': 1074,
+}
+
+
 def _find_team_id(team_name, table):
     normalized = normalize_name(team_name)
     if normalized in table:
@@ -282,6 +332,12 @@ def is_italian_team(team_name):
 
 def is_dutch_team(team_name):
     return _find_team_id(team_name, DUTCH_TEAM_NORMALIZED) is not None
+
+def is_portuguese_team(team_name):
+    return _find_team_id(team_name, PORTUGUESE_TEAM_NORMALIZED) is not None
+
+def is_brazilian_team(team_name):
+    return _find_team_id(team_name, BRAZILIAN_TEAM_NORMALIZED) is not None
 
 
 # ─── football-data.co.uk Şut/Korner İstatistikleri ───────────────────────────
@@ -663,6 +719,16 @@ def get_team_last_matches(team_name, last=10):
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
+    if is_portuguese_team(team_name):
+        team_id = _find_team_id(team_name, PORTUGUESE_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_last_matches(team_id, team_name, last)
+        return []
+    if is_brazilian_team(team_name):
+        team_id = _find_team_id(team_name, BRAZILIAN_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_last_matches(team_id, team_name, last)
+        return []
     logger.info('No stats source for ' + team_name + ', using ClubElo only')
     return []
 
@@ -693,6 +759,16 @@ def get_h2h(team1_name, team2_name, last=5):
         return []
     if is_dutch_team(team1_name) or is_dutch_team(team2_name):
         team_id = _find_team_id(team1_name, DUTCH_TEAM_NORMALIZED) or _find_team_id(team2_name, DUTCH_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_h2h(team_id, team1_name, team2_name, last)
+        return []
+    if is_portuguese_team(team1_name) or is_portuguese_team(team2_name):
+        team_id = _find_team_id(team1_name, PORTUGUESE_TEAM_NORMALIZED) or _find_team_id(team2_name, PORTUGUESE_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_h2h(team_id, team1_name, team2_name, last)
+        return []
+    if is_brazilian_team(team1_name) or is_brazilian_team(team2_name):
+        team_id = _find_team_id(team1_name, BRAZILIAN_TEAM_NORMALIZED) or _find_team_id(team2_name, BRAZILIAN_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
@@ -738,6 +814,8 @@ API_FOOTBALL_LEAGUE_MAP = {
     'greek super league': 233,
     'eredivisie': 88, 'netherlands': 88, 'dutch': 88, 'holland': 88,
     'eerste divisie': 89,
+    'primeira liga': 94, 'portugal': 94, 'liga nos': 94, 'liga bwin': 94,
+    'brasileirao': 71, 'serie a brasil': 71, 'brazil': 71, 'bsa': 71, 'brasileiro': 71,
     'la liga': 140, 'laliga': 140, 'spain': 140,
     'serie a': 135, 'italy': 135,
     'bundesliga': 78, 'germany': 78,
