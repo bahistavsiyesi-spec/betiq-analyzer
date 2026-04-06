@@ -753,12 +753,29 @@ def api_coupon_today():
         if not matches:
             return jsonify({"status": "error", "message": "Analiz bulunamadi"}), 404
 
-        min_count = int(request.args.get('min', 3))
-        max_count = int(request.args.get('max', 5))
+        coupon_type = request.args.get('type', 'dengeli')  # guvenli | dengeli | riskli
+
+        # Tipe göre parametreler
+        if coupon_type == 'guvenli':
+            min_count = int(request.args.get('min', 3))
+            max_count = int(request.args.get('max', 4))
+            MIN_PCT = 75          # Daha yüksek eşik
+            REQUIRED_CONF = ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
+        elif coupon_type == 'riskli':
+            min_count = int(request.args.get('min', 4))
+            max_count = int(request.args.get('max', 6))
+            MIN_PCT = 60          # Daha düşük eşik
+            REQUIRED_CONF = None  # Tüm güven seviyeleri
+        else:  # dengeli (varsayılan)
+            min_count = int(request.args.get('min', 3))
+            max_count = int(request.args.get('max', 5))
+            MIN_PCT = 70
+            REQUIRED_CONF = None
+
         min_count = max(2, min(min_count, 8))
         max_count = max(min_count, min(max_count, 8))
 
-        MIN_PCT = 70
+        logger.info(f"Kupon tipi: {coupon_type} | MIN_PCT={MIN_PCT} | min={min_count} max={max_count}")
 
         TYPE_PRIORITY = {
             'IY 0.5 Ust': 6, '2.5 Ust': 5, 'KG Var': 4,
@@ -774,6 +791,9 @@ def api_coupon_today():
             ht2g_pct = float(m.get('ht2g_pct') or 0)
 
             high_conf = confidence in ('Yuksek', 'Cok Yuksek', 'Y\u00fcksek', '\u00c7ok Y\u00fcksek')
+            # Güvenli modda sadece yüksek güvenli maçlar
+            if REQUIRED_CONF and confidence not in REQUIRED_CONF:
+                continue
             if confidence in ('Cok Yuksek', '\u00c7ok Y\u00fcksek'):
                 conf_score = 4
             elif confidence in ('Yuksek', 'Y\u00fcksek'):
