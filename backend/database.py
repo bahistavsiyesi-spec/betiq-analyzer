@@ -295,15 +295,11 @@ def get_coupon_by_date(date_str, coupon_type=None):
     return result
 
 
-def update_coupon_results(date_str):
-    coupon = get_coupon_by_date(date_str)
-    if not coupon:
-        return
+def _update_single_coupon(coupon, cur):
+    """Tek bir kuponun sonuçlarını güncelle — tüm tipler için ortak mantık."""
     items = coupon['items']
     if not items:
         return
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     correct = 0
     updated_items = []
     for item in items:
@@ -353,8 +349,23 @@ def update_coupon_results(date_str):
     won = 1 if all_correct else 0
     cur.execute('''
         UPDATE coupons SET items=%s, correct_items=%s, won=%s, status=%s
-        WHERE coupon_date=%s
-    ''', (json.dumps(updated_items, ensure_ascii=False), correct, won, status, date_str))
+        WHERE id=%s
+    ''', (json.dumps(updated_items, ensure_ascii=False), correct, won, status, coupon['id']))
+
+
+def update_coupon_results(date_str):
+    """O güne ait tüm kupon tiplerini güncelle (güvenli, dengeli, riskli)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT * FROM coupons WHERE coupon_date = %s', (date_str,))
+    coupons = cur.fetchall()
+    for row in coupons:
+        coupon = dict(row)
+        try:
+            coupon['items'] = json.loads(coupon['items']) if isinstance(coupon['items'], str) else coupon['items']
+        except:
+            coupon['items'] = []
+        _update_single_coupon(coupon, cur)
     conn.commit()
     cur.close()
     conn.close()
