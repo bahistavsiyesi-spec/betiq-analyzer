@@ -636,7 +636,7 @@ async function generateCoupon(couponType) {
             if (btn) { btn.disabled = false; btn.textContent = typeLabels[couponType]; }
             return;
         }
-        await saveCoupon(data.coupon);
+        await saveCoupon(data.coupon, couponType);
         drawCouponCanvas(data.coupon, couponType);
     } catch(e) {
         alert('Hata: ' + e.message);
@@ -644,12 +644,12 @@ async function generateCoupon(couponType) {
     }
 }
 
-async function saveCoupon(coupon) {
+async function saveCoupon(coupon, couponType) {
     try {
         await fetch('/api/coupon/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: coupon })
+            body: JSON.stringify({ items: coupon, coupon_type: couponType || 'dengeli' })
         });
     } catch(e) { console.error('Kupon kaydetme hatasi:', e); }
 }
