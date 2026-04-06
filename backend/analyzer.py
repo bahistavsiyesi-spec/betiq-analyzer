@@ -276,7 +276,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
 
     home_shot_stats = None
     away_shot_stats = None
-    shot_supported = ('ENG', 'GER', 'ESP', 'ITA', 'FRA')
+    shot_supported = ('ENG', 'GER', 'ESP', 'ITA', 'FRA', 'NED')
     if country_code and country_code in shot_supported and not is_youth_match:
         try:
             home_shot_stats = get_team_shot_stats(home_name, country_code, last=5)
