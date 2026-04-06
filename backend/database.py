@@ -123,6 +123,7 @@ def init_db():
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS csv_data TEXT',
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS value_bet_results TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS predicted_ht_score TEXT',
+        'ALTER TABLE coupons ADD COLUMN IF NOT EXISTS coupon_type TEXT DEFAULT \'dengeli\'',
     ]:
         try:
             cur.execute(sql)
@@ -235,22 +236,22 @@ def clear_old_pending_matches():
     conn.close()
 
 
-def save_coupon(items: list):
+def save_coupon(items: list, coupon_type: str = 'dengeli'):
     today = datetime.now().strftime('%Y-%m-%d')
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute('SELECT id FROM coupons WHERE coupon_date = %s', (today,))
+    cur.execute('SELECT id FROM coupons WHERE coupon_date = %s AND coupon_type = %s', (today, coupon_type))
     existing = cur.fetchone()
     if existing:
         cur.execute('''
             UPDATE coupons SET items=%s, status='pending', won=0, total_items=%s, correct_items=0
-            WHERE coupon_date=%s
-        ''', (json.dumps(items, ensure_ascii=False), len(items), today))
+            WHERE coupon_date=%s AND coupon_type=%s
+        ''', (json.dumps(items, ensure_ascii=False), len(items), today, coupon_type))
     else:
         cur.execute('''
-            INSERT INTO coupons (coupon_date, items, status, total_items)
-            VALUES (%s, %s, 'pending', %s)
-        ''', (today, json.dumps(items, ensure_ascii=False), len(items)))
+            INSERT INTO coupons (coupon_date, coupon_type, items, status, total_items)
+            VALUES (%s, %s, %s, 'pending', %s)
+        ''', (today, coupon_type, json.dumps(items, ensure_ascii=False), len(items)))
     conn.commit()
     cur.close()
     conn.close()
@@ -274,10 +275,13 @@ def get_coupons(limit=30):
     return result
 
 
-def get_coupon_by_date(date_str):
+def get_coupon_by_date(date_str, coupon_type=None):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('SELECT * FROM coupons WHERE coupon_date = %s', (date_str,))
+    if coupon_type:
+        cur.execute('SELECT * FROM coupons WHERE coupon_date = %s AND coupon_type = %s', (date_str, coupon_type))
+    else:
+        cur.execute('SELECT * FROM coupons WHERE coupon_date = %s ORDER BY id DESC', (date_str,))
     row = cur.fetchone()
     cur.close()
     conn.close()
