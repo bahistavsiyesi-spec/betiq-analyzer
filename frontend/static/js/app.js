@@ -622,21 +622,25 @@ function build2ndHalfHtml(match) {
     const itemsHtml = items.map(t => `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;background:#0d0d1a;border:1px solid #1e1e3a;border-radius:8px;padding:6px 14px;min-width:72px;"><span style="font-size:9px;color:#444;font-weight:600;white-space:nowrap;">2Y ${t.label}</span><span style="font-size:13px;font-weight:800;color:${pctColor(t.val)};">${fmtPct(t.val)}</span></div>`).join('');
     return `<div style="margin-top:10px;padding:10px 12px;background:#0a0a16;border-radius:10px;border:1px solid #1a1a2e;"><div style="font-size:10px;color:#a855f7;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">⏱️ İKİNCİ YARI İSTATİSTİKLERİ</div><div style="display:flex;gap:6px;flex-wrap:wrap;">${itemsHtml}</div></div>`;
 }
-async function generateCoupon() {
-    const btn = document.getElementById('couponBtn');
-    btn.disabled = true; btn.textContent = '⏳ Olusturuluyor...';
+async function generateCoupon(couponType) {
+    couponType = couponType || 'dengeli';
+    const btnId = 'couponBtn-' + couponType;
+    const btn = document.getElementById(btnId);
+    if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+    const typeLabels = { guvenli: '🛡️ Güvenli', dengeli: '⚖️ Dengeli', riskli: '🔥 Riskli' };
     try {
-        const resp = await fetch('/api/coupon/today');
+        const resp = await fetch('/api/coupon/today?type=' + couponType);
         const data = await resp.json();
         if (data.status !== 'success') {
             alert(data.message || 'Kupon olusturulamadi.');
-            btn.disabled = false; btn.textContent = '🎫 Kupon Olustur'; return;
+            if (btn) { btn.disabled = false; btn.textContent = typeLabels[couponType]; }
+            return;
         }
         await saveCoupon(data.coupon);
-        drawCouponCanvas(data.coupon);
+        drawCouponCanvas(data.coupon, couponType);
     } catch(e) {
         alert('Hata: ' + e.message);
-        btn.disabled = false; btn.textContent = '🎫 Kupon Olustur';
+        if (btn) { btn.disabled = false; btn.textContent = typeLabels[couponType]; }
     }
 }
 
@@ -650,53 +654,80 @@ async function saveCoupon(coupon) {
     } catch(e) { console.error('Kupon kaydetme hatasi:', e); }
 }
 
-function drawCouponCanvas(coupon) {
+function drawCouponCanvas(coupon, couponType) {
+    couponType = couponType || 'dengeli';
+    const typeLabels = { guvenli: '🛡️ Güvenli', dengeli: '⚖️ Dengeli', riskli: '🔥 Riskli' };
+    const typeBtnLabels = { guvenli: '🛡️ Güvenli', dengeli: '⚖️ Dengeli', riskli: '🔥 Riskli' };
     const today=new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
-    const width=480, headerH=110, rowH=72, footerH=90;
+    const width=480, headerH=120, rowH=76, footerH=90;
     const contentH=headerH+coupon.length*rowH+footerH;
     const height=Math.max(width*1.25,contentH);
     const extraPad=Math.max(0,height-contentH);
     const canvas=document.createElement('canvas');
     canvas.width=width*2; canvas.height=height*2;
     const ctx=canvas.getContext('2d'); ctx.scale(2,2);
+    // Arka plan - daha açık
     const bg=ctx.createLinearGradient(0,0,0,height);
-    bg.addColorStop(0,'#0d0d1a'); bg.addColorStop(1,'#160a28');
+    bg.addColorStop(0,'#16162a'); bg.addColorStop(1,'#1e0e38');
     ctx.fillStyle=bg; ctx.fillRect(0,0,width,height);
-    ctx.strokeStyle='#2a1a4e'; ctx.lineWidth=1; ctx.strokeRect(0.5,0.5,width-1,height-1);
+    ctx.strokeStyle='#3a2a6e'; ctx.lineWidth=1.5; ctx.strokeRect(0.5,0.5,width-1,height-1);
     const logo=new Image(); logo.crossOrigin='anonymous'; logo.src='/static/img/logo.png';
     const drawContent=()=>{
         if(logo.naturalWidth) ctx.drawImage(logo,20,20,56,56);
-        ctx.fillStyle='#555'; ctx.font='500 11px Syne,sans-serif'; ctx.textAlign='right'; ctx.fillText(today,width-20,32);
-        ctx.fillStyle='#7c3aed'; ctx.font='800 16px Syne,sans-serif'; ctx.fillText('GUNUN KUPONU',width-20,54);
-        ctx.strokeStyle='#1e1e3a'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(20,headerH-6); ctx.lineTo(width-20,headerH-6); ctx.stroke();
+        // Tarih
+        ctx.fillStyle='#888'; ctx.font='500 11px Syne,sans-serif'; ctx.textAlign='right';
+        ctx.fillText(today,width-20,32);
+        // Başlık
+        ctx.fillStyle='#a78bfa'; ctx.font='800 17px Syne,sans-serif';
+        ctx.fillText('GÜNÜN KUPONU',width-20,54);
+        // Tip etiketi
+        const typeLabel = typeLabels[couponType] || '⚖️ Dengeli';
+        ctx.fillStyle='#c4b5fd'; ctx.font='600 11px Syne,sans-serif';
+        ctx.fillText(typeLabel, width-20, 72);
+        // Ayraç
+        ctx.strokeStyle='#3a2a6e'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(20,headerH-8); ctx.lineTo(width-20,headerH-8); ctx.stroke();
+        // Maçlar
         coupon.forEach((item,i)=>{
             const y=headerH+i*rowH;
-            if(i%2===0){ctx.fillStyle='rgba(124,58,237,0.04)';ctx.fillRect(0,y,width,rowH);}
-            ctx.font='700 12px Syne,sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left';
+            // Satır arka plan
+            if(i%2===0){ctx.fillStyle='rgba(124,58,237,0.06)';ctx.fillRect(0,y,width,rowH);}
+            // Maç adı — beyaz, okunur
+            ctx.font='700 13px Syne,sans-serif'; ctx.fillStyle='#ffffff'; ctx.textAlign='left';
             let mt=`${item.home_team} vs ${item.away_team}`;
-            while(ctx.measureText(mt).width>220&&mt.length>10) mt=mt.slice(0,-4)+'...';
-            ctx.fillText(mt,20,y+22);
-            ctx.fillStyle='#444'; ctx.font='500 10px Syne,sans-serif'; ctx.fillText(item.league||'',20,y+38);
-
+            while(ctx.measureText(mt).width>230&&mt.length>10) mt=mt.slice(0,-4)+'...';
+            ctx.fillText(mt,20,y+24);
+            // Lig — açık gri
+            ctx.fillStyle='#9090b0'; ctx.font='500 10px Syne,sans-serif';
+            ctx.fillText(item.league||'',20,y+42);
+            // Tahmin kutusu
             const bc=getBadgeColor(item.prediction_type);
-            const bW=118,bH=44,bX=width-bW-20,bY=y+(rowH-bH)/2;
-            ctx.fillStyle=bc.bg; roundRect(ctx,bX,bY,bW,bH,10); ctx.fill();
-            ctx.strokeStyle=bc.border; ctx.lineWidth=1.5; roundRect(ctx,bX,bY,bW,bH,10); ctx.stroke();
+            const bW=124,bH=46,bX=width-bW-20,bY=y+(rowH-bH)/2;
+            // Kutu arka plan daha açık
+            ctx.fillStyle=bc.bg.replace(/0\.\d+\)/, '0.25)');
+            roundRect(ctx,bX,bY,bW,bH,10); ctx.fill();
+            ctx.strokeStyle=bc.border; ctx.lineWidth=2;
+            roundRect(ctx,bX,bY,bW,bH,10); ctx.stroke();
+            // Tahmin yazısı — parlak
             ctx.fillStyle=bc.text; ctx.textAlign='center';
             let fontSize=13;
             ctx.font=`700 ${fontSize}px Syne,sans-serif`;
-            while(ctx.measureText(item.prediction_label).width>bW-10&&fontSize>8){
+            while(ctx.measureText(item.prediction_label).width>bW-12&&fontSize>8){
                 fontSize--;
                 ctx.font=`700 ${fontSize}px Syne,sans-serif`;
             }
             ctx.fillText(item.prediction_label,bX+bW/2,bY+bH/2+5);
         });
+        // Footer
         const fy=headerH+coupon.length*rowH+extraPad/2;
-        ctx.fillStyle='#2a2a3a'; ctx.font='400 9px Syne,sans-serif'; ctx.textAlign='center';
+        ctx.fillStyle='#6060a0'; ctx.font='400 9px Syne,sans-serif'; ctx.textAlign='center';
         ctx.fillText('Bu tahminler yapay zeka analizi ile olusturulmustur. Sorumluluk kabul edilmez.',width/2,fy+20);
         couponCanvas=canvas; showCouponPreview(canvas,today);
-        const b=document.getElementById('couponBtn'); if(b){b.disabled=false;b.textContent='🎫 Kupon Olustur';}
+        // Butonları sıfırla
+        ['guvenli','dengeli','riskli'].forEach(t=>{
+            const b=document.getElementById('couponBtn-'+t);
+            if(b){b.disabled=false; b.textContent=typeBtnLabels[t];}
+        });
     };
     logo.onload=drawContent; logo.onerror=drawContent;
 }
@@ -973,7 +1004,9 @@ function renderMatches(matches){
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 4px;">
             <div style="display:flex;gap:8px;">
                 <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">📨 Telegram'a Gonder</button>
-                <button id="couponBtn" onclick="generateCoupon()" style="padding:8px 18px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">🎫 Kupon Olustur</button>
+                <button id="couponBtn-guvenli" onclick="generateCoupon('guvenli')" style="padding:8px 14px;border-radius:8px;border:none;background:#16a34a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">🛡️ Güvenli</button>
+                <button id="couponBtn-dengeli" onclick="generateCoupon('dengeli')" style="padding:8px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">⚖️ Dengeli</button>
+                <button id="couponBtn-riskli" onclick="generateCoupon('riskli')" style="padding:8px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">🔥 Riskli</button>
             </div>
             <button onclick="clearAllMatches()" style="padding:6px 14px;border-radius:8px;border:1px solid #ef4444;background:transparent;color:#ef4444;font-size:12px;cursor:pointer;font-family:inherit;">🗑️ Tumunu Sil</button>
         </div>
