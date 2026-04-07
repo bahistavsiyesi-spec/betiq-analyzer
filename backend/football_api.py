@@ -283,6 +283,36 @@ PORTUGUESE_TEAM_NORMALIZED = {
     'moreirense': 5466, 'morerense': 5466,
 }
 
+# ─── Fransız Takımları ───────────────────────────────────────────────────────
+FRENCH_TEAM_NORMALIZED = {
+    'psg': 524, 'parissaintgermain': 524, 'parisstgermain': 524,
+    'marseille': 516, 'olympiquedemarseille': 516, 'om': 516,
+    'lyon': 523, 'olympiquelyon': 523, 'ol': 523,
+    'monaco': 548, 'asmonaco': 548,
+    'lille': 521, 'losc': 521, 'losclille': 521,
+    'lens': 546, 'rclens': 546,
+    'rennes': 529, 'staderennais': 529,
+    'nice': 522, 'ogcnice': 522,
+    'nantes': 543, 'fcnantes': 543,
+    'reims': 547, 'stade': 547, 'stadedereims': 547,
+    'strasbourg': 527, 'rcstrasbourg': 527,
+    'montpellier': 525, 'mhsc': 525, 'montpellierhsc': 525,
+    'brest': 3802, 'stade brest': 3802, 'stadebrest': 3802,
+    'toulouse': 519, 'tfc': 519, 'toulouse fc': 519,
+    'auxerre': 532, 'ajauxerre': 532,
+    'angers': 515, 'scoangers': 515,
+    'havre': 537, 'lehavre': 537, 'lehavreac': 537,
+    'saintétienne': 518, 'saintetienne': 518, 'asse': 518,
+    'metz': 544, 'fcmetz': 544,
+    'lorient': 542, 'fclорient': 542,
+    'clermont': 4063, 'clermontfoot': 4063,
+    'troyes': 531, 'estr': 531, 'estroyesac': 531,
+    'bordeaux': 514, 'fcgirondins': 514,
+    'caen': 543, 'smcaen': 543,
+    'guingamp': 541, 'enguingamp': 541,
+    'grenoble': 538,
+}
+
 # ─── Brezilya Takımları ───────────────────────────────────────────────────────
 BRAZILIAN_TEAM_NORMALIZED = {
     'flamengo': 71, 'crflamengo': 71,
@@ -336,6 +366,9 @@ def is_dutch_team(team_name):
 
 def is_portuguese_team(team_name):
     return _find_team_id(team_name, PORTUGUESE_TEAM_NORMALIZED) is not None
+
+def is_french_team(team_name):
+    return _find_team_id(team_name, FRENCH_TEAM_NORMALIZED) is not None
 
 def is_brazilian_team(team_name):
     return _find_team_id(team_name, BRAZILIAN_TEAM_NORMALIZED) is not None
@@ -762,6 +795,11 @@ def get_team_last_matches(team_name, last=10):
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
+    if is_french_team(team_name):
+        team_id = _find_team_id(team_name, FRENCH_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_last_matches(team_id, team_name, last)
+        return []
     if is_brazilian_team(team_name):
         team_id = _find_team_id(team_name, BRAZILIAN_TEAM_NORMALIZED)
         if team_id:
@@ -802,6 +840,11 @@ def get_h2h(team1_name, team2_name, last=5):
         return []
     if is_portuguese_team(team1_name) or is_portuguese_team(team2_name):
         team_id = _find_team_id(team1_name, PORTUGUESE_TEAM_NORMALIZED) or _find_team_id(team2_name, PORTUGUESE_TEAM_NORMALIZED)
+        if team_id:
+            return _footballdata_h2h(team_id, team1_name, team2_name, last)
+        return []
+    if is_french_team(team1_name) or is_french_team(team2_name):
+        team_id = _find_team_id(team1_name, FRENCH_TEAM_NORMALIZED) or _find_team_id(team2_name, FRENCH_TEAM_NORMALIZED)
         if team_id:
             return _footballdata_h2h(team_id, team1_name, team2_name, last)
         return []
