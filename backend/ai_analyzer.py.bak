@@ -53,8 +53,7 @@ def calculate_value_bets(result, csv_data, home_team, away_team):
                 diff = round(our_pct - implied, 1)
                 if diff >= VALUE_THRESHOLD:
                     value_bets.append({'label': label, 'our_pct': our_pct, 'implied_pct': implied, 'diff': diff, 'odds': float(odds)})
-            except (ValueError, TypeError, ZeroDivisionError) as e:
-                logger.debug(f'Value bet 1x2 calc skipped: {e}')
+            except: pass
     for label, our_key, odds_key in checks:
         if our_key is None: continue
         our_pct = result.get(our_key)
@@ -65,9 +64,7 @@ def calculate_value_bets(result, csv_data, home_team, away_team):
             diff = round(float(our_pct) - implied, 1)
             if diff >= VALUE_THRESHOLD:
                 value_bets.append({'label': label, 'our_pct': round(float(our_pct)), 'implied_pct': implied, 'diff': diff, 'odds': float(odds)})
-        except (ValueError, TypeError, ZeroDivisionError) as e:
-            logger.debug(f'Value bet calc skipped for {label}: {e}')
-            continue
+        except: continue
     value_bets.sort(key=lambda x: x['diff'], reverse=True)
     return value_bets[:3]
 
@@ -105,15 +102,13 @@ def build_csv_section(home_team, away_team, csv_data):
                 diff = round(float(curr_hppg) - float(hppg), 2)
                 trend = 'form YUKSELIYOR' if diff > 0.2 else ('form DUSUYOR' if diff < -0.2 else 'form STABIL')
                 lines.append(f'  - {home_team} trend: {trend} (fark: {diff:+.2f})')
-            except (ValueError, TypeError) as e:
-                logger.debug(f'PPG trend calc skipped for {home_team}: {e}')
+            except: pass
         if curr_appg and appg:
             try:
                 diff = round(float(curr_appg) - float(appg), 2)
                 trend = 'form YUKSELIYOR' if diff > 0.2 else ('form DUSUYOR' if diff < -0.2 else 'form STABIL')
                 lines.append(f'  - {away_team} trend: {trend} (fark: {diff:+.2f})')
-            except (ValueError, TypeError) as e:
-                logger.debug(f'PPG trend calc skipped for {away_team}: {e}')
+            except: pass
     # ─────────────────────────────────────────────────────────────────────────
 
     gol_lines = []
@@ -135,8 +130,7 @@ def build_csv_section(home_team, away_team, csv_data):
             try:
                 if hxg and axg and float(hxg) >= 1.0 and float(axg) >= 1.0 and float(btts) < 50:
                     btts_display = 50
-            except (ValueError, TypeError) as e:
-                logger.debug(f'xG-BTTS fix skipped: {e}')
+            except: pass
             lines.append(f'  - KG VAR (maç geneli): %{btts_display}')
         if btts1h is not None: lines.append(f'  - KG VAR (ilk yarı): %{btts1h}')
     ht05 = csv_data.get('ht_over05_avg')
@@ -180,14 +174,12 @@ def build_csv_section(home_team, away_team, csv_data):
         try:
             acc = round(float(hon) / float(hs) * 100, 1)
             shot_lines.append(f'  - {home_team} isabet oranı: %{acc}')
-        except (ValueError, TypeError, ZeroDivisionError) as e:
-            logger.debug(f'Shot accuracy calc skipped for {home_team}: {e}')
+        except: pass
     if as_ and aon:
         try:
             acc = round(float(aon) / float(as_) * 100, 1)
             shot_lines.append(f'  - {away_team} isabet oranı: %{acc}')
-        except (ValueError, TypeError, ZeroDivisionError) as e:
-            logger.debug(f'Shot accuracy calc skipped for {away_team}: {e}')
+        except: pass
     if shot_lines:
         lines.append('Şut İstatistikleri (CSV):')
         lines.extend(shot_lines)
@@ -326,8 +318,7 @@ def build_prompt(home_team, away_team, league, match_time,
                 h_acc = round(hon / hs * 100, 1)
                 a_acc = round(aon / as_ * 100, 1)
                 hints.append(f'İsabetli şut oranı: {home_team} %{h_acc} vs {away_team} %{a_acc} — gol beklentisini destekler')
-            except (ValueError, TypeError, ZeroDivisionError) as e:
-                logger.debug(f'Shot hint calc skipped: {e}')
+            except: pass
         if csv_data.get('home_xg') and csv_data.get('away_xg'):
             hints.append('xG verileri en güvenilir tahmin kaynağı — yüksek xG → yüksek gol beklentisi')
         if csv_data.get('over25_avg'):
@@ -343,16 +334,14 @@ def build_prompt(home_team, away_team, league, match_time,
                 if abs(diff) > 0.2:
                     trend = 'form yukarı' if diff > 0 else 'form aşağı'
                     hints.append(f'{home_team} güncel PPG farkı {diff:+.2f} → {trend} — form momentumu dikkate al')
-            except (ValueError, TypeError) as e:
-                logger.debug(f'PPG hint skipped for {home_team}: {e}')
+            except: pass
         if csv_data.get('current_away_ppg') and csv_data.get('away_ppg'):
             try:
                 diff = float(csv_data['current_away_ppg']) - float(csv_data['away_ppg'])
                 if abs(diff) > 0.2:
                     trend = 'form yukarı' if diff > 0 else 'form aşağı'
                     hints.append(f'{away_team} güncel PPG farkı {diff:+.2f} → {trend} — form momentumu dikkate al')
-            except (ValueError, TypeError) as e:
-                logger.debug(f'PPG hint skipped for {away_team}: {e}')
+            except: pass
         if csv_data.get('ht2_over05_avg'):
             hints.append(f'2. yarı gol ihtimali %{csv_data["ht2_over05_avg"]} — maçın ikinci yarısı baskı göstergesi')
         # ─────────────────────────────────────────────────────────────────────
@@ -364,8 +353,7 @@ def build_prompt(home_team, away_team, league, match_time,
             try:
                 if float(hxg_hint) >= 1.0 and float(axg_hint) >= 1.0 and float(btts_hint) < 50:
                     hints.append(f'Her iki takım da yüksek gol tehlikesi yarattığından karşılıklı gol ihtimali en az %50 olarak değerlendiriliyor (ham veri %{btts_hint} olsa da)')
-            except (ValueError, TypeError) as e:
-                logger.debug(f'xG-BTTS hint skipped: {e}')
+            except: pass
         if hints:
             csv_hint = '\nCSV Veri Önceliklendirmesi:\n' + '\n'.join(f'- {h}' for h in hints) + '\n'
 
@@ -479,8 +467,7 @@ def build_prompt(home_team, away_team, league, match_time,
                     odds_favors = '2_soft'  # deplasman hafif favori
                 else:
                     odds_favors = 'X'  # dengeli
-        except (ValueError, TypeError, ZeroDivisionError) as e:
-            logger.debug(f'Odds implied probability calc skipped: {e}')
+        except: pass
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── Güncel PPG farkı hesapla ──────────────────────────────────────────────
@@ -497,8 +484,7 @@ def build_prompt(home_team, away_team, league, match_time,
                     ppg_favors = '2'
                 else:
                     ppg_favors = 'X'
-        except (ValueError, TypeError) as e:
-            logger.debug(f'PPG favors calc skipped: {e}')
+        except: pass
     # ─────────────────────────────────────────────────────────────────────────
 
     prediction_rules = '\n── Taraf Tahmini Kuralları (ZORUNLU) ──\n'
@@ -1038,29 +1024,25 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
 
     if not home_home_avg:
         try:
-            home_keyword = home_team.lower().split()[0] if home_team.split() else home_team.lower()
             home_home_goals = [
                 m['goals']['home'] for m in home_matches
-                if home_keyword in m['teams']['home']['name'].lower()
+                if home_team.lower().split()[0] in m['teams']['home']['name'].lower()
                 and m['goals']['home'] is not None
             ]
             if home_home_goals:
                 home_home_avg = round(sum(home_home_goals)/len(home_home_goals), 1)
-        except (KeyError, TypeError, ZeroDivisionError) as e:
-            logger.debug(f'Home venue avg calc skipped for {home_team}: {e}')
+        except: pass
 
     if not away_away_avg:
         try:
-            away_keyword = away_team.lower().split()[0] if away_team.split() else away_team.lower()
             away_away_goals = [
                 m['goals']['away'] for m in away_matches
-                if away_keyword in m['teams']['away']['name'].lower()
+                if away_team.lower().split()[0] in m['teams']['away']['name'].lower()
                 and m['goals']['away'] is not None
             ]
             if away_away_goals:
                 away_away_avg = round(sum(away_away_goals)/len(away_away_goals), 1)
-        except (KeyError, TypeError, ZeroDivisionError) as e:
-            logger.debug(f'Away venue avg calc skipped for {away_team}: {e}')
+        except: pass
 
     prompt = build_prompt(
         home_team, away_team, league, match_time,
@@ -1161,8 +1143,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 elif d > 5: _conf_odds_favors = '1_soft'
                 elif d < -5: _conf_odds_favors = '2_soft'
                 else: _conf_odds_favors = 'X'
-        except (ValueError, TypeError, ZeroDivisionError) as e:
-            logger.debug(f'Confidence odds favors calc skipped: {e}')
+        except: pass
         try:
             ch = float(csv_data.get('current_home_ppg') or 0)
             ca = float(csv_data.get('current_away_ppg') or 0)
@@ -1171,8 +1152,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 if pd > 0.5: _conf_ppg_favors = '1'
                 elif pd < -0.5: _conf_ppg_favors = '2'
                 else: _conf_ppg_favors = 'X'
-        except (ValueError, TypeError) as e:
-            logger.debug(f'Confidence PPG favors calc skipped: {e}')
+        except: pass
 
     # Kupa/hazırlık maçlarında max Orta
     match_type = detect_match_importance(league)

@@ -69,12 +69,8 @@ def get_fixture_result_footballdata(home_team, away_team, match_date):
         resp.raise_for_status()
         matches = resp.json().get('matches', [])
 
-        home_parts = home_team.lower().split()
-        away_parts = away_team.lower().split()
-        if not home_parts or not away_parts:
-            return None
-        home_lower = home_parts[0]
-        away_lower = away_parts[0]
+        home_lower = home_team.lower().split()[0]
+        away_lower = away_team.lower().split()[0]
 
         for m in matches:
             mh = m.get('homeTeam', {}).get('name', '').lower()
@@ -182,12 +178,9 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
 
     predicted = analysis.get('predicted_score', '?-?')
     try:
-        parts = str(predicted).split('-')
-        if len(parts) == 2:
-            score_correct = (int(parts[0]) == home_score and int(parts[1]) == away_score)
-        else:
-            score_correct = False
-    except (ValueError, TypeError):
+        ph, pa = predicted.split('-')
+        score_correct = (int(ph) == home_score and int(pa) == away_score)
+    except:
         score_correct = False
 
     ht_correct = False

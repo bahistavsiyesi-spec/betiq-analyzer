@@ -142,16 +142,14 @@ def get_team_elo_trend(team_name, days=90):
 
         if not elo_current:
             try:
-                elo_current = round(float(rows[-1].get('Elo', 0))) if rows else None
-            except (ValueError, TypeError):
-                pass
-            if not elo_current:
+                elo_current = round(float(rows[-1].get('Elo', 0)))
+            except:
                 return None
 
         if not elo_30d and len(rows) >= 2:
             try:
                 elo_30d = round(float(rows[-2].get('Elo', 0)))
-            except (ValueError, TypeError):
+            except:
                 elo_30d = elo_current
 
         if not elo_90d:
