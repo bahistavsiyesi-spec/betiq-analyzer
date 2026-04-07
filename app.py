@@ -753,50 +753,25 @@ def api_coupon_today():
         if not matches:
             return jsonify({"status": "error", "message": "Analiz bulunamadi"}), 404
 
-        coupon_type = request.args.get('type', 'dengeli')  # guvenli | dengeli | riskli
+        coupon_type = request.args.get('type', 'taraf')  # taraf | ust | iy | ust_kg
 
-        # Tipe göre parametreler
-        if coupon_type == 'guvenli':
-            min_count = int(request.args.get('min', 3))
-            max_count = int(request.args.get('max', 4))
-            MIN_PCT = 75          # Daha yüksek eşik
-            REQUIRED_CONF = ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
-        elif coupon_type == 'riskli':
-            min_count = int(request.args.get('min', 4))
-            max_count = int(request.args.get('max', 6))
-            MIN_PCT = 60          # Daha düşük eşik
-            REQUIRED_CONF = None  # Tüm güven seviyeleri
-        else:  # dengeli (varsayılan)
-            min_count = int(request.args.get('min', 3))
-            max_count = int(request.args.get('max', 5))
-            MIN_PCT = 70
-            REQUIRED_CONF = None
+        min_count = 3
+        max_count = 5
 
-        min_count = max(2, min(min_count, 8))
-        max_count = max(min_count, min(max_count, 8))
+        HIGH_CONF = ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
 
-        logger.info(f"Kupon tipi: {coupon_type} | MIN_PCT={MIN_PCT} | min={min_count} max={max_count}")
-
-        TYPE_PRIORITY = {
-            'IY 0.5 Ust': 6, '2.5 Ust': 5, 'KG Var': 4,
-            '1X2': 3, '2.5 Alt': 2, 'KG Yok': 1,
-        }
-        MAX_PER_TYPE = 2
+        logger.info(f"Kupon tipi: {coupon_type} | min={min_count} max={max_count}")
 
         all_candidates = []
         for m in matches:
             confidence = m.get('confidence', '')
             over25_pct = float(m.get('over25_pct') or 0)
-            btts_pct = float(m.get('btts_pct') or 0)
-            ht2g_pct = float(m.get('ht2g_pct') or 0)
+            btts_pct   = float(m.get('btts_pct') or 0)
+            ht2g_pct   = float(m.get('ht2g_pct') or 0)
 
-            high_conf = confidence in ('Yuksek', 'Cok Yuksek', 'Y\u00fcksek', '\u00c7ok Y\u00fcksek')
-            # Güvenli modda sadece yüksek güvenli maçlar
-            if REQUIRED_CONF and confidence not in REQUIRED_CONF:
-                continue
-            if confidence in ('Cok Yuksek', '\u00c7ok Y\u00fcksek'):
+            if confidence in ('Cok Yuksek', 'Çok Yüksek'):
                 conf_score = 4
-            elif confidence in ('Yuksek', 'Y\u00fcksek'):
+            elif confidence in ('Yuksek', 'Yüksek'):
                 conf_score = 3
             elif confidence == 'Orta':
                 conf_score = 2
@@ -810,205 +785,51 @@ def api_coupon_today():
                 '2': f"{m['away_team']} Kazanir"
             }.get(pred, pred)
 
-            if ht2g_pct >= MIN_PCT:
-                all_candidates.append({'type': 'IY 0.5 Ust', 'label': 'IY 0.5 Ustu', 'pct': ht2g_pct, 'conf_score': conf_score, 'match': m})
-            if over25_pct >= MIN_PCT:
-                all_candidates.append({'type': '2.5 Ust', 'label': '2.5 Gol Ustu', 'pct': over25_pct, 'conf_score': conf_score, 'match': m})
-            elif (100 - over25_pct) >= MIN_PCT:
-                all_candidates.append({'type': '2.5 Alt', 'label': '2.5 Gol Alti', 'pct': 100-over25_pct, 'conf_score': conf_score, 'match': m})
-            if btts_pct >= MIN_PCT:
-                all_candidates.append({'type': 'KG Var', 'label': 'KG Var', 'pct': btts_pct, 'conf_score': conf_score, 'match': m})
-            elif (100 - btts_pct) >= MIN_PCT:
-                all_candidates.append({'type': 'KG Yok', 'label': 'KG Yok', 'pct': 100-btts_pct, 'conf_score': conf_score, 'match': m})
-
-            if high_conf:
-                all_candidates.append({'type': '1X2', 'label': pred_text, 'pct': conf_score*20, 'conf_score': conf_score, 'match': m})
+            if coupon_type == 'taraf':
+                if confidence in HIGH_CONF:
+                    all_candidates.append({
+                        'type': '1X2', 'label': pred_text,
+                        'pct': conf_score * 20, 'conf_score': conf_score, 'match': m
+                    })
+            elif coupon_type == 'ust':
+                if over25_pct >= 65:
+                    all_candidates.append({
+                        'type': '2.5 Ust', 'label': '2.5 Gol Ustu',
+                        'pct': over25_pct, 'conf_score': conf_score, 'match': m
+                    })
+            elif coupon_type == 'iy':
+                if ht2g_pct >= 65:
+                    all_candidates.append({
+                        'type': 'IY 0.5 Ust', 'label': 'IY 0.5 Ustu',
+                        'pct': ht2g_pct, 'conf_score': conf_score, 'match': m
+                    })
+            elif coupon_type == 'ust_kg':
+                if over25_pct >= 65 and btts_pct >= 65:
+                    all_candidates.append({
+                        'type': '2.5 Ust + KG Var', 'label': '2.5 Ust + KG Var',
+                        'pct': round((over25_pct + btts_pct) / 2),
+                        'conf_score': conf_score, 'match': m
+                    })
 
         if not all_candidates:
             return jsonify({"status": "error", "message": "Kriterlere uyan tahmin bulunamadi"}), 404
 
-        priority_items = []
-        import json as _json_vb
-        high_conf_matches = [
-            m for m in matches
-            if m.get('confidence', '') in ('Yuksek', 'Cok Yuksek', 'Yüksek', 'Çok Yüksek')
-        ]
-        for m in high_conf_matches:
-            try:
-                vb_raw = m.get('value_bets')
-                vb_list = _json_vb.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
-                if not vb_list:
-                    continue
-                best_vb = max(vb_list, key=lambda v: v.get('diff', 0))
-                label = best_vb.get('label', '')
-                if '1X2 (Ev)' in label:
-                    vb_type = '1X2'; vb_label = f"{m['home_team']} Kazanir"
-                elif '1X2 (Deplasman)' in label:
-                    vb_type = '1X2'; vb_label = f"{m['away_team']} Kazanir"
-                elif '1X2 (Beraberlik)' in label:
-                    vb_type = '1X2'; vb_label = 'Beraberlik'
-                elif 'Over 2.5' in label:
-                    if float(m.get('over25_pct') or 0) < 65: continue
-                    vb_type = '2.5 Ust'; vb_label = '2.5 Gol Ustu'
-                elif 'KG Var' in label:
-                    if float(m.get('btts_pct') or 0) < 65: continue
-                    vb_type = 'KG Var'; vb_label = 'KG Var'
-                elif 'İY 0.5 Üst' in label or 'IY 0.5' in label:
-                    if float(m.get('ht2g_pct') or 0) < 65: continue
-                    vb_type = 'IY 0.5 Ust'; vb_label = 'IY 0.5 Ustu'
-                else:
-                    continue
-                conf = m.get('confidence', 'Orta')
-                conf_score = 4 if conf in ('Cok Yuksek', 'Çok Yüksek') else 3
-                priority_items.append({
-                    'type': vb_type, 'label': vb_label,
-                    'pct': best_vb.get('our_pct', 75),
-                    'conf_score': conf_score + 1, 'match': m,
-                    'odds': best_vb.get('odds'), 'is_priority': True,
-                })
-            except Exception:
-                continue
-
-        # ─── KOMBİNE KURALLAR ───────────────────────────────────────────
-        # Her maç için kombine tahminler oluştur — tekli tahminlerden önce değerlendirilir
-        combo_items = []
-        for m in matches:
-            confidence  = m.get('confidence', '')
-            over25_pct  = float(m.get('over25_pct') or 0)
-            btts_pct    = float(m.get('btts_pct') or 0)
-            pred        = m.get('prediction_1x2', '?')
-            very_high   = confidence in ('Cok Yuksek', 'Çok Yüksek')
-            high_or_vhigh = confidence in ('Yuksek', 'Cok Yuksek', 'Yüksek', 'Çok Yüksek')
-            pred_label  = {
-                '1': 'Ev Kazanir',
-                '2': 'Dep Kazanir',
-                'X': 'Beraberlik'
-            }.get(pred, pred)
-
-            # Kural 1: 2.5 Üst + KG Var — ikisi de %75+
-            if over25_pct >= 75 and btts_pct >= 75:
-                combo_items.append({
-                    'type': 'COMBO_O25_BTTS',
-                    'label': '2.5 Ust + KG Var',
-                    'pct': round((over25_pct + btts_pct) / 2),
-                    'conf_score': 5,
-                    'match': m,
-                    'is_combo': True,
-                    'odds_keys': ['odds_over25', 'odds_btts_yes'],
-                })
-
-            # Kural 2: Taraf Kazanır + 1.5 Üst — Yüksek/ÇY + over25 %70+
-            if high_or_vhigh and over25_pct >= 70 and pred in ('1', '2'):
-                over15_label = f"{pred_label} + 1.5 Ust"
-                combo_items.append({
-                    'type': 'COMBO_1X2_O15',
-                    'label': over15_label,
-                    'pct': round((over25_pct + (5 if very_high else 3)) ),  # güven bonusu
-                    'conf_score': 6 if very_high else 5,
-                    'match': m,
-                    'is_combo': True,
-                    'odds_keys': ['odds_over15'],
-                })
-
-            # Kural 3: Taraf Kazanır + KG Var — ÇY güven + btts %75+
-            if very_high and btts_pct >= 75 and pred in ('1', '2'):
-                combo_items.append({
-                    'type': 'COMBO_1X2_BTTS',
-                    'label': f"{pred_label} + KG Var",
-                    'pct': round((btts_pct + 5)),
-                    'conf_score': 6,
-                    'match': m,
-                    'is_combo': True,
-                    'odds_keys': ['odds_btts_yes'],
-                })
-
-        # Kombine öncelikleri en yüksek, sonra tekli
-        combo_items.sort(key=lambda x: (x['conf_score'], x['pct']), reverse=True)
-        all_candidates.sort(key=lambda x: (x['conf_score'], TYPE_PRIORITY.get(x['type'], 0), x['pct']), reverse=True)
+        all_candidates.sort(key=lambda x: (x['conf_score'], x['pct']), reverse=True)
 
         coupon = []
-        type_counts = {}
-        used_combos = set()
         used_match_ids = set()
-
-        # Önce kombine kuralları değerlendir
-        for c in combo_items:
-            if len(coupon) >= max_count: break
-            match_id = c['match'].get('id')
-            if match_id in used_match_ids: continue
-            combo_key = f"{match_id}_{c['type']}"
-            if combo_key in used_combos: continue
-            used_combos.add(combo_key)
-            used_match_ids.add(match_id)
-            m = c['match']
-            # Kombine için oran bul — odds_keys'teki oranları çarp
-            combo_odds = None
-            try:
-                import json as _jc, re as _rc
-                def _norm_keys(d):
-                    r = {}
-                    for k, v in (d or {}).items():
-                        nk = _rc.sub(r'_+', '_', str(k).strip().lower().replace('%','pct').replace('.','').replace('-','_').replace(' ','_'))
-                        r[nk] = v
-                    return r
-                csv_d = m.get('csv_data')
-                if isinstance(csv_d, str): csv_d = _jc.loads(csv_d)
-                nd = _norm_keys(csv_d or {})
-                odds_vals = []
-                for ok in c.get('odds_keys', []):
-                    v = nd.get(ok)
-                    if v and float(v) > 1: odds_vals.append(float(v))
-                if len(odds_vals) == len(c.get('odds_keys', [])) and odds_vals:
-                    combo_odds = round(1.0, 2)
-                    for ov in odds_vals: combo_odds = round(combo_odds * ov, 2)
-            except: pass
-            coupon.append({
-                'home_team': m['home_team'], 'away_team': m['away_team'],
-                'league': m.get('league', ''), 'match_time': m.get('match_time', ''),
-                'prediction_type': c['type'], 'prediction_label': c['label'],
-                'pct': c['pct'], 'confidence': m.get('confidence', 'Orta'),
-                'analysis_id': m.get('id'),
-                'odds': combo_odds,
-                'is_combo': True,
-            })
-            logger.info(f"Kupon kombine: {m['home_team']} vs {m['away_team']} → {c['label']}")
-
-        for c in priority_items:
-            if len(coupon) >= max_count: break
-            match_id = c['match'].get('id')
-            if match_id in used_match_ids: continue
-            t = c['type']
-            if type_counts.get(t, 0) >= MAX_PER_TYPE: continue
-            type_counts[t] = type_counts.get(t, 0) + 1
-            used_match_ids.add(match_id)
-            m = c['match']
-            coupon.append({
-                'home_team': m['home_team'], 'away_team': m['away_team'],
-                'league': m.get('league', ''), 'match_time': m.get('match_time', ''),
-                'prediction_type': c['type'], 'prediction_label': c['label'],
-                'pct': round(c['pct']), 'confidence': m.get('confidence', 'Orta'),
-                'analysis_id': m.get('id'),
-                'odds': round(float(c['odds']), 2) if c.get('odds') else None,
-            })
-            logger.info(f"Kupon priority: {m['home_team']} vs {m['away_team']} → {c['type']} (value bet)")
 
         for c in all_candidates:
             if len(coupon) >= max_count: break
-            t = c['type']
             match_id = c['match'].get('id')
-            combo = f"{match_id}_{t}"
             if match_id in used_match_ids: continue
-            if combo in used_combos: continue
-            if type_counts.get(t, 0) >= MAX_PER_TYPE: continue
-            type_counts[t] = type_counts.get(t, 0) + 1
-            used_combos.add(combo)
             used_match_ids.add(match_id)
             m = c['match']
+            t = c['type']
 
             odds_map = {
                 'IY 0.5 Ust': 'odds_ht_over05', '2.5 Ust': 'odds_over25',
-                '2.5 Alt': 'odds_under25', 'KG Var': 'odds_btts_yes',
-                'KG Yok': 'odds_btts_no', '1X2': None,
+                '2.5 Ust + KG Var': None, '1X2': None,
             }
             odds_val = None
             try:
@@ -1095,7 +916,7 @@ def api_coupon_today():
         if len(coupon) < min_count:
             return jsonify({"status": "error", "message": f"Yeterli tahmin bulunamadi (min {min_count}, bulunan {len(coupon)})"}), 404
 
-        logger.info(f"Kupon: {len(coupon)} tahmin, turler: {type_counts}")
+        logger.info(f"Kupon: {len(coupon)} tahmin, tip: {coupon_type}")
         return jsonify({"status": "success", "coupon": coupon})
     except Exception as e:
         logger.error(f"Coupon error: {e}")

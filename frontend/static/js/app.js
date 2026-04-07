@@ -623,11 +623,11 @@ function build2ndHalfHtml(match) {
     return `<div style="margin-top:10px;padding:10px 12px;background:#0a0a16;border-radius:10px;border:1px solid #1a1a2e;"><div style="font-size:10px;color:#a855f7;font-weight:700;letter-spacing:0.5px;margin-bottom:10px;">⏱️ İKİNCİ YARI İSTATİSTİKLERİ</div><div style="display:flex;gap:6px;flex-wrap:wrap;">${itemsHtml}</div></div>`;
 }
 async function generateCoupon(couponType) {
-    couponType = couponType || 'dengeli';
+    couponType = couponType || 'taraf';
     const btnId = 'couponBtn-' + couponType;
     const btn = document.getElementById(btnId);
     if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
-    const typeLabels = { guvenli: '🛡️ Güvenli', dengeli: '⚖️ Dengeli', riskli: '🔥 Riskli' };
+    const typeLabels = { taraf: '🎯 Taraf', ust: '⚽ 2.5 Üst', iy: '⏱️ İY Gol', ust_kg: '💎 Üst+KG' };
     try {
         const resp = await fetch('/api/coupon/today?type=' + couponType);
         const data = await resp.json();
@@ -655,9 +655,9 @@ async function saveCoupon(coupon, couponType) {
 }
 
 function drawCouponCanvas(coupon, couponType) {
-    couponType = couponType || 'dengeli';
-    const typeLabels = { guvenli: '🛡️ Güvenli', dengeli: '⚖️ Dengeli', riskli: '🔥 Riskli' };
-    const typeBtnLabels = { guvenli: '🛡️ Güvenli', dengeli: '⚖️ Dengeli', riskli: '🔥 Riskli' };
+    couponType = couponType || 'taraf';
+    const typeLabels = { taraf: '🎯 Taraf', ust: '⚽ 2.5 Üst', iy: '⏱️ İY Gol', ust_kg: '💎 Üst + KG Var' };
+    const typeBtnLabels = { taraf: '🎯 Taraf', ust: '⚽ 2.5 Üst', iy: '⏱️ İY Gol', ust_kg: '💎 Üst+KG' };
     const today=new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
     const width=480, headerH=120, rowH=76, footerH=90;
     const contentH=headerH+coupon.length*rowH+footerH;
@@ -681,7 +681,7 @@ function drawCouponCanvas(coupon, couponType) {
         ctx.fillStyle='#a78bfa'; ctx.font='800 17px Syne,sans-serif';
         ctx.fillText('GÜNÜN KUPONU',width-20,54);
         // Tip etiketi
-        const typeLabel = typeLabels[couponType] || '⚖️ Dengeli';
+        const typeLabel = typeLabels[couponType] || '🎯 Taraf';
         ctx.fillStyle='#c4b5fd'; ctx.font='600 11px Syne,sans-serif';
         ctx.fillText(typeLabel, width-20, 72);
         // Ayraç
@@ -724,7 +724,7 @@ function drawCouponCanvas(coupon, couponType) {
         ctx.fillText('Bu tahminler yapay zeka analizi ile olusturulmustur. Sorumluluk kabul edilmez.',width/2,fy+20);
         couponCanvas=canvas; showCouponPreview(canvas,today);
         // Butonları sıfırla
-        ['guvenli','dengeli','riskli'].forEach(t=>{
+        ['taraf','ust','iy','ust_kg'].forEach(t=>{
             const b=document.getElementById('couponBtn-'+t);
             if(b){b.disabled=false; b.textContent=typeBtnLabels[t];}
         });
@@ -1004,9 +1004,10 @@ function renderMatches(matches){
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 4px;">
             <div style="display:flex;gap:8px;">
                 <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">📨 Telegram'a Gonder</button>
-                <button id="couponBtn-guvenli" onclick="generateCoupon('guvenli')" style="padding:8px 14px;border-radius:8px;border:none;background:#16a34a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">🛡️ Güvenli</button>
-                <button id="couponBtn-dengeli" onclick="generateCoupon('dengeli')" style="padding:8px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">⚖️ Dengeli</button>
-                <button id="couponBtn-riskli" onclick="generateCoupon('riskli')" style="padding:8px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">🔥 Riskli</button>
+                <button id="couponBtn-taraf" onclick="generateCoupon('taraf')" style="padding:8px 14px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">🎯 Taraf</button>
+                <button id="couponBtn-ust" onclick="generateCoupon('ust')" style="padding:8px 14px;border-radius:8px;border:none;background:#16a34a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">⚽ 2.5 Üst</button>
+                <button id="couponBtn-iy" onclick="generateCoupon('iy')" style="padding:8px 14px;border-radius:8px;border:none;background:#d97706;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">⏱️ İY Gol</button>
+                <button id="couponBtn-ust_kg" onclick="generateCoupon('ust_kg')" style="padding:8px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">💎 Üst+KG</button>
             </div>
             <button onclick="clearAllMatches()" style="padding:6px 14px;border-radius:8px;border:1px solid #ef4444;background:transparent;color:#ef4444;font-size:12px;cursor:pointer;font-family:inherit;">🗑️ Tumunu Sil</button>
         </div>

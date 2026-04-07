@@ -141,8 +141,8 @@
         const scoreText = isCompleted || c.correct_items > 0
             ? `${c.correct_items}/${c.total_items} tahmin tuttu`
             : `${c.total_items} tahmin`;
-        const typeMap = { guvenli: '🛡️ Güvenli', dengeli: '⚖️ Dengeli', riskli: '🔥 Riskli' };
-        const typeLabel = typeMap[c.coupon_type] || '⚖️ Dengeli';
+        const typeMap = { taraf: '🎯 Taraf', ust: '⚽ 2.5 Üst', iy: '⏱️ İY Gol', ust_kg: '💎 Üst + KG Var' };
+        const typeLabel = typeMap[c.coupon_type] || '🎯 Taraf';
         return `<div class="coupon-card ${cardClass}" id="coupon-${c.id}">
             <div class="coupon-header">
                 <div style="display:flex;flex-direction:column;gap:3px;">
