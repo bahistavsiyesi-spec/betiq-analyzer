@@ -45,6 +45,7 @@ NAME_FIXES = {
 LEAGUE_CODES = {
     'GER': 'BL1', 'ENG': 'PL', 'ESP': 'PD',
     'ITA': 'SA', 'FRA': 'FL1', 'POR': 'PPL', 'NED': 'DED', 'BRA': 'BSA',
+    'CL': 'CL', 'EL': 'EL', 'EC': 'EC',
 }
 
 # ─── football-data.co.uk lig CSV kodları ─────────────────────────────────────
@@ -812,6 +813,9 @@ API_FOOTBALL_LEAGUE_MAP = {
     'swiss super league': 207,
     'ekstraklasa': 106,
     'greek super league': 233,
+    'champions league': 2, 'uefa champions league': 2, 'sampiyonlar ligi': 2,
+    'europa league': 3, 'uefa europa league': 3,
+    'conference league': 848, 'uefa conference league': 848,
     'eredivisie': 88, 'netherlands': 88, 'dutch': 88, 'holland': 88,
     'eerste divisie': 89,
     'primeira liga': 94, 'portugal': 94, 'liga nos': 94, 'liga bwin': 94,
