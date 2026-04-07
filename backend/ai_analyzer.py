@@ -689,22 +689,20 @@ KARAR FAKTÖRLERİ (öncelik sırası):
   3. Ev/deplasman sırası (bu sahadaki performans)
   4. Puan durumu (genel sıra)
 
-KURAL 1 — "Çok Yüksek":
-  Bahisçi NET favori (>%15 fark) VE PPG aynı tarafı gösteriyorsa
-  VEYA bahisçi + PPG + ev/dep sırası ÜÇÜ aynı tarafı gösteriyorsa
+⚠️ "Çok Yüksek" artık KULLANILMIYOR. Maksimum güven seviyesi "Yüksek"tir.
 
-KURAL 2 — "Yüksek":
-  Bahisçi ve PPG aynı tarafı gösteriyorsa
-  VEYA bahisçi net favori ama PPG nötrse
-  VEYA piyasa net favori ama form nötrse
+KURAL 1 — "Yüksek":
+  Bahisçi (1) + PPG (2) + ev/dep sırası (3) üçü aynı tarafı gösteriyorsa
+  VEYA bahisçi + PPG aynı tarafı gösteriyorsa
 
-KURAL 3 — "Orta":
-  Piyasa ve form çelişkili VEYA dengeli maç
+KURAL 2 — "Orta":
+  Bahisçi ve PPG aynı tarafı gösteriyor ama ev/dep sırası farklı ya da veri yok
+  VEYA sadece bahisçi net favori, PPG verisi yok
 
-KURAL 4 — "Düşük":
-  Tüm göstergeler belirsiz, hazırlık/kupa maçı
+KURAL 3 — "Düşük":
+  Bahisçi ve PPG çelişiyor
 
-KURAL 5 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
+KURAL 4 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
 
 ''' + f'''Mevcut veri durumu:
   - Piyasa analizi: {"VAR ✓" if home_implied else "YOK ✗"}
@@ -1300,56 +1298,43 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     except (TypeError, ValueError):
         pass
 
+    # Çok Yüksek artık yok — AI bunu verse de Yüksek'e indir
+    if confidence == 'Çok Yüksek':
+        confidence = 'Yüksek'
+
     # Kupa/hazırlık maçlarında max Orta
     match_type = detect_match_importance(league)
     if 'Kupa' in match_type or 'Hazirlik' in match_type:
-        if confidence in ('Yüksek', 'Çok Yüksek'):
+        if confidence == 'Yüksek':
             confidence = 'Orta'
             logger.info(f'Confidence capped to Orta (cup/friendly): {home_team} vs {away_team}')
     else:
         odds_side = _conf_odds_favors.replace('_soft', '') if _conf_odds_favors else None
-        # Üç sinyal aynı yönde → Çok Yüksek korunur
-        three_signals_aligned = (
+
+        three_aligned = (
             odds_side and _conf_ppg_favors and _conf_venue_rank_favors
             and odds_side == _conf_ppg_favors == _conf_venue_rank_favors
             and odds_side not in ('X', None)
         )
-        # İki sinyal aynı yönde → Yüksek onaylanır
-        two_signals_aligned = (
+        two_aligned = (
             odds_side and _conf_ppg_favors
             and odds_side == _conf_ppg_favors
             and odds_side not in ('X', None)
         )
-        if confidence == 'Çok Yüksek':
-            if three_signals_aligned or (_conf_odds_favors in ('1', '2') and two_signals_aligned):
-                pass  # Çok Yüksek onaylandı
-            elif two_signals_aligned:
-                pass  # Çok Yüksek → Yüksek'e düşürme
-            else:
-                confidence = 'Orta'
-                logger.info(f'Confidence capped to Orta (signals not aligned for Çok Yüksek): {home_team} vs {away_team}')
-        elif confidence == 'Yüksek':
-            if two_signals_aligned:
-                pass  # Yüksek onaylandı
-            elif _conf_odds_favors in ('1', '2') and not _conf_ppg_favors:
-                pass  # piyasa net favori, PPG yok, kabul et
-            elif _conf_odds_favors in ('1', '2') and _conf_venue_rank_favors == odds_side:
-                pass  # piyasa + ev/dep sırası aynı yön, kabul et
-            else:
-                confidence = 'Orta'
-                logger.info(f'Confidence capped to Orta (odds/ppg not aligned): {home_team} vs {away_team}')
+        odds_ppg_conflict = (
+            odds_side and _conf_ppg_favors
+            and odds_side != _conf_ppg_favors
+            and odds_side not in ('X', None)
+            and _conf_ppg_favors not in ('X', None)
+        )
 
-        # Oran ve PPG çelişiyorsa → Orta'ya düşür
-        if confidence in ('Yüksek', 'Çok Yüksek') and odds_side and _conf_ppg_favors:
-            if odds_side != _conf_ppg_favors and odds_side not in ('X', None) and _conf_ppg_favors not in ('X', None):
-                confidence = 'Orta'
-                logger.info(f'Confidence capped to Orta (odds/ppg conflict): {home_team} vs {away_team}')
-
-        # Oran, PPG ve ev/dep sırası hepsi çelişiyorsa → Düşük
-        all_signals = [s for s in [odds_side, _conf_ppg_favors, _conf_venue_rank_favors] if s and s != 'X']
-        if len(all_signals) >= 2 and len(set(all_signals)) == len(all_signals) and confidence in ('Yüksek', 'Çok Yüksek', 'Orta'):
+        if three_aligned or two_aligned:
+            confidence = 'Yüksek'
+        elif odds_ppg_conflict:
             confidence = 'Düşük'
-            logger.info(f'Confidence set to Düşük (all signals conflict): {home_team} vs {away_team}')
+        else:
+            # 1+2 aynı değil veya 3 farklı/yok → Orta
+            confidence = 'Orta'
 
         logger.info(
             f'Confidence final: {confidence} | odds={_conf_odds_favors} ppg={_conf_ppg_favors} '
