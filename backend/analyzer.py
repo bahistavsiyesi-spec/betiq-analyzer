@@ -275,10 +275,16 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
             # league_name ile hem football-data.org hem CollectAPI fallback çalışır
             home_standing = get_team_standing(home_name, country_code, league_name=league_name)
             away_standing = get_team_standing(away_name, country_code, league_name=league_name)
-            if home_standing:
-                logger.info(f'Standing {home_name}: {home_standing["position"]}. sira, {home_standing["points"]} puan')
-            if away_standing:
-                logger.info(f'Standing {away_name}: {away_standing["position"]}. sira, {away_standing["points"]} puan')
+            for team_name_log, st in [(home_name, home_standing), (away_name, away_standing)]:
+                if not st:
+                    continue
+                home_str = ''
+                away_str = ''
+                if st.get('home_position') is not None:
+                    home_str = f' | HOME {st["home_position"]}. sira {st.get("home_won",0)}G {st.get("home_draw",0)}B {st.get("home_lost",0)}M'
+                if st.get('away_position') is not None:
+                    away_str = f' | AWAY {st["away_position"]}. sira {st.get("away_won",0)}G {st.get("away_draw",0)}B {st.get("away_lost",0)}M'
+                logger.info(f'Standing {team_name_log}: TOTAL {st["position"]}. sira {st["points"]}p{home_str}{away_str}')
         except Exception as e:
             logger.warning('Standings failed: ' + str(e))
 

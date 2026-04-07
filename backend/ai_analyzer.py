@@ -307,9 +307,15 @@ def build_prompt(home_team, away_team, league, match_time,
         if home_standing:
             standing_text += (f'- {home_team}: {home_standing["position"]}. sıra | {home_standing["points"]} puan | '
                               f'{home_standing["played"]} maç | {home_standing["won"]}G {home_standing["draw"]}B {home_standing["lost"]}M\n')
+            if home_standing.get('home_position') is not None:
+                standing_text += (f'  Ev sırası: {home_standing["home_position"]}. | '
+                                  f'{home_standing.get("home_won",0)}G {home_standing.get("home_draw",0)}B {home_standing.get("home_lost",0)}M\n')
         if away_standing:
             standing_text += (f'- {away_team}: {away_standing["position"]}. sıra | {away_standing["points"]} puan | '
                               f'{away_standing["played"]} maç | {away_standing["won"]}G {away_standing["draw"]}B {away_standing["lost"]}M\n')
+            if away_standing.get('away_position') is not None:
+                standing_text += (f'  Deplasman sırası: {away_standing["away_position"]}. | '
+                                  f'{away_standing.get("away_won",0)}G {away_standing.get("away_draw",0)}B {away_standing.get("away_lost",0)}M\n')
 
     csv_text = build_csv_section(home_team, away_team, csv_data)
 
@@ -501,13 +507,31 @@ def build_prompt(home_team, away_team, league, match_time,
             logger.debug(f'PPG favors calc skipped: {e}')
     # ─────────────────────────────────────────────────────────────────────────
 
+    # ── Ev/Deplasman sırası karşılaştırması ──────────────────────────────────
+    venue_rank_favors = None
+    try:
+        h_home_pos = home_standing.get('home_position') if home_standing else None
+        a_away_pos = away_standing.get('away_position') if away_standing else None
+        if h_home_pos is not None and a_away_pos is not None:
+            diff = a_away_pos - h_home_pos  # pozitif → ev sahibi daha üst sırada
+            if diff >= 4:
+                venue_rank_favors = '1'
+            elif diff <= -4:
+                venue_rank_favors = '2'
+            else:
+                venue_rank_favors = 'X'
+    except (TypeError, ValueError) as e:
+        logger.debug(f'Venue rank favors calc skipped: {e}')
+    # ─────────────────────────────────────────────────────────────────────────
+
     prediction_rules = '\n── Taraf Tahmini Kuralları (ZORUNLU) ──\n'
     prediction_rules += 'KARAR HİYERARŞİSİ (öncelik sırası):\n'
     prediction_rules += '  1. Bahisçi oranı (piyasa konsensüsü) — en güvenilir gösterge\n'
     prediction_rules += '  2. Güncel PPG (sezon içi form trendi)\n'
-    prediction_rules += '  3. xG farkı (tehlike göstergesi, KAZANMA değil GOL beklentisi)\n'
-    prediction_rules += '  4. Ev sahibi avantajı\n'
-    prediction_rules += '  5. H2H geçmişi\n\n'
+    prediction_rules += '  3. Ev/deplasman sırası (bu sahadaki performans)\n'
+    prediction_rules += '  4. xG farkı (tehlike göstergesi, KAZANMA değil GOL beklentisi)\n'
+    prediction_rules += '  5. Puan durumu (genel sıra)\n'
+    prediction_rules += '  6. H2H geçmişi\n\n'
     prediction_rules += '⚠️ xG yüksek = çok gol atabilir, ama KAZANIR anlamına gelmez!\n'
     prediction_rules += '⚠️ Bahisçi + PPG aynı tarafı gösteriyorsa, xG tek başına bunu geçemez.\n\n'
     prediction_rules += 'prediction_1x2 ve güven seviyesi belirlenirken aşağıdaki kurallara KESINLIKLE uy:\n\n'
@@ -540,6 +564,28 @@ def build_prompt(home_team, away_team, league, match_time,
         else:
             prediction_rules += f'  → PPG dengeli\n\n'
 
+    # Ev/deplasman sırası analizi
+    if venue_rank_favors is not None:
+        h_hp = home_standing.get('home_position') if home_standing else None
+        a_ap = away_standing.get('away_position') if away_standing else None
+        h_hw = home_standing.get('home_won', 0) if home_standing else 0
+        h_hd = home_standing.get('home_draw', 0) if home_standing else 0
+        h_hl = home_standing.get('home_lost', 0) if home_standing else 0
+        a_aw = away_standing.get('away_won', 0) if away_standing else 0
+        a_ad = away_standing.get('away_draw', 0) if away_standing else 0
+        a_al = away_standing.get('away_lost', 0) if away_standing else 0
+        prediction_rules += f'Ev/Deplasman Sırası:\n'
+        if h_hp is not None:
+            prediction_rules += f'  {home_team} evde {h_hp}. sıra ({h_hw}G {h_hd}B {h_hl}M)\n'
+        if a_ap is not None:
+            prediction_rules += f'  {away_team} deplasmanda {a_ap}. sıra ({a_aw}G {a_ad}B {a_al}M)\n'
+        if venue_rank_favors == '1':
+            prediction_rules += f'  → {home_team} bu sahada belirgin üstün (sıra farkı ≥4)\n\n'
+        elif venue_rank_favors == '2':
+            prediction_rules += f'  → {away_team} deplasmanda belirgin üstün (sıra farkı ≥4)\n\n'
+        else:
+            prediction_rules += f'  → Ev/dep performansları dengeli\n\n'
+
     if xg_diff is not None:
         prediction_rules += f'xG Durumu: {home_team}={hxg} xG, {away_team}={axg} xG, fark={abs(xg_diff)} ({home_team if xg_diff > 0 else away_team} daha tehlikeli)\n'
         prediction_rules += f'  ⚠️ xG = GOL BEKLENTİSİ, KAZANMA ihtimali değil!\n\n'
@@ -564,6 +610,7 @@ def build_prompt(home_team, away_team, league, match_time,
             prediction_rules += f'  ⚠️ Çelişki: Bahisçi={fav_odds}, PPG={fav_ppg} — bahisçiye ağırlık ver\n'
     prediction_rules += '  - Bahisçi net favori (>%15 fark) → o tarafı seç, xG tek başına geçemez\n'
     prediction_rules += '  - Bahisçi + PPG aynı yönde → güvenle o tarafı seç\n'
+    prediction_rules += '  - Bahisçi + PPG + ev/dep sırası üçü aynı yönde → çok güçlü gösterge\n'
     prediction_rules += '  - Sadece xG yüksek ama bahisçi karşı tarafta → bahisçiye uyu\n'
     prediction_rules += '  - Tüm göstergeler çelişkili → "X" ver\n\n'
 
@@ -578,17 +625,19 @@ def build_prompt(home_team, away_team, league, match_time,
 TEMEL PRENSİP: Güven seviyesi KAZANMA ihtimalini gösterir — gol sayısını değil.
 xG yüksek olan takım çok gol atabilir ama kaybedebilir. Bu yüzden güveni xG belirlemez.
 
-KARAR FAKTÖRLERÜ:
+KARAR FAKTÖRLERİ (öncelik sırası):
   1. Piyasa beklentisi (bahisçi oranları) — en güvenilir gösterge
-  2. Güncel form (son dönem performansı)
-  3. Ev sahibi avantajı
-  4. H2H geçmişi
+  2. Güncel form (PPG — son dönem performansı)
+  3. Ev/deplasman sırası (bu sahadaki performans)
+  4. Puan durumu (genel sıra)
 
 KURAL 1 — "Çok Yüksek":
-  Piyasa NET favori (>%15 fark) VE güncel form da aynı tarafı gösteriyorsa
+  Bahisçi NET favori (>%15 fark) VE PPG aynı tarafı gösteriyorsa
+  VEYA bahisçi + PPG + ev/dep sırası ÜÇÜ aynı tarafı gösteriyorsa
 
 KURAL 2 — "Yüksek":
-  Piyasa hafif favori VE güncel form destekliyorsa
+  Bahisçi ve PPG aynı tarafı gösteriyorsa
+  VEYA bahisçi net favori ama PPG nötrse
   VEYA piyasa net favori ama form nötrse
 
 KURAL 3 — "Orta":
@@ -602,6 +651,7 @@ KURAL 5 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
 ''' + f'''Mevcut veri durumu:
   - Piyasa analizi: {"VAR ✓" if home_implied else "YOK ✗"}
   - Güncel form (PPG): {"VAR ✓" if ppg_favors else "YOK ✗"}
+  - Ev/dep sırası: {"VAR ✓" if venue_rank_favors is not None else "YOK ✗"}
   - Ev/dep istatistik: {"VAR ✓" if has_venue_stats else "YOK ✗"}
   - Puan durumu: {"VAR ✓" if has_standing else "YOK ✗"}
 ── Güven Kuralları Sonu ──
@@ -1174,6 +1224,22 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         except (ValueError, TypeError) as e:
             logger.debug(f'Confidence PPG favors calc skipped: {e}')
 
+    # ── Ev/dep sırası yeniden hesapla (post-process için) ────────────────────
+    _conf_venue_rank_favors = None
+    try:
+        h_hp = home_standing.get('home_position') if home_standing else None
+        a_ap = away_standing.get('away_position') if away_standing else None
+        if h_hp is not None and a_ap is not None:
+            diff = a_ap - h_hp
+            if diff >= 4:
+                _conf_venue_rank_favors = '1'
+            elif diff <= -4:
+                _conf_venue_rank_favors = '2'
+            else:
+                _conf_venue_rank_favors = 'X'
+    except (TypeError, ValueError):
+        pass
+
     # Kupa/hazırlık maçlarında max Orta
     match_type = detect_match_importance(league)
     if 'Kupa' in match_type or 'Hazirlik' in match_type:
@@ -1181,16 +1247,54 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             confidence = 'Orta'
             logger.info(f'Confidence capped to Orta (cup/friendly): {home_team} vs {away_team}')
     else:
-        # Piyasa net favori + PPG aynı yönde → Yüksek/Çok Yüksek onaylanır
         odds_side = _conf_odds_favors.replace('_soft', '') if _conf_odds_favors else None
-        if confidence in ('Yüksek', 'Çok Yüksek'):
-            if odds_side and _conf_ppg_favors and odds_side == _conf_ppg_favors and odds_side != 'X':
-                pass  # onaylandı
+        # Üç sinyal aynı yönde → Çok Yüksek korunur
+        three_signals_aligned = (
+            odds_side and _conf_ppg_favors and _conf_venue_rank_favors
+            and odds_side == _conf_ppg_favors == _conf_venue_rank_favors
+            and odds_side not in ('X', None)
+        )
+        # İki sinyal aynı yönde → Yüksek onaylanır
+        two_signals_aligned = (
+            odds_side and _conf_ppg_favors
+            and odds_side == _conf_ppg_favors
+            and odds_side not in ('X', None)
+        )
+        if confidence == 'Çok Yüksek':
+            if three_signals_aligned or (_conf_odds_favors in ('1', '2') and two_signals_aligned):
+                pass  # Çok Yüksek onaylandı
+            elif two_signals_aligned:
+                pass  # Çok Yüksek → Yüksek'e düşürme
+            else:
+                confidence = 'Orta'
+                logger.info(f'Confidence capped to Orta (signals not aligned for Çok Yüksek): {home_team} vs {away_team}')
+        elif confidence == 'Yüksek':
+            if two_signals_aligned:
+                pass  # Yüksek onaylandı
             elif _conf_odds_favors in ('1', '2') and not _conf_ppg_favors:
                 pass  # piyasa net favori, PPG yok, kabul et
+            elif _conf_odds_favors in ('1', '2') and _conf_venue_rank_favors == odds_side:
+                pass  # piyasa + ev/dep sırası aynı yön, kabul et
             else:
                 confidence = 'Orta'
                 logger.info(f'Confidence capped to Orta (odds/ppg not aligned): {home_team} vs {away_team}')
+
+        # Oran ve PPG çelişiyorsa → Orta'ya düşür
+        if confidence in ('Yüksek', 'Çok Yüksek') and odds_side and _conf_ppg_favors:
+            if odds_side != _conf_ppg_favors and odds_side not in ('X', None) and _conf_ppg_favors not in ('X', None):
+                confidence = 'Orta'
+                logger.info(f'Confidence capped to Orta (odds/ppg conflict): {home_team} vs {away_team}')
+
+        # Oran, PPG ve ev/dep sırası hepsi çelişiyorsa → Düşük
+        all_signals = [s for s in [odds_side, _conf_ppg_favors, _conf_venue_rank_favors] if s and s != 'X']
+        if len(all_signals) >= 2 and len(set(all_signals)) == len(all_signals) and confidence in ('Yüksek', 'Çok Yüksek', 'Orta'):
+            confidence = 'Düşük'
+            logger.info(f'Confidence set to Düşük (all signals conflict): {home_team} vs {away_team}')
+
+        logger.info(
+            f'Confidence final: {confidence} | odds={_conf_odds_favors} ppg={_conf_ppg_favors} '
+            f'venue_rank={_conf_venue_rank_favors} | {home_team} vs {away_team}'
+        )
 
     over25_pct = float(result.get('over25_pct', 50))
     btts_pct = float(result.get('btts_pct', 40))

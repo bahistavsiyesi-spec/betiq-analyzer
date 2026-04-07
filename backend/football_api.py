@@ -490,25 +490,53 @@ def get_standings_cached(league_code):
     if not result:
         return None
     try:
-        standings = []
+        total_table = {}
+        home_table = {}
+        away_table = {}
         for standing in result.get('standings', []):
-            if standing.get('type') == 'TOTAL':
-                for team in standing.get('table', []):
-                    standings.append({
-                        'position': team.get('position'),
-                        'team': team.get('team', {}).get('name', ''),
-                        'played': team.get('playedGames', 0),
-                        'points': team.get('points', 0),
-                        'won': team.get('won', 0),
-                        'draw': team.get('draw', 0),
-                        'lost': team.get('lost', 0),
-                        'goals_for': team.get('goalsFor', 0),
-                        'goals_against': team.get('goalsAgainst', 0),
-                        'goal_diff': team.get('goalDifference', 0),
-                    })
-                break
+            stype = standing.get('type')
+            for team in standing.get('table', []):
+                tname = team.get('team', {}).get('name', '')
+                entry = {
+                    'position': team.get('position'),
+                    'team': tname,
+                    'played': team.get('playedGames', 0),
+                    'points': team.get('points', 0),
+                    'won': team.get('won', 0),
+                    'draw': team.get('draw', 0),
+                    'lost': team.get('lost', 0),
+                    'goals_for': team.get('goalsFor', 0),
+                    'goals_against': team.get('goalsAgainst', 0),
+                    'goal_diff': team.get('goalDifference', 0),
+                }
+                if stype == 'TOTAL':
+                    total_table[tname] = entry
+                elif stype == 'HOME':
+                    home_table[tname] = entry
+                elif stype == 'AWAY':
+                    away_table[tname] = entry
+
+        standings = []
+        for tname, entry in total_table.items():
+            row = dict(entry)
+            if tname in home_table:
+                h = home_table[tname]
+                row['home_position'] = h['position']
+                row['home_won'] = h['won']
+                row['home_draw'] = h['draw']
+                row['home_lost'] = h['lost']
+                row['home_points'] = h['points']
+            if tname in away_table:
+                a = away_table[tname]
+                row['away_position'] = a['position']
+                row['away_won'] = a['won']
+                row['away_draw'] = a['draw']
+                row['away_lost'] = a['lost']
+                row['away_points'] = a['points']
+            standings.append(row)
+
         _standings_cache[league_code] = {'date': today, 'data': standings}
-        logger.info('Standings cached for ' + league_code + ': ' + str(len(standings)) + ' teams')
+        logger.info('Standings cached for ' + league_code + ': ' + str(len(standings)) + ' teams (TOTAL+HOME+AWAY)')
         return standings
     except Exception as e:
         logger.warning('Standings parse failed: ' + str(e))
@@ -601,7 +629,16 @@ def get_team_standing(team_name, country_code, league_name=None):
             result = _find_team_in_standings(clean_name, standings) or \
                      _find_team_in_standings(team_name, standings)
             if result:
-                logger.info(f'Standing {team_name}: {result["position"]}. sira, {result["points"]} puan (football-data.org)')
+                home_str = ''
+                away_str = ''
+                if result.get('home_position') is not None:
+                    home_str = f' | HOME {result["home_position"]}. sira {result.get("home_won",0)}G {result.get("home_draw",0)}B {result.get("home_lost",0)}M'
+                if result.get('away_position') is not None:
+                    away_str = f' | AWAY {result["away_position"]}. sira {result.get("away_won",0)}G {result.get("away_draw",0)}B {result.get("away_lost",0)}M'
+                logger.info(
+                    f'Standing {team_name}: TOTAL {result["position"]}. sira {result["points"]}p'
+                    + home_str + away_str + ' (football-data.org)'
+                )
                 return result
     if not COLLECT_API_KEY:
         return None
@@ -614,7 +651,7 @@ def get_team_standing(team_name, country_code, league_name=None):
     standings = _get_collectapi_standings(collect_key)
     result = _find_team_in_standings(team_name, standings)
     if result:
-        logger.info(f'Standing {team_name}: {result["position"]}. sira, {result["points"]} puan (CollectAPI)')
+        logger.info(f'Standing {team_name}: TOTAL {result["position"]}. sira {result["points"]}p (CollectAPI)')
     return result
 
 
