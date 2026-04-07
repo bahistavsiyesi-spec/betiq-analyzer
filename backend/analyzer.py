@@ -6,6 +6,7 @@ from typing import Any, Optional
 from backend.database import delete_analyses_by_fixture_ids, log_run, save_analysis
 from backend.football_api import (
     get_h2h,
+    get_h2h_footballdata,
     get_team_home_away_stats,
     get_team_last_matches,
     get_team_shot_stats,
@@ -15,6 +16,7 @@ from backend.football_api import (
     is_turkish_superlig_team,
     get_team_last_matches_apifootball,
     get_h2h_apifootball,
+    LEAGUE_CODES,
 )
 
 logger = logging.getLogger(__name__)
@@ -215,6 +217,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     home_name = str(home_name).strip()
     away_name = str(away_name).strip()
     league_name = fixture['league']['name']
+    country_code = _get_country_code(fixture)
     logger.info('Analyzing: ' + home_name + ' vs ' + away_name)
 
     home_matches = get_team_last_matches(home_name, last=10)
@@ -242,6 +245,24 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
         if h2h:
             logger.info(f'API-Football H2H fallback: {home_name} vs {away_name} -> {len(h2h)} mac')
 
+    # Gerçek H2H (football-data.org /head2head endpoint'i) — karşılaştırma için
+    h2h_fd = None
+    try:
+        fd_league_code = LEAGUE_CODES.get(country_code) if country_code else None
+        if fd_league_code and fd_league_code not in ('CL', 'EL', 'EC'):
+            h2h_fd = get_h2h_footballdata(home_name, away_name, fd_league_code)
+            if h2h_fd:
+                logger.info(
+                    f'H2H (football-data) {home_name} vs {away_name}: '
+                    f'{h2h_fd["total"]} maç | Ev {h2h_fd["home_wins"]}G '
+                    f'Dep {h2h_fd["away_wins"]}G {h2h_fd["draws"]}B | '
+                    f'Ort {h2h_fd["avg_goals"]} gol'
+                )
+            else:
+                logger.info(f'H2H (football-data): veri bulunamadi ({home_name} vs {away_name})')
+    except Exception as e:
+        logger.warning(f'H2H footballdata call failed: {e}')
+
     home_form = extract_form_from_fixtures(home_matches or [], home_name)
     away_form = extract_form_from_fixtures(away_matches or [], away_name)
     home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
@@ -261,7 +282,6 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
 
     home_standing = None
     away_standing = None
-    country_code = _get_country_code(fixture)
 
     is_youth_match = any(
         x in home_name.lower() or x in away_name.lower()
@@ -335,6 +355,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
         home_conceded_avg=home_conceded_avg,
         away_conceded_avg=away_conceded_avg,
         h2h_summary=h2h_summary,
+        h2h_fd=h2h_fd,
         elo_data=None,
         odds_data=odds_data,
         home_standing=home_standing,

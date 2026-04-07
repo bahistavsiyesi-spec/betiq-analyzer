@@ -511,6 +511,107 @@ def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
         return []
 
 
+# ─── Gerçek H2H (football-data.org /matches/{id}/head2head) ──────────────────
+
+def get_footballdata_match_id(home_team, away_team, league_code):
+    """Bugünkü maçlar arasından football-data.org maç ID'sini döndür."""
+    if not FOOTBALL_DATA_KEY or not league_code:
+        return None
+    try:
+        today_str = date.today().isoformat()
+        result = _get_football_data(
+            'competitions/' + league_code + '/matches',
+            {'dateFrom': today_str, 'dateTo': today_str}
+        )
+        if not result or not result.get('matches'):
+            return None
+        home_norm = normalize_name(home_team)
+        away_norm = normalize_name(away_team)
+        for m in result['matches']:
+            mh = normalize_name(m.get('homeTeam', {}).get('name', ''))
+            ma = normalize_name(m.get('awayTeam', {}).get('name', ''))
+            if (home_norm in mh or mh in home_norm) and (away_norm in ma or ma in away_norm):
+                match_id = m.get('id')
+                logger.info(f'Football-data match ID found: {home_team} vs {away_team} -> {match_id}')
+                return match_id
+        logger.info(f'Football-data match ID not found for {home_team} vs {away_team} in {league_code}')
+        return None
+    except Exception as e:
+        logger.warning(f'get_footballdata_match_id failed ({home_team} vs {away_team}): {e}')
+        return None
+
+
+def get_h2h_footballdata(home_team, away_team, league_code, last=5):
+    """football-data.org /matches/{id}/head2head endpoint'inden H2H özeti döndür."""
+    if not FOOTBALL_DATA_KEY or not league_code:
+        return None
+    try:
+        match_id = get_footballdata_match_id(home_team, away_team, league_code)
+        if not match_id:
+            return None
+        result = _get_football_data(f'matches/{match_id}/head2head', {'limit': last})
+        if not result:
+            return None
+        matches = result.get('matches', [])
+        if not matches:
+            return None
+
+        home_wins = 0
+        away_wins = 0
+        draws = 0
+        total_goals = 0
+        valid = 0
+        home_norm = normalize_name(home_team)
+
+        for m in matches:
+            try:
+                hs = m['score']['fullTime']['home']
+                as_ = m['score']['fullTime']['away']
+                if hs is None or as_ is None:
+                    continue
+                mh_norm = normalize_name(m.get('homeTeam', {}).get('name', ''))
+                home_is_home = home_norm in mh_norm or mh_norm in home_norm
+                if home_is_home:
+                    if hs > as_:
+                        home_wins += 1
+                    elif hs < as_:
+                        away_wins += 1
+                    else:
+                        draws += 1
+                else:
+                    if as_ > hs:
+                        home_wins += 1
+                    elif as_ < hs:
+                        away_wins += 1
+                    else:
+                        draws += 1
+                total_goals += hs + as_
+                valid += 1
+            except (KeyError, TypeError):
+                continue
+
+        if valid == 0:
+            return None
+
+        avg_goals = round(total_goals / valid, 1)
+        summary = {
+            'total': valid,
+            'home_wins': home_wins,
+            'away_wins': away_wins,
+            'draws': draws,
+            'total_goals': total_goals,
+            'avg_goals': avg_goals,
+        }
+        logger.info(
+            f'H2H {home_team} vs {away_team}: {valid} maç | '
+            f'Ev {home_wins}G Dep {away_wins}G {draws}B | Ort {avg_goals} gol'
+        )
+        return summary
+    except Exception as e:
+        logger.warning(f'get_h2h_footballdata failed ({home_team} vs {away_team}): {e}')
+        return None
+
+
 # ─── Puan Durumu (football-data.org) ─────────────────────────────────────────
 
 def get_standings_cached(league_code):

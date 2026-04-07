@@ -231,10 +231,37 @@ def build_prompt(home_team, away_team, league, match_time,
                  home_btts_stats=None, away_btts_stats=None,
                  btts_mathematical=None,
                  home_goals_trend=None, away_goals_trend=None,
-                 csv_data=None):
+                 csv_data=None, h2h_fd=None):
 
     h2h_text = ''
-    if h2h_summary:
+    if h2h_fd:
+        # Gerçek H2H verisi varsa öncelikli kullan
+        total = h2h_fd['total']
+        hw = h2h_fd['home_wins']
+        aw = h2h_fd['away_wins']
+        dr = h2h_fd['draws']
+        avg_g = h2h_fd['avg_goals']
+        home_win_pct = round(hw / total * 100) if total else 0
+        away_win_pct = round(aw / total * 100) if total else 0
+        h2h_text = (
+            f'\nH2H — Karşılıklı Maç Geçmişi (Son {total} maç, resmi kayıt):\n'
+            f'- {home_team} galibiyet: {hw} (%{home_win_pct})\n'
+            f'- {away_team} galibiyet: {aw} (%{away_win_pct})\n'
+            f'- Beraberlik: {dr}\n'
+            f'- Maç başı ortalama gol: {avg_g}\n'
+        )
+        # Taraf ve gol yorumu için ipuçları
+        if hw > aw + 1:
+            h2h_text += f'  → H2H: {home_team} tarihsel üstünlüğe sahip\n'
+        elif aw > hw + 1:
+            h2h_text += f'  → H2H: {away_team} tarihsel üstünlüğe sahip\n'
+        else:
+            h2h_text += f'  → H2H: Dengeli geçmiş\n'
+        if avg_g >= 2.5:
+            h2h_text += f'  → H2H gol ortalaması ({avg_g}) over 2.5\'i destekliyor\n'
+        elif avg_g < 2.0:
+            h2h_text += f'  → H2H gol ortalaması ({avg_g}) under 2.5\'i destekliyor\n'
+    elif h2h_summary:
         h2h_text = (
             f'\nH2H (Son {h2h_summary["total"]} maç):\n'
             f'- {home_team} galibiyet: {h2h_summary["home_wins"]}\n'
@@ -417,6 +444,18 @@ def build_prompt(home_team, away_team, league, match_time,
     else:
         pct_rules += 'ht2g_pct: CSV yok — form trendi + gol ortalamasıyla serbest hesapla\n\n'
 
+    if h2h_avg_goals is not None:
+        pct_rules += f'H2H Gol Ortalaması Düzeltmesi (resmi kayıt, {h2h_fd["total"]} maç):\n'
+        pct_rules += f'  - H2H ort. gol: {h2h_avg_goals}\n'
+        if h2h_avg_goals >= 3.0:
+            pct_rules += f'  - Yüksek H2H golü → over25_pct ve btts_pct +5\'e kadar artır\n'
+        elif h2h_avg_goals >= 2.5:
+            pct_rules += f'  - H2H over 2.5 ortalaması → over25_pct baz değerini destekliyor\n'
+        elif h2h_avg_goals < 1.8:
+            pct_rules += f'  - Düşük H2H golü → over25_pct ve btts_pct -5\'e kadar düşür\n'
+        else:
+            pct_rules += f'  - H2H gol ortalaması nötr — diğer verilere göre karar ver\n'
+
     pct_rules += '── Yüzde Kuralları Sonu ──\n'
 
     shot_rules = ''
@@ -505,6 +544,22 @@ def build_prompt(home_team, away_team, league, match_time,
                     ppg_favors = 'X'
         except (ValueError, TypeError) as e:
             logger.debug(f'PPG favors calc skipped: {e}')
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── H2H gol ortalaması — over25/btts için referans ───────────────────────
+    h2h_avg_goals = None
+    h2h_favors = None
+    if h2h_fd and h2h_fd.get('total', 0) >= 3:
+        h2h_avg_goals = h2h_fd['avg_goals']
+        total = h2h_fd['total']
+        hw = h2h_fd['home_wins']
+        aw = h2h_fd['away_wins']
+        if hw > aw + 1:
+            h2h_favors = '1'
+        elif aw > hw + 1:
+            h2h_favors = '2'
+        else:
+            h2h_favors = 'X'
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── Ev/Deplasman sırası karşılaştırması ──────────────────────────────────
@@ -611,6 +666,9 @@ def build_prompt(home_team, away_team, league, match_time,
     prediction_rules += '  - Bahisçi net favori (>%15 fark) → o tarafı seç, xG tek başına geçemez\n'
     prediction_rules += '  - Bahisçi + PPG aynı yönde → güvenle o tarafı seç\n'
     prediction_rules += '  - Bahisçi + PPG + ev/dep sırası üçü aynı yönde → çok güçlü gösterge\n'
+    if h2h_favors and h2h_favors != 'X':
+        h2h_fav_name = home_team if h2h_favors == '1' else away_team
+        prediction_rules += f'  - H2H tarihsel üstünlük: {h2h_fav_name} — diğer göstergelerle örtüşüyorsa ağırlık ver\n'
     prediction_rules += '  - Sadece xG yüksek ama bahisçi karşı tarafta → bahisçiye uyu\n'
     prediction_rules += '  - Tüm göstergeler çelişkili → "X" ver\n\n'
 
@@ -652,6 +710,7 @@ KURAL 5 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
   - Piyasa analizi: {"VAR ✓" if home_implied else "YOK ✗"}
   - Güncel form (PPG): {"VAR ✓" if ppg_favors else "YOK ✗"}
   - Ev/dep sırası: {"VAR ✓" if venue_rank_favors is not None else "YOK ✗"}
+  - H2H geçmiş (resmi): {"VAR ✓ (" + str(h2h_fd["total"]) + " maç)" if h2h_fd else "YOK ✗"}
   - Ev/dep istatistik: {"VAR ✓" if has_venue_stats else "YOK ✗"}
   - Puan durumu: {"VAR ✓" if has_standing else "YOK ✗"}
 ── Güven Kuralları Sonu ──
@@ -1054,7 +1113,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_form='', away_form='',
                         home_goals_avg=0, away_goals_avg=0,
                         home_conceded_avg=0, away_conceded_avg=0,
-                        h2h_summary=None, elo_data=None, odds_data=None,
+                        h2h_summary=None, h2h_fd=None, elo_data=None, odds_data=None,
                         home_standing=None, away_standing=None,
                         home_venue_stats=None, away_venue_stats=None,
                         home_shot_stats=None, away_shot_stats=None,
@@ -1133,6 +1192,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         home_goals_trend=home_goals_trend,
         away_goals_trend=away_goals_trend,
         csv_data=csv_data,
+        h2h_fd=h2h_fd,
     )
 
     result = None
