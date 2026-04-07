@@ -332,6 +332,8 @@ def _update_single_coupon(coupon, cur):
                     item_result = (row.get('total_goals') or 0) > 1
                 elif pred_type == 'Over 3.5':
                     item_result = (row.get('total_goals') or 0) > 3
+                elif pred_type == '2.5 Ust + KG Var':
+                    item_result = bool(row.get('actual_over25')) and bool(row.get('actual_btts'))
                 elif pred_type == 'COMBO_O25_BTTS':
                     item_result = bool(row.get('over25_correct')) and bool(row.get('btts_correct'))
                 elif pred_type == 'COMBO_1X2_O15':
