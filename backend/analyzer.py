@@ -162,6 +162,12 @@ def _get_country_code(fixture):
         return 'NED'
     if any(x in league for x in ['brazil', 'brasileirao', 'serie a brasil', 'brasileiro', 'bsa']):
         return 'BRA'
+    if any(x in league for x in ['champions league', 'sampiyonlar ligi', 'uefa champions']):
+        return 'CL'
+    if any(x in league for x in ['europa league', 'uefa europa']):
+        return 'EL'
+    if any(x in league for x in ['conference league', 'uefa conference']):
+        return 'EC'
     return None
 
 
