@@ -693,11 +693,11 @@ KARAR FAKTÖRLERİ (öncelik sırası):
 
 KURAL 1 — "Yüksek":
   Bahisçi (1) + PPG (2) + ev/dep sırası (3) üçü aynı tarafı gösteriyorsa
-  VEYA bahisçi + PPG aynı tarafı gösteriyorsa
 
 KURAL 2 — "Orta":
-  Bahisçi ve PPG aynı tarafı gösteriyor ama ev/dep sırası farklı ya da veri yok
+  Bahisçi (1) + PPG (2) aynı tarafı gösteriyor ama ev/dep sırası (3) farklı ya da veri yok
   VEYA sadece bahisçi net favori, PPG verisi yok
+  VEYA göstergeler dengeli
 
 KURAL 3 — "Düşük":
   Bahisçi ve PPG çelişiyor
@@ -1328,12 +1328,11 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             and _conf_ppg_favors not in ('X', None)
         )
 
-        if three_aligned or two_aligned:
+        if three_aligned:
             confidence = 'Yüksek'
         elif odds_ppg_conflict:
             confidence = 'Düşük'
         else:
-            # 1+2 aynı değil veya 3 farklı/yok → Orta
             confidence = 'Orta'
 
         logger.info(
