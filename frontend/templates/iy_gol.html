@@ -18,6 +18,9 @@
         .stats-bar { display:flex; gap:12px; padding:16px 20px; max-width:700px; margin:0 auto; flex-wrap:wrap; }
         .stat-box { flex:1; min-width:130px; background:#0d0d1a; border:1px solid #1e1e3a; border-radius:12px; padding:14px; text-align:center; }
         .stat-val { font-size:22px; font-weight:800; color:#a78bfa; }
+        .stat-val.green { color:#22c55e; }
+        .stat-val.yellow { color:#f59e0b; }
+        .stat-val.red { color:#ef4444; }
         .stat-lbl { font-size:10px; color:#555; margin-top:3px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
         .stat-sub { font-size:11px; color:#666; margin-top:2px; }
 
@@ -38,7 +41,9 @@
         .matches-wrap { padding:0 20px 40px; max-width:700px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
 
         .match-card { background:#0d0d1a; border:1px solid #1e1e3a; border-radius:14px; overflow:hidden; transition:border-color .2s; }
-        .match-card:hover { border-color:#2a1a4e; }
+        .match-card.result-iy    { border-color:#22c55e55; }
+        .match-card.result-saved { border-color:#f59e0b55; }
+        .match-card.result-none  { border-color:#ef444455; }
 
         .card-top { padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
         .card-teams { font-size:14px; font-weight:800; color:#fff; }
@@ -46,25 +51,39 @@
         .card-league { font-size:11px; color:#555; font-weight:600; }
         .card-time { font-size:11px; color:#a78bfa; font-weight:700; }
 
-        .card-pcts { display:flex; gap:10px; padding:10px 16px; border-top:1px solid #13131f; }
+        .card-pcts { display:flex; gap:10px; padding:10px 16px; border-top:1px solid #13131f; flex-wrap:wrap; }
         .pct-pill { display:flex; align-items:center; gap:6px; background:#12122a; border:1px solid #1e1e3a; border-radius:20px; padding:5px 12px; font-size:11px; font-weight:700; }
         .pct-pill .pill-lbl { color:#666; }
         .pct-pill .pill-val { color:#22c55e; }
         .pct-pill .pill-val.warn { color:#f59e0b; }
 
-        .card-actions { display:flex; gap:8px; padding:10px 16px; border-top:1px solid #13131f; flex-wrap:wrap; }
+        /* Result display (after save) */
+        .result-display { display:flex; gap:10px; padding:10px 16px; border-top:1px solid #13131f; flex-wrap:wrap; align-items:center; }
+        .result-badge { font-size:12px; font-weight:700; padding:5px 12px; border-radius:20px; }
+        .result-badge.iy-ok   { background:#22c55e22; color:#22c55e; border:1px solid #22c55e44; }
+        .result-badge.iy-fail { background:#ef444422; color:#ef4444; border:1px solid #ef444444; }
+        .result-badge.iy2-ok  { background:#22c55e22; color:#22c55e; border:1px solid #22c55e44; }
+        .result-badge.iy2-fail{ background:#ef444422; color:#ef4444; border:1px solid #ef444444; }
+        .result-scores { font-size:11px; color:#555; font-family:'JetBrains Mono', monospace; }
+        .result-edit-btn { margin-left:auto; padding:4px 10px; border-radius:7px; border:1px solid #2a1a4e; background:transparent; color:#666; font-size:10px; cursor:pointer; font-family:inherit; }
+        .result-edit-btn:hover { color:#a78bfa; border-color:#a78bfa; }
 
+        /* Score entry */
+        .card-entry { display:flex; gap:8px; padding:10px 16px; border-top:1px solid #13131f; align-items:center; flex-wrap:wrap; }
+        .entry-group { display:flex; flex-direction:column; gap:3px; }
+        .entry-lbl { font-size:10px; color:#555; font-weight:600; }
+        .score-input { width:70px; padding:6px 10px; border-radius:8px; border:1px solid #2a1a4e; background:#080810; color:#fff; font-size:13px; font-family:'JetBrains Mono', monospace; font-weight:700; text-align:center; }
+        .score-input:focus { outline:none; border-color:#7c3aed; }
+        .score-input::placeholder { color:#333; }
+        .save-btn { padding:7px 16px; border-radius:8px; border:none; background:#7c3aed; color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; align-self:flex-end; }
+        .save-btn:hover { background:#6d28d9; }
+        .save-btn:disabled { opacity:.5; cursor:not-allowed; }
+
+        /* Telegram */
+        .card-actions { display:flex; gap:8px; padding:10px 16px; border-top:1px solid #13131f; }
         .tg-btn { padding:7px 14px; border-radius:8px; border:1px solid #2a6e9e; background:transparent; color:#38bdf8; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; }
         .tg-btn:hover { background:#1e4a6e; }
         .tg-btn.sent { border-color:#22c55e55; color:#22c55e; }
-
-        .result-group { display:flex; gap:6px; align-items:center; }
-        .result-lbl { font-size:10px; color:#555; font-weight:600; white-space:nowrap; }
-        .res-btn { padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; border:1px solid transparent; }
-        .res-btn.yes { border-color:#22c55e55; color:#22c55e; background:transparent; }
-        .res-btn.yes:hover, .res-btn.yes.active { background:#22c55e22; border-color:#22c55e; }
-        .res-btn.no  { border-color:#ef444455; color:#ef4444; background:transparent; }
-        .res-btn.no:hover, .res-btn.no.active  { background:#ef444422; border-color:#ef4444; }
 
         .empty-state { text-align:center; padding:60px 20px; color:#444; }
         .empty-state p { font-size:14px; }
@@ -83,14 +102,19 @@
 
     <div class="stats-bar" id="statsBar">
         <div class="stat-box">
-            <div class="stat-val" id="statIyVal">—</div>
+            <div class="stat-val green" id="statIyVal">—</div>
             <div class="stat-lbl">İY Tuttu</div>
             <div class="stat-sub" id="statIySub">— / —</div>
         </div>
         <div class="stat-box">
-            <div class="stat-val" id="statIy2Val">—</div>
-            <div class="stat-lbl">2Y 1.5 Tuttu</div>
-            <div class="stat-sub" id="statIy2Sub">— / —</div>
+            <div class="stat-val yellow" id="statSavedVal">—</div>
+            <div class="stat-lbl">Maç Kurtarıldı</div>
+            <div class="stat-sub" id="statSavedSub">— / —</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-val red" id="statNoneVal">—</div>
+            <div class="stat-lbl">İkisi de Tutmadı</div>
+            <div class="stat-sub" id="statNoneSub">— / —</div>
         </div>
     </div>
 
@@ -126,6 +150,20 @@
         return `${day}.${m}.${y}`;
     }
 
+    function fmtTime(raw) {
+        if (!raw) return '—';
+        // ISO string: "2026-04-08T10:00:00.000Z" → "10:00" (TR saat +3)
+        try {
+            const dt = new Date(raw);
+            if (!isNaN(dt)) {
+                return dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+            }
+        } catch(e) {}
+        // HH:MM zaten varsa olduğu gibi döndür
+        const m = raw.match(/(\d{2}:\d{2})/);
+        return m ? m[1] : raw;
+    }
+
     function setDate(d) {
         currentDate = d;
         dateDisplay.textContent = fmtDate(d);
@@ -149,10 +187,15 @@
         try {
             const r = await fetch('/api/iy-gol/stats');
             const s = await r.json();
-            document.getElementById('statIyVal').textContent  = s.iy_total  ? `%${s.iy_pct}`  : '—';
-            document.getElementById('statIy2Val').textContent = s.iy2_total ? `%${s.iy2_pct}` : '—';
-            document.getElementById('statIySub').textContent  = `${s.iy_correct} / ${s.iy_total}`;
-            document.getElementById('statIy2Sub').textContent = `${s.iy2_correct} / ${s.iy2_total}`;
+            const total = s.total_resolved || 0;
+
+            document.getElementById('statIyVal').textContent    = total ? `%${s.iy_pct}`    : '—';
+            document.getElementById('statSavedVal').textContent = total ? `%${s.saved_pct}`  : '—';
+            document.getElementById('statNoneVal').textContent  = total ? `%${s.none_pct}`   : '—';
+
+            document.getElementById('statIySub').textContent    = `${s.iy_correct} / ${total}`;
+            document.getElementById('statSavedSub').textContent = `${s.saved} / ${total}`;
+            document.getElementById('statNoneSub').textContent  = `${s.none} / ${total}`;
         } catch(e) {}
     }
 
@@ -176,31 +219,70 @@
             return;
         }
         matchesList.innerHTML = matches.map(m => cardHTML(m)).join('');
-        matchesList.querySelectorAll('.tg-btn').forEach(btn => {
-            btn.onclick = () => sendTelegram(btn);
-        });
-        matchesList.querySelectorAll('.res-btn').forEach(btn => {
-            btn.onclick = () => handleResult(btn);
-        });
+        // Event listeners
+        matchesList.querySelectorAll('.tg-btn').forEach(btn => btn.onclick = () => sendTelegram(btn));
+        matchesList.querySelectorAll('.save-btn').forEach(btn => btn.onclick = () => saveResult(btn));
+        matchesList.querySelectorAll('.result-edit-btn').forEach(btn => btn.onclick = () => editResult(btn));
+    }
+
+    function cardResultClass(m) {
+        if (m.iy_result === null || m.iy_result === undefined) return '';
+        if (m.iy_result === 1) return 'result-iy';
+        if (m.iy_result === 0 && m.iy2_result === 1) return 'result-saved';
+        return 'result-none';
+    }
+
+    function resultDisplayHTML(m) {
+        if (m.iy_result === null || m.iy_result === undefined) return '';
+
+        const iyBadge  = m.iy_result  === 1
+            ? `<span class="result-badge iy-ok">✅ İY Gol</span>`
+            : `<span class="result-badge iy-fail">❌ İY Gol Yok</span>`;
+
+        let iy2Badge = '';
+        if (m.iy2_result !== null && m.iy2_result !== undefined) {
+            iy2Badge = m.iy2_result === 1
+                ? `<span class="result-badge iy2-ok">✅ 2Y 1.5Ü</span>`
+                : `<span class="result-badge iy2-fail">❌ 2Y 1.5Ü</span>`;
+        }
+
+        const scores = (m.iy_score || m.ft_score)
+            ? `<span class="result-scores">İY: ${m.iy_score || '?'} — Maç: ${m.ft_score || '?'}</span>`
+            : '';
+
+        return `<div class="result-display" data-section="result-display">
+            ${iyBadge}${iy2Badge}${scores}
+            <button class="result-edit-btn" data-id="${m.id}">✏️ Düzenle</button>
+        </div>`;
+    }
+
+    function entryHTML(m) {
+        const hasResult = m.iy_result !== null && m.iy_result !== undefined;
+        const hidden = hasResult ? ' style="display:none"' : '';
+        return `<div class="card-entry" data-section="card-entry"${hidden}>
+            <div class="entry-group">
+                <span class="entry-lbl">İY Skoru</span>
+                <input class="score-input" data-field="iy_score" placeholder="1-0" value="${m.iy_score || ''}">
+            </div>
+            <div class="entry-group">
+                <span class="entry-lbl">Maç Sonu</span>
+                <input class="score-input" data-field="ft_score" placeholder="2-1" value="${m.ft_score || ''}">
+            </div>
+            <button class="save-btn" data-id="${m.id}">Kaydet</button>
+        </div>`;
     }
 
     function cardHTML(m) {
         const iy2Class = m.iy2_pct >= 65 ? '' : 'warn';
-        const iyR  = m.iy_result;
-        const iy2R = m.iy2_result;
-
-        function resBtnClass(val, target) {
-            if (val === target) return 'active';
-            return '';
-        }
+        const resClass = cardResultClass(m);
 
         return `
-        <div class="match-card" data-id="${m.id}" data-home="${esc(m.home_team)}" data-away="${esc(m.away_team)}" data-league="${esc(m.league)}" data-time="${esc(m.match_time)}">
+        <div class="match-card ${resClass}" data-id="${m.id}" data-home="${esc(m.home_team)}" data-away="${esc(m.away_team)}" data-league="${esc(m.league)}" data-time="${esc(m.match_time)}">
             <div class="card-top">
                 <div class="card-teams">${esc(m.home_team)} vs ${esc(m.away_team)}</div>
                 <div class="card-meta">
                     <span class="card-league">${esc(m.league)}</span>
-                    <span class="card-time">${esc(m.match_time)}</span>
+                    <span class="card-time">${fmtTime(m.match_time)}</span>
                 </div>
             </div>
             <div class="card-pcts">
@@ -213,24 +295,103 @@
                     <span class="pill-val ${iy2Class}">%${m.iy2_pct}</span>
                 </div>
             </div>
+            ${resultDisplayHTML(m)}
+            ${entryHTML(m)}
             <div class="card-actions">
                 <button class="tg-btn" data-id="${m.id}">📨 Telegram</button>
-                <div class="result-group">
-                    <span class="result-lbl">İY:</span>
-                    <button class="res-btn yes ${resBtnClass(iyR,1)}" data-id="${m.id}" data-field="iy_result" data-val="1">✅ Tuttu</button>
-                    <button class="res-btn no  ${resBtnClass(iyR,0)}" data-id="${m.id}" data-field="iy_result" data-val="0">❌ Tutmadı</button>
-                </div>
-                <div class="result-group">
-                    <span class="result-lbl">2Y:</span>
-                    <button class="res-btn yes ${resBtnClass(iy2R,1)}" data-id="${m.id}" data-field="iy2_result" data-val="1">✅ Tuttu</button>
-                    <button class="res-btn no  ${resBtnClass(iy2R,0)}" data-id="${m.id}" data-field="iy2_result" data-val="0">❌ Tutmadı</button>
-                </div>
             </div>
         </div>`;
     }
 
     function esc(s) {
         return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function parseScore(str) {
+        // "1-0", "1:0", "1 0" gibi formatları yakala
+        const m = String(str || '').match(/(\d+)\s*[-:]\s*(\d+)/);
+        if (!m) return null;
+        return { h: parseInt(m[1]), a: parseInt(m[2]) };
+    }
+
+    async function saveResult(btn) {
+        const card = btn.closest('.match-card');
+        const id   = parseInt(card.dataset.id);
+        const iyInput = card.querySelector('[data-field="iy_score"]');
+        const ftInput = card.querySelector('[data-field="ft_score"]');
+
+        const iyScore = parseScore(iyInput.value);
+        const ftScore = parseScore(ftInput.value);
+
+        if (!iyScore || !ftScore) {
+            showToast('Geçerli skor girin (örn: 1-0)', true);
+            return;
+        }
+
+        // İY gol hesabı
+        const iyGoals  = iyScore.h + iyScore.a;
+        const iy_result = iyGoals > 0 ? 1 : 0;
+
+        // 2Y gol hesabı: maç sonu - İY
+        const iy2Goals = (ftScore.h - iyScore.h) + (ftScore.a - iyScore.a);
+        const iy2_result = iy2Goals > 1 ? 1 : 0;
+
+        btn.disabled = true;
+        btn.textContent = '⏳';
+        try {
+            const r = await fetch('/api/iy-gol/result', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    id, iy_result, iy2_result,
+                    iy_score: iyInput.value.trim(),
+                    ft_score: ftInput.value.trim(),
+                })
+            });
+            const d = await r.json();
+            if (d.status === 'success') {
+                showToast('Sonuç kaydedildi');
+                // Kartı güncelle (full reload yerine local update)
+                const updated = {
+                    ...Object.fromEntries([...card.querySelectorAll('[data-field]')].map(el => [el.dataset.field, el.value])),
+                    id, iy_result, iy2_result,
+                    iy_score: iyInput.value.trim(),
+                    ft_score: ftInput.value.trim(),
+                    iy_pct: parseFloat(card.querySelector('.pill-val').textContent.replace('%','')),
+                    iy2_pct: parseFloat(card.querySelectorAll('.pill-val')[1].textContent.replace('%','')),
+                    home_team: card.dataset.home,
+                    away_team: card.dataset.away,
+                    league: card.dataset.league,
+                    match_time: card.dataset.time,
+                };
+                // Sonuç display'i göster, entry'yi gizle
+                card.querySelector('[data-section="card-entry"]').style.display = 'none';
+                const existing = card.querySelector('[data-section="result-display"]');
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = resultDisplayHTML(updated);
+                const newDisplay = tempDiv.firstElementChild;
+                if (existing) existing.replaceWith(newDisplay);
+                else card.querySelector('.card-pcts').insertAdjacentElement('afterend', newDisplay);
+                newDisplay.querySelector('.result-edit-btn').onclick = () => editResult(newDisplay.querySelector('.result-edit-btn'));
+                // Kart border rengini güncelle
+                card.className = `match-card ${cardResultClass(updated)}`;
+                loadStats();
+            } else {
+                showToast(d.message || 'Hata', true);
+            }
+        } catch(e) {
+            showToast('Bağlantı hatası', true);
+        }
+        btn.disabled = false;
+        btn.textContent = 'Kaydet';
+    }
+
+    function editResult(btn) {
+        const card = btn.closest('.match-card');
+        const display = card.querySelector('[data-section="result-display"]');
+        const entry   = card.querySelector('[data-section="card-entry"]');
+        if (display) display.style.display = 'none';
+        if (entry)   entry.style.display   = '';
     }
 
     async function sendTelegram(btn) {
@@ -245,7 +406,7 @@
                     home_team:  card.dataset.home,
                     away_team:  card.dataset.away,
                     league:     card.dataset.league,
-                    match_time: card.dataset.time,
+                    match_time: fmtTime(card.dataset.time),
                 })
             });
             const d = await r.json();
@@ -262,55 +423,6 @@
             showToast('Bağlantı hatası', true);
         }
         setTimeout(() => { btn.disabled = false; if (!btn.classList.contains('sent')) btn.textContent = '📨 Telegram'; }, 3000);
-    }
-
-    async function handleResult(btn) {
-        const id    = btn.dataset.id;
-        const field = btn.dataset.field;
-        const val   = parseInt(btn.dataset.val);
-        const card  = btn.closest('.match-card');
-
-        // Toggle: eğer zaten active ise null yap
-        const isActive = btn.classList.contains('active');
-        const newVal   = isActive ? null : val;
-
-        // Diğer butonu belirle
-        const siblings = card.querySelectorAll(`.res-btn[data-id="${id}"][data-field="${field}"]`);
-
-        // Mevcut state'i oku
-        let iy_result  = null;
-        let iy2_result = null;
-
-        // Tüm buton durumlarından mevcut state'i çıkar
-        card.querySelectorAll('.res-btn').forEach(b => {
-            if (b.classList.contains('active')) {
-                if (b.dataset.field === 'iy_result')  iy_result  = parseInt(b.dataset.val);
-                if (b.dataset.field === 'iy2_result') iy2_result = parseInt(b.dataset.val);
-            }
-        });
-
-        if (field === 'iy_result')  iy_result  = newVal;
-        if (field === 'iy2_result') iy2_result = newVal;
-
-        try {
-            const r = await fetch('/api/iy-gol/result', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ id: parseInt(id), iy_result, iy2_result })
-            });
-            const d = await r.json();
-            if (d.status === 'success') {
-                // Update UI
-                siblings.forEach(b => b.classList.remove('active'));
-                if (newVal !== null) btn.classList.add('active');
-                loadStats();
-                showToast('Sonuç kaydedildi');
-            } else {
-                showToast(d.message || 'Hata', true);
-            }
-        } catch(e) {
-            showToast('Bağlantı hatası', true);
-        }
     }
 
     document.getElementById('scanBtn').onclick = async () => {

@@ -115,9 +115,20 @@ def init_db():
             iy2_pct REAL,
             iy_result INTEGER,
             iy2_result INTEGER,
+            iy_score TEXT,
+            ft_score TEXT,
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
+    for sql in [
+        'ALTER TABLE iy_gol_tracker ADD COLUMN IF NOT EXISTS iy_score TEXT',
+        'ALTER TABLE iy_gol_tracker ADD COLUMN IF NOT EXISTS ft_score TEXT',
+    ]:
+        try:
+            cur.execute(sql)
+            conn.commit()
+        except:
+            conn.rollback()
     # ── YENİ: Günlük özet tablosu ────────────────────────────────────────────
     cur.execute('''
         CREATE TABLE IF NOT EXISTS daily_summaries (
@@ -745,12 +756,12 @@ def get_iy_matches_by_date(date):
     return [dict(r) for r in rows]
 
 
-def update_iy_result(row_id, iy_result, iy2_result):
+def update_iy_result(row_id, iy_result, iy2_result, iy_score=None, ft_score=None):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        'UPDATE iy_gol_tracker SET iy_result=%s, iy2_result=%s WHERE id=%s',
-        (iy_result, iy2_result, row_id)
+        'UPDATE iy_gol_tracker SET iy_result=%s, iy2_result=%s, iy_score=%s, ft_score=%s WHERE id=%s',
+        (iy_result, iy2_result, iy_score, ft_score, row_id)
     )
     conn.commit()
     cur.close()
@@ -762,24 +773,26 @@ def get_iy_stats():
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute('''
         SELECT
-            COUNT(CASE WHEN iy_result IS NOT NULL THEN 1 END) as iy_total,
+            COUNT(CASE WHEN iy_result IS NOT NULL THEN 1 END) as total_resolved,
             SUM(CASE WHEN iy_result = 1 THEN 1 ELSE 0 END) as iy_correct,
-            COUNT(CASE WHEN iy2_result IS NOT NULL THEN 1 END) as iy2_total,
-            SUM(CASE WHEN iy2_result = 1 THEN 1 ELSE 0 END) as iy2_correct
+            SUM(CASE WHEN iy_result = 0 AND iy2_result = 1 THEN 1 ELSE 0 END) as saved,
+            SUM(CASE WHEN iy_result = 0 AND iy2_result = 0 THEN 1 ELSE 0 END) as none
         FROM iy_gol_tracker
+        WHERE iy_result IS NOT NULL
     ''')
     row = dict(cur.fetchone())
     cur.close()
     conn.close()
-    iy_total = row['iy_total'] or 0
+    total = row['total_resolved'] or 0
     iy_correct = row['iy_correct'] or 0
-    iy2_total = row['iy2_total'] or 0
-    iy2_correct = row['iy2_correct'] or 0
+    saved = row['saved'] or 0
+    none_ = row['none'] or 0
     return {
-        'iy_total': iy_total,
+        'total_resolved': total,
         'iy_correct': iy_correct,
-        'iy_pct': round(iy_correct / iy_total * 100) if iy_total else 0,
-        'iy2_total': iy2_total,
-        'iy2_correct': iy2_correct,
-        'iy2_pct': round(iy2_correct / iy2_total * 100) if iy2_total else 0,
+        'iy_pct': round(iy_correct / total * 100) if total else 0,
+        'saved': saved,
+        'saved_pct': round(saved / total * 100) if total else 0,
+        'none': none_,
+        'none_pct': round(none_ / total * 100) if total else 0,
     }

@@ -1489,9 +1489,11 @@ def api_iy_gol_result():
         row_id = data.get('id')
         iy_result = data.get('iy_result')
         iy2_result = data.get('iy2_result')
+        iy_score = data.get('iy_score')
+        ft_score = data.get('ft_score')
         if row_id is None:
             return jsonify({"status": "error", "message": "id eksik"}), 400
-        update_iy_result(row_id, iy_result, iy2_result)
+        update_iy_result(row_id, iy_result, iy2_result, iy_score=iy_score, ft_score=ft_score)
         return jsonify({"status": "success"})
     except Exception as e:
         logger.error(f"IY gol result error: {e}")
