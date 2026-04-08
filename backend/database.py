@@ -102,6 +102,22 @@ def init_db():
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
+    # ── İY Gol Takip tablosu ─────────────────────────────────────────────────
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS iy_gol_tracker (
+            id SERIAL PRIMARY KEY,
+            match_date TEXT NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            league TEXT,
+            match_time TEXT,
+            iy_pct REAL,
+            iy2_pct REAL,
+            iy_result INTEGER,
+            iy2_result INTEGER,
+            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    ''')
     # ── YENİ: Günlük özet tablosu ────────────────────────────────────────────
     cur.execute('''
         CREATE TABLE IF NOT EXISTS daily_summaries (
@@ -685,3 +701,85 @@ def delete_today_analyses():
 
 def clear_today_analyses():
     delete_today_analyses()
+
+
+# ── İY Gol Tracker ───────────────────────────────────────────────────────────
+
+def save_iy_match(date, home, away, league, time, iy_pct, iy2_pct):
+    conn = get_conn()
+    cur = conn.cursor()
+    # Aynı gün aynı maç varsa güncelle, yoksa ekle
+    cur.execute(
+        'SELECT id FROM iy_gol_tracker WHERE match_date=%s AND home_team=%s AND away_team=%s',
+        (date, home, away)
+    )
+    existing = cur.fetchone()
+    if existing:
+        cur.execute('''
+            UPDATE iy_gol_tracker SET league=%s, match_time=%s, iy_pct=%s, iy2_pct=%s
+            WHERE id=%s
+        ''', (league, time, iy_pct, iy2_pct, existing[0]))
+        row_id = existing[0]
+    else:
+        cur.execute('''
+            INSERT INTO iy_gol_tracker (match_date, home_team, away_team, league, match_time, iy_pct, iy2_pct)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+        ''', (date, home, away, league, time, iy_pct, iy2_pct))
+        row_id = cur.fetchone()[0]
+    conn.commit()
+    cur.close()
+    conn.close()
+    return row_id
+
+
+def get_iy_matches_by_date(date):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        'SELECT * FROM iy_gol_tracker WHERE match_date=%s ORDER BY match_time ASC, id ASC',
+        (date,)
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_iy_result(row_id, iy_result, iy2_result):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        'UPDATE iy_gol_tracker SET iy_result=%s, iy2_result=%s WHERE id=%s',
+        (iy_result, iy2_result, row_id)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_iy_stats():
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('''
+        SELECT
+            COUNT(CASE WHEN iy_result IS NOT NULL THEN 1 END) as iy_total,
+            SUM(CASE WHEN iy_result = 1 THEN 1 ELSE 0 END) as iy_correct,
+            COUNT(CASE WHEN iy2_result IS NOT NULL THEN 1 END) as iy2_total,
+            SUM(CASE WHEN iy2_result = 1 THEN 1 ELSE 0 END) as iy2_correct
+        FROM iy_gol_tracker
+    ''')
+    row = dict(cur.fetchone())
+    cur.close()
+    conn.close()
+    iy_total = row['iy_total'] or 0
+    iy_correct = row['iy_correct'] or 0
+    iy2_total = row['iy2_total'] or 0
+    iy2_correct = row['iy2_correct'] or 0
+    return {
+        'iy_total': iy_total,
+        'iy_correct': iy_correct,
+        'iy_pct': round(iy_correct / iy_total * 100) if iy_total else 0,
+        'iy2_total': iy2_total,
+        'iy2_correct': iy2_correct,
+        'iy2_pct': round(iy2_correct / iy2_total * 100) if iy2_total else 0,
+    }

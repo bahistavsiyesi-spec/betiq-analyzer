@@ -11,7 +11,8 @@ from backend.database import (
     clear_pending_matches, clear_old_pending_matches,
     save_coupon, get_coupons, update_coupon_results,
     get_value_bet_stats,
-    save_summary, get_summary_by_date, get_summary_list
+    save_summary, get_summary_by_date, get_summary_list,
+    save_iy_match, get_iy_matches_by_date, update_iy_result, get_iy_stats,
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static', static_url_path='/static')
@@ -1379,6 +1380,160 @@ def api_summary_telegram():
     except Exception as e:
         logger.error(f"Summary telegram error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ── İY Gol Olur ──────────────────────────────────────────────────────────────
+
+@app.route('/iy-gol')
+def iy_gol():
+    return render_template('iy_gol.html')
+
+
+@app.route('/api/iy-gol/matches/<date>')
+def api_iy_gol_matches(date):
+    try:
+        matches = get_iy_matches_by_date(date)
+        return jsonify(matches)
+    except Exception as e:
+        logger.error(f"IY gol matches error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/iy-gol/scan', methods=['POST'])
+def api_iy_gol_scan():
+    try:
+        today = datetime.now().strftime('%Y-%m-%d')
+        pending = get_pending_matches()
+        if not pending:
+            return jsonify({"status": "error", "message": "Yüklenmiş CSV verisi bulunamadı"}), 404
+
+        found = []
+        for p in pending:
+            csv_data = p.get('csv_data') or {}
+            if isinstance(csv_data, str):
+                import json as _j
+                try:
+                    csv_data = _j.loads(csv_data)
+                except Exception:
+                    csv_data = {}
+
+            def _f(val):
+                try:
+                    v = float(val)
+                    return v if v > 1 else v * 100
+                except Exception:
+                    return None
+
+            # Alan adlarını normalize et
+            def _get(data, *keys):
+                for k in keys:
+                    v = data.get(k)
+                    if v not in (None, '', 0, '0'):
+                        return v
+                    # case-insensitive fallback
+                    for dk in data:
+                        if str(dk).strip().lower().replace(' ', '_') == k.lower().replace(' ', '_'):
+                            v = data[dk]
+                            if v not in (None, '', 0, '0'):
+                                return v
+                return None
+
+            raw_iy = _get(csv_data,
+                'Over05 FHG HT Average', 'over05_fhg_ht_average',
+                'ht_over05_avg', 'HT Over 0.5 Average', 'ht_over_05_avg')
+            raw_iy2 = _get(csv_data,
+                'Over15 2HG Average', 'over15_2hg_average',
+                '2h_over15_avg', '2HG Over 1.5 Average', 'over15_2hg_avg')
+
+            iy_pct = _f(raw_iy)
+            iy2_pct = _f(raw_iy2)
+
+            if iy_pct is None or iy2_pct is None:
+                continue
+            if iy_pct < 70 or iy2_pct < 50:
+                continue
+
+            row_id = save_iy_match(
+                date=today,
+                home=p['home_team'],
+                away=p['away_team'],
+                league=p.get('league', ''),
+                time=p.get('match_date', ''),
+                iy_pct=round(iy_pct, 1),
+                iy2_pct=round(iy2_pct, 1),
+            )
+            found.append({
+                'id': row_id,
+                'match_date': today,
+                'home_team': p['home_team'],
+                'away_team': p['away_team'],
+                'league': p.get('league', ''),
+                'match_time': p.get('match_date', ''),
+                'iy_pct': round(iy_pct, 1),
+                'iy2_pct': round(iy2_pct, 1),
+                'iy_result': None,
+                'iy2_result': None,
+            })
+
+        logger.info(f"IY Gol scan: {len(found)} mac bulundu")
+        return jsonify({"status": "success", "matches": found, "total": len(found)})
+    except Exception as e:
+        logger.error(f"IY gol scan error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/iy-gol/result', methods=['POST'])
+def api_iy_gol_result():
+    try:
+        data = request.get_json()
+        row_id = data.get('id')
+        iy_result = data.get('iy_result')
+        iy2_result = data.get('iy2_result')
+        if row_id is None:
+            return jsonify({"status": "error", "message": "id eksik"}), 400
+        update_iy_result(row_id, iy_result, iy2_result)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"IY gol result error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/iy-gol/telegram', methods=['POST'])
+def api_iy_gol_telegram():
+    try:
+        from backend.telegram_sender import send_message
+        data = request.get_json()
+        home = data.get('home_team', '')
+        away = data.get('away_team', '')
+        league = data.get('league', '')
+        match_time = data.get('match_time', '')
+        msg = (
+            f"⏱️ İY GOL OLUR\n"
+            f"⚽ {home} vs {away}\n"
+            f"🏆 {league} | {match_time}\n"
+            f"💡 İY gol olmazsa devre arası 1.5 üst giriyoruz\n"
+            f"---\n"
+            f"🤖 GOLLAZIM Analiz"
+        )
+        ok = send_message(msg)
+        if ok:
+            return jsonify({"status": "success"})
+        return jsonify({"status": "error", "message": "Telegram gönderilemedi"}), 500
+    except Exception as e:
+        logger.error(f"IY gol telegram error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/iy-gol/stats')
+def api_iy_gol_stats():
+    try:
+        stats = get_iy_stats()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"IY gol stats error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 if __name__ == '__main__':

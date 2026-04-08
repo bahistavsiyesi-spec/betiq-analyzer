@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetIQ — İY Gol Olur</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { background:#080810; color:#ccc; font-family:'Syne',sans-serif; min-height:100vh; margin:0; }
+
+        .page-header { padding:20px 20px 0; display:flex; align-items:center; gap:16px; max-width:700px; margin:0 auto; }
+        .back-btn { color:#a78bfa; text-decoration:none; font-size:13px; font-weight:600; }
+        .back-btn:hover { color:#fff; }
+        .page-title { font-size:20px; font-weight:800; color:#fff; margin:0; }
+
+        /* Stats bar */
+        .stats-bar { display:flex; gap:12px; padding:16px 20px; max-width:700px; margin:0 auto; flex-wrap:wrap; }
+        .stat-box { flex:1; min-width:130px; background:#0d0d1a; border:1px solid #1e1e3a; border-radius:12px; padding:14px; text-align:center; }
+        .stat-val { font-size:22px; font-weight:800; color:#a78bfa; }
+        .stat-lbl { font-size:10px; color:#555; margin-top:3px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+        .stat-sub { font-size:11px; color:#666; margin-top:2px; }
+
+        /* Controls */
+        .controls { padding:0 20px 12px; max-width:700px; margin:0 auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .date-nav { display:flex; align-items:center; gap:6px; }
+        .nav-btn { padding:7px 12px; border-radius:8px; border:1px solid #2a1a4e; background:transparent; color:#a78bfa; font-size:13px; cursor:pointer; font-family:inherit; transition:all .2s; }
+        .nav-btn:hover { background:#2a1a4e; color:#fff; }
+        .date-display { font-size:13px; font-weight:700; color:#fff; min-width:100px; text-align:center; }
+        input[type="date"] { padding:7px 10px; border-radius:8px; border:1px solid #2a1a4e; background:#0d0d1a; color:#a78bfa; font-size:12px; font-family:inherit; cursor:pointer; }
+        input[type="date"]:focus { outline:none; border-color:#7c3aed; }
+
+        .scan-btn { padding:9px 20px; border-radius:9px; border:none; background:#7c3aed; color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; margin-left:auto; }
+        .scan-btn:hover { background:#6d28d9; }
+        .scan-btn:disabled { opacity:.5; cursor:not-allowed; }
+
+        /* Match list */
+        .matches-wrap { padding:0 20px 40px; max-width:700px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+
+        .match-card { background:#0d0d1a; border:1px solid #1e1e3a; border-radius:14px; overflow:hidden; transition:border-color .2s; }
+        .match-card:hover { border-color:#2a1a4e; }
+
+        .card-top { padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+        .card-teams { font-size:14px; font-weight:800; color:#fff; }
+        .card-meta { display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
+        .card-league { font-size:11px; color:#555; font-weight:600; }
+        .card-time { font-size:11px; color:#a78bfa; font-weight:700; }
+
+        .card-pcts { display:flex; gap:10px; padding:10px 16px; border-top:1px solid #13131f; }
+        .pct-pill { display:flex; align-items:center; gap:6px; background:#12122a; border:1px solid #1e1e3a; border-radius:20px; padding:5px 12px; font-size:11px; font-weight:700; }
+        .pct-pill .pill-lbl { color:#666; }
+        .pct-pill .pill-val { color:#22c55e; }
+        .pct-pill .pill-val.warn { color:#f59e0b; }
+
+        .card-actions { display:flex; gap:8px; padding:10px 16px; border-top:1px solid #13131f; flex-wrap:wrap; }
+
+        .tg-btn { padding:7px 14px; border-radius:8px; border:1px solid #2a6e9e; background:transparent; color:#38bdf8; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; }
+        .tg-btn:hover { background:#1e4a6e; }
+        .tg-btn.sent { border-color:#22c55e55; color:#22c55e; }
+
+        .result-group { display:flex; gap:6px; align-items:center; }
+        .result-lbl { font-size:10px; color:#555; font-weight:600; white-space:nowrap; }
+        .res-btn { padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; border:1px solid transparent; }
+        .res-btn.yes { border-color:#22c55e55; color:#22c55e; background:transparent; }
+        .res-btn.yes:hover, .res-btn.yes.active { background:#22c55e22; border-color:#22c55e; }
+        .res-btn.no  { border-color:#ef444455; color:#ef4444; background:transparent; }
+        .res-btn.no:hover, .res-btn.no.active  { background:#ef444422; border-color:#ef4444; }
+
+        .empty-state { text-align:center; padding:60px 20px; color:#444; }
+        .empty-state p { font-size:14px; }
+        .empty-state small { font-size:11px; color:#333; }
+
+        .toast { position:fixed; bottom:24px; right:24px; background:#22c55e; color:#fff; padding:10px 20px; border-radius:10px; font-size:13px; font-weight:700; z-index:999; opacity:0; transition:opacity .3s; pointer-events:none; }
+        .toast.err { background:#ef4444; }
+        .toast.show { opacity:1; }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <a href="/" class="back-btn">← Ana Sayfa</a>
+        <h1 class="page-title">⏱️ İY Gol Olur</h1>
+    </div>
+
+    <div class="stats-bar" id="statsBar">
+        <div class="stat-box">
+            <div class="stat-val" id="statIyVal">—</div>
+            <div class="stat-lbl">İY Tuttu</div>
+            <div class="stat-sub" id="statIySub">— / —</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-val" id="statIy2Val">—</div>
+            <div class="stat-lbl">2Y 1.5 Tuttu</div>
+            <div class="stat-sub" id="statIy2Sub">— / —</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="date-nav">
+            <button class="nav-btn" id="prevDay">←</button>
+            <span class="date-display" id="dateDisplay"></span>
+            <button class="nav-btn" id="nextDay">→</button>
+        </div>
+        <input type="date" id="datePicker">
+        <button class="scan-btn" id="scanBtn">🔍 Tara</button>
+    </div>
+
+    <div class="matches-wrap" id="matchesList">
+        <div class="empty-state">
+            <p>Maç bulunamadı</p>
+            <small>CSV yükleyip "Tara" butonuna basın</small>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    const today = new Date().toISOString().slice(0, 10);
+    let currentDate = today;
+
+    const dateDisplay = document.getElementById('dateDisplay');
+    const datePicker  = document.getElementById('datePicker');
+    const matchesList = document.getElementById('matchesList');
+
+    function fmtDate(d) {
+        const [y, m, day] = d.split('-');
+        return `${day}.${m}.${y}`;
+    }
+
+    function setDate(d) {
+        currentDate = d;
+        dateDisplay.textContent = fmtDate(d);
+        datePicker.value = d;
+        loadMatches(d);
+    }
+
+    document.getElementById('prevDay').onclick = () => {
+        const d = new Date(currentDate);
+        d.setDate(d.getDate() - 1);
+        setDate(d.toISOString().slice(0, 10));
+    };
+    document.getElementById('nextDay').onclick = () => {
+        const d = new Date(currentDate);
+        d.setDate(d.getDate() + 1);
+        setDate(d.toISOString().slice(0, 10));
+    };
+    datePicker.onchange = () => setDate(datePicker.value);
+
+    async function loadStats() {
+        try {
+            const r = await fetch('/api/iy-gol/stats');
+            const s = await r.json();
+            document.getElementById('statIyVal').textContent  = s.iy_total  ? `%${s.iy_pct}`  : '—';
+            document.getElementById('statIy2Val').textContent = s.iy2_total ? `%${s.iy2_pct}` : '—';
+            document.getElementById('statIySub').textContent  = `${s.iy_correct} / ${s.iy_total}`;
+            document.getElementById('statIy2Sub').textContent = `${s.iy2_correct} / ${s.iy2_total}`;
+        } catch(e) {}
+    }
+
+    async function loadMatches(date) {
+        matchesList.innerHTML = '<div class="empty-state"><p>Yükleniyor…</p></div>';
+        try {
+            const r = await fetch(`/api/iy-gol/matches/${date}`);
+            const matches = await r.json();
+            renderMatches(matches);
+        } catch(e) {
+            matchesList.innerHTML = '<div class="empty-state"><p>Hata oluştu</p></div>';
+        }
+    }
+
+    function renderMatches(matches) {
+        if (!matches || matches.length === 0) {
+            matchesList.innerHTML = `<div class="empty-state">
+                <p>Bu tarihte maç yok</p>
+                <small>CSV yükleyip "Tara" butonuna basın</small>
+            </div>`;
+            return;
+        }
+        matchesList.innerHTML = matches.map(m => cardHTML(m)).join('');
+        matchesList.querySelectorAll('.tg-btn').forEach(btn => {
+            btn.onclick = () => sendTelegram(btn);
+        });
+        matchesList.querySelectorAll('.res-btn').forEach(btn => {
+            btn.onclick = () => handleResult(btn);
+        });
+    }
+
+    function cardHTML(m) {
+        const iy2Class = m.iy2_pct >= 65 ? '' : 'warn';
+        const iyR  = m.iy_result;
+        const iy2R = m.iy2_result;
+
+        function resBtnClass(val, target) {
+            if (val === target) return 'active';
+            return '';
+        }
+
+        return `
+        <div class="match-card" data-id="${m.id}" data-home="${esc(m.home_team)}" data-away="${esc(m.away_team)}" data-league="${esc(m.league)}" data-time="${esc(m.match_time)}">
+            <div class="card-top">
+                <div class="card-teams">${esc(m.home_team)} vs ${esc(m.away_team)}</div>
+                <div class="card-meta">
+                    <span class="card-league">${esc(m.league)}</span>
+                    <span class="card-time">${esc(m.match_time)}</span>
+                </div>
+            </div>
+            <div class="card-pcts">
+                <div class="pct-pill">
+                    <span class="pill-lbl">İY Gol</span>
+                    <span class="pill-val">%${m.iy_pct}</span>
+                </div>
+                <div class="pct-pill">
+                    <span class="pill-lbl">2Y 1.5Ü</span>
+                    <span class="pill-val ${iy2Class}">%${m.iy2_pct}</span>
+                </div>
+            </div>
+            <div class="card-actions">
+                <button class="tg-btn" data-id="${m.id}">📨 Telegram</button>
+                <div class="result-group">
+                    <span class="result-lbl">İY:</span>
+                    <button class="res-btn yes ${resBtnClass(iyR,1)}" data-id="${m.id}" data-field="iy_result" data-val="1">✅ Tuttu</button>
+                    <button class="res-btn no  ${resBtnClass(iyR,0)}" data-id="${m.id}" data-field="iy_result" data-val="0">❌ Tutmadı</button>
+                </div>
+                <div class="result-group">
+                    <span class="result-lbl">2Y:</span>
+                    <button class="res-btn yes ${resBtnClass(iy2R,1)}" data-id="${m.id}" data-field="iy2_result" data-val="1">✅ Tuttu</button>
+                    <button class="res-btn no  ${resBtnClass(iy2R,0)}" data-id="${m.id}" data-field="iy2_result" data-val="0">❌ Tutmadı</button>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function esc(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function sendTelegram(btn) {
+        const card = btn.closest('.match-card');
+        btn.disabled = true;
+        btn.textContent = '📤 Gönderiliyor…';
+        try {
+            const r = await fetch('/api/iy-gol/telegram', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    home_team:  card.dataset.home,
+                    away_team:  card.dataset.away,
+                    league:     card.dataset.league,
+                    match_time: card.dataset.time,
+                })
+            });
+            const d = await r.json();
+            if (d.status === 'success') {
+                btn.textContent = '✅ Gönderildi';
+                btn.classList.add('sent');
+                showToast('Telegram\'a gönderildi!');
+            } else {
+                btn.textContent = '❌ Hata';
+                showToast(d.message || 'Gönderilemedi', true);
+            }
+        } catch(e) {
+            btn.textContent = '❌ Hata';
+            showToast('Bağlantı hatası', true);
+        }
+        setTimeout(() => { btn.disabled = false; if (!btn.classList.contains('sent')) btn.textContent = '📨 Telegram'; }, 3000);
+    }
+
+    async function handleResult(btn) {
+        const id    = btn.dataset.id;
+        const field = btn.dataset.field;
+        const val   = parseInt(btn.dataset.val);
+        const card  = btn.closest('.match-card');
+
+        // Toggle: eğer zaten active ise null yap
+        const isActive = btn.classList.contains('active');
+        const newVal   = isActive ? null : val;
+
+        // Diğer butonu belirle
+        const siblings = card.querySelectorAll(`.res-btn[data-id="${id}"][data-field="${field}"]`);
+
+        // Mevcut state'i oku
+        let iy_result  = null;
+        let iy2_result = null;
+
+        // Tüm buton durumlarından mevcut state'i çıkar
+        card.querySelectorAll('.res-btn').forEach(b => {
+            if (b.classList.contains('active')) {
+                if (b.dataset.field === 'iy_result')  iy_result  = parseInt(b.dataset.val);
+                if (b.dataset.field === 'iy2_result') iy2_result = parseInt(b.dataset.val);
+            }
+        });
+
+        if (field === 'iy_result')  iy_result  = newVal;
+        if (field === 'iy2_result') iy2_result = newVal;
+
+        try {
+            const r = await fetch('/api/iy-gol/result', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: parseInt(id), iy_result, iy2_result })
+            });
+            const d = await r.json();
+            if (d.status === 'success') {
+                // Update UI
+                siblings.forEach(b => b.classList.remove('active'));
+                if (newVal !== null) btn.classList.add('active');
+                loadStats();
+                showToast('Sonuç kaydedildi');
+            } else {
+                showToast(d.message || 'Hata', true);
+            }
+        } catch(e) {
+            showToast('Bağlantı hatası', true);
+        }
+    }
+
+    document.getElementById('scanBtn').onclick = async () => {
+        const btn = document.getElementById('scanBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Taranıyor…';
+        try {
+            const r = await fetch('/api/iy-gol/scan', { method: 'POST' });
+            const d = await r.json();
+            if (d.status === 'success') {
+                showToast(`${d.total} maç bulundu`);
+                loadMatches(currentDate);
+            } else {
+                showToast(d.message || 'Tara başarısız', true);
+            }
+        } catch(e) {
+            showToast('Bağlantı hatası', true);
+        }
+        btn.disabled = false;
+        btn.textContent = '🔍 Tara';
+    };
+
+    function showToast(msg, err=false) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast' + (err ? ' err' : '') + ' show';
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // Init
+    setDate(today);
+    loadStats();
+    </script>
+</body>
+</html>
