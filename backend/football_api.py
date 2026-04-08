@@ -544,14 +544,12 @@ def get_footballdata_match_id(home_team, away_team, league_code):
         )
         if not result or not result.get('matches'):
             return None
-        home_norm = normalize_name(home_team)
-        away_norm = normalize_name(away_team)
         for m in result['matches']:
-            mh = normalize_name(m.get('homeTeam', {}).get('name', ''))
-            ma = normalize_name(m.get('awayTeam', {}).get('name', ''))
-            if (home_norm in mh or mh in home_norm) and (away_norm in ma or ma in away_norm):
+            api_home = m.get('homeTeam', {}).get('name', '')
+            api_away = m.get('awayTeam', {}).get('name', '')
+            if teams_match(home_team, api_home) and teams_match(away_team, api_away):
                 match_id = m.get('id')
-                logger.info(f'Football-data match ID found: {home_team} vs {away_team} -> {match_id}')
+                logger.info(f'Football-data match ID found: {home_team} vs {away_team} -> {match_id} ({api_home} vs {api_away})')
                 return match_id
         logger.info(f'Football-data match ID not found for {home_team} vs {away_team} in {league_code}')
         return None
