@@ -1439,11 +1439,11 @@ def api_iy_gol_scan():
                 return None
 
             raw_iy = _get(csv_data,
-                'Over05 FHG HT Average', 'over05_fhg_ht_average',
-                'ht_over05_avg', 'HT Over 0.5 Average', 'ht_over_05_avg')
+                'ht_over05_avg',          # app.js'in yazdığı gerçek key
+                'Over05 FHG HT Average', 'over05_fhg_ht_average', 'ht_over_05_avg')
             raw_iy2 = _get(csv_data,
-                'Over15 2HG Average', 'over15_2hg_average',
-                '2h_over15_avg', '2HG Over 1.5 Average', 'over15_2hg_avg')
+                'ht2_over15_avg',         # app.js'in yazdığı gerçek key
+                'Over15 2HG Average', 'over15_2hg_average', '2h_over15_avg', 'over15_2hg_avg')
 
             iy_pct = _f(raw_iy)
             iy2_pct = _f(raw_iy2)
