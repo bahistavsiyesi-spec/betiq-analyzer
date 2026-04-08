@@ -561,9 +561,14 @@ def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
 
 # ─── Gerçek H2H (football-data.org /matches/{id}/head2head) ──────────────────
 
+_FD_SUPPORTED_COMPETITIONS = ('CL',)
+
 def get_footballdata_match_id(home_team, away_team, league_code):
     """Bugünkü maçlar arasından football-data.org maç ID'sini döndür."""
     if not FOOTBALL_DATA_KEY or not league_code:
+        return None
+    if league_code not in _FD_SUPPORTED_COMPETITIONS:
+        logger.debug(f'get_footballdata_match_id: {league_code} desteklenmiyor, atlanıyor')
         return None
     try:
         today_str = date.today().isoformat()
@@ -798,6 +803,9 @@ def _find_team_in_standings(team_name, standings):
 def get_team_standing(team_name, country_code, league_name=None):
     logger.info(f'get_team_standing: {team_name} | country_code={country_code} | league_name={league_name}')
     league_code = LEAGUE_CODES.get(country_code)
+    if league_code in ('EL', 'EC'):
+        logger.debug(f'get_team_standing: {league_code} desteklenmiyor, atlanıyor')
+        return None
     if league_code:
         standings = get_standings_cached(league_code)
         if standings:
