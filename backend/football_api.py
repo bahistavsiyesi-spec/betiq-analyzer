@@ -75,34 +75,53 @@ COLLECT_API_LEAGUE_MAP = {
 }
 
 # ─── Gençlik/Rezerv takım suffix'leri ────────────────────────────────────────
-YOUTH_SUFFIXES = (
+# Substring olarak arama yapılacak keyword'ler (kelimenin ortasında da olabilir)
+_YOUTH_CONTAINS = (
     'u21', 'u18', 'u23', 'u19', 'u20', 'u17', 'u16', 'u15',
-    'reserves', 'reserve', 'youth', ' ii', ' b', 'res.',
-    'development', 'academy', 'cdp',
+    'reserves', 'reserve', 'youth', 'development', 'academy', 'cdp',
 )
+# Sadece ismin SONUNDA olması gereken suffix'ler (yanlış pozitif önlemek için)
+_YOUTH_ENDSWITH = (' ii', ' b', ' c', 'res.')
 
 def is_youth_or_reserve(team_name):
     name_lower = team_name.lower()
-    for suffix in YOUTH_SUFFIXES:
-        if suffix in name_lower:
+    for kw in _YOUTH_CONTAINS:
+        if kw in name_lower:
+            return True
+    for suffix in _YOUTH_ENDSWITH:
+        if name_lower.endswith(suffix):
             return True
     return False
 
 
+# Normalize sırasında baştan atılacak prefix'ler (boşluk silindikten sonra)
+_CLUB_PREFIXES = ('afc', 'fc', 'sc', 'ac', 'as', 'cf', 'rb', 'vfl', 'vfb', 'tsv', 'fsv', 'sv', 'bv')
+# Sondan atılacak suffix'ler
+_CLUB_SUFFIXES = ('wanderers', 'united', 'city', 'town', 'afc', 'fc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv')
+
 def normalize_name(name):
     name = name.lower().strip()
     replacements = {
-        'ö': 'o', 'oe': 'o', 'ü': 'u', 'ue': 'u',
-        'ä': 'a', 'ae': 'a', 'ß': 'ss',
-        'é': 'e', 'è': 'e', 'ñ': 'n',
-        'á': 'a', 'í': 'i', 'ó': 'o', 'ú': 'u',
+        'ö': 'o', 'ü': 'u', 'ä': 'a', 'ß': 'ss',
+        'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+        'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a',
+        'í': 'i', 'ì': 'i', 'î': 'i',
+        'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o',
+        'ú': 'u', 'ù': 'u', 'û': 'u',
+        'ñ': 'n', 'ç': 'c',
         '.': '', '-': '', "'": '', ' ': '',
     }
     for old, new in replacements.items():
         name = name.replace(old, new)
-    for suffix in ('wanderers', 'united', 'city', 'town', 'afc', 'fc', 'sc', 'cf', 'ac', 'sv', 'bv', 'vfl', 'vfb', 'rb', 'tsv', 'fsv'):
+    # Önce sonu temizle (örn: "manchesterfc" → "manchester")
+    for suffix in _CLUB_SUFFIXES:
         if name.endswith(suffix) and len(name) > len(suffix) + 2:
             name = name[:-len(suffix)]
+            break
+    # Sonra başı temizle (örn: "fcbarcelona" → "barcelona")
+    for prefix in _CLUB_PREFIXES:
+        if name.startswith(prefix) and len(name) > len(prefix) + 2:
+            name = name[len(prefix):]
             break
     return name
 
