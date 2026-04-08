@@ -249,7 +249,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     h2h_fd = None
     try:
         fd_league_code = LEAGUE_CODES.get(country_code) if country_code else None
-        if fd_league_code and fd_league_code not in ('CL', 'EL', 'EC'):
+        if fd_league_code:
             h2h_fd = get_h2h_footballdata(home_name, away_name, fd_league_code)
             if h2h_fd:
                 logger.info(
