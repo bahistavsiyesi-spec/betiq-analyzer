@@ -126,7 +126,36 @@ def normalize_name(name):
     return name
 
 
+TEAM_ALIASES = {
+    'psg':              'paris saint-germain',
+    'paris sg':         'paris saint-germain',
+    'man utd':          'manchester united',
+    'man city':         'manchester city',
+    'atletico':         'atletico madrid',
+    'inter':            'inter milan',
+    'ac milan':         'milan',
+    'spurs':            'tottenham',
+    'wolves':           'wolverhampton',
+    'barca':            'barcelona',
+    'juve':             'juventus',
+    'napoli':           'napoli',
+    'ajax':             'ajax',
+    'benfica':          'benfica',
+    'porto':            'porto',
+    'sporting':         'sporting cp',
+}
+
+def _resolve_alias(name):
+    """Kısaltma/alias ise tam adını döndür, yoksa orijinali döndür."""
+    key = name.lower().strip()
+    return TEAM_ALIASES.get(key, name)
+
+
 def teams_match(name_a, name_b):
+    # Alias çözümlemesi — "PSG" → "paris saint-germain" gibi
+    name_a = _resolve_alias(name_a)
+    name_b = _resolve_alias(name_b)
+
     def _nv2(name):
         name = name.lower().strip()
         name = re.sub(r'\b(club|de|del|el|los|las|the)\b', ' ', name)
