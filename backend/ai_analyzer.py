@@ -413,6 +413,8 @@ def build_prompt(home_team, away_team, league, match_time,
     btts_csv = csv_data.get('btts_avg') if csv_data else None
     ht_csv = csv_data.get('ht_over05_avg') if csv_data else None
 
+    h2h_avg_goals = None  # pct_rules bloğunda kullanılıyor, aşağıda hesaplanıyor
+
     pct_rules = '\n── Yüzde Hesaplama Kuralları (ZORUNLU) ──\n'
     pct_rules += 'CSV verileri varsa aşağıdaki sapma sınırlarına KESINLIKLE uy:\n\n'
 
