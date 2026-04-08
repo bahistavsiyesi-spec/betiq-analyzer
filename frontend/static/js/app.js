@@ -949,27 +949,33 @@ async function runAnalysis(){
         },(duration/7)*i);
     });
     try {
+        // Analiz başlamadan önce mevcut maç sayısını kaydet
+        const beforeRes=await fetch('/api/matches/today');
+        const beforeMatches=await beforeRes.json().catch(()=>[]);
+        const countBefore=Array.isArray(beforeMatches)?beforeMatches.length:0;
+
         const resp=await fetch('/api/analyze/selected',{method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({fixture_ids:fixtureIds,manual_matches:manualMatches,ai_provider:selectedAiProvider})});
         const data=await resp.json();
         if(data.status==='success'){
             selectedFixtures={};
-            setTimeout(async()=>await checkAndReload(statusDiv,btn,total),duration+2000);
+            setTimeout(async()=>await checkAndReload(statusDiv,btn,total,countBefore),duration+2000);
         } else showError(statusDiv,btn,data.message);
     } catch(e){showError(statusDiv,btn,e.message);}
 }
 
-async function checkAndReload(statusDiv,btn,total){
+async function checkAndReload(statusDiv,btn,total,countBefore=0){
     try {
         const res=await fetch('/api/matches/today'); const matches=await res.json();
-        if(matches&&matches.length>0){
+        // Yeni maç eklendiyse (sayı artmışsa) güncelle
+        if(matches && matches.length > countBefore){
             const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
             if(bar)bar.style.width='100%'; if(txt)txt.textContent='✅ Analiz tamamlandi!';
             statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} mac analiz edildi!</span></div>`;
             renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et'; statusDiv.style.display='none';
             await loadFixtures();
-        } else setTimeout(()=>checkAndReload(statusDiv,btn,total),5000);
-    } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total),5000);}
+        } else setTimeout(()=>checkAndReload(statusDiv,btn,total,countBefore),5000);
+    } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total,countBefore),5000);}
 }
 
 function showError(statusDiv,btn,message){
