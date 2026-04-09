@@ -1086,7 +1086,7 @@ def api_debug_analysis_data(analysis_id):
             extract_form_from_fixtures, extract_goals_avg,
             extract_h2h_summary, _get_country_code,
         )
-        from backend.ai_analyzer import _safe_float, calculate_value_bets, _is_score_valid, _is_ht_ft_consistent
+        from backend.ai_analyzer import _safe_float, calculate_value_bets, _is_score_valid, _is_ht_ft_consistent, predict_score_poisson
         import json as _json
 
         analysis = get_analysis_by_id(analysis_id)
@@ -1282,6 +1282,15 @@ def api_debug_analysis_data(analysis_id):
         }
 
         try:
+            h2h_raw_poisson = get_h2h(home_team, away_team, last=5) if not is_youth else []
+            poisson_debug = predict_score_poisson(
+                home_matches, away_matches, home_team, away_team,
+                h2h_data=h2h_raw_poisson, return_debug=True
+            )
+        except Exception as e:
+            poisson_debug = {'error': str(e)}
+
+        try:
             vb_raw = analysis.get('value_bets')
             value_bets = _json.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
         except:
@@ -1314,6 +1323,7 @@ def api_debug_analysis_data(analysis_id):
             'score':        score_info,
             'value_bets':   value_bets,
             'overall':      overall,
+            'poisson':      poisson_debug,
         })
 
     except Exception as e:

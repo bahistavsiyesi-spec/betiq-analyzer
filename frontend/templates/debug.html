@@ -460,6 +460,59 @@ function renderDebug(data, match) {
         </div>`;
     });
 
+    // ── Skor Tahmin (Poisson) Kartı ──
+    const poisson = data.poisson || {};
+    const pHome = poisson.home_data_source || 'league_avg';
+    const pAway = poisson.away_data_source || 'league_avg';
+    const poissonCardStatus = (pHome !== 'league_avg' && pAway !== 'league_avg') ? 'ok'
+        : (pHome === 'league_avg' && pAway === 'league_avg') ? 'error' : 'warn';
+
+    function srcLabel(src) {
+        if (src === 'venue')      return '<span class="data-val green">Gerçek (venue)</span>';
+        if (src === 'general')    return '<span class="data-val yellow">Genel ort. (fallback)</span>';
+        if (src === 'league_avg') return '<span class="data-val red">Lig ort. (veri yok)</span>';
+        return '<span class="data-val gray">—</span>';
+    }
+
+    let poissonRows = '';
+    if (poisson.error) {
+        poissonRows = `<div class="data-row"><span class="data-val red">❌ ${poisson.error}</span></div>`;
+    } else {
+        poissonRows += `<div class="data-row">
+            <span class="data-key">${match.home_team} (ev)</span>
+            <span class="data-val">${poisson.home_match_count ?? '?'} maç · avg=${poisson.home_avg ?? '?'}</span>
+        </div>`;
+        poissonRows += `<div class="data-row">
+            <span class="data-key">  kaynak</span>
+            ${srcLabel(pHome)}
+        </div>`;
+        poissonRows += `<div class="data-row">
+            <span class="data-key">${match.away_team} (dep)</span>
+            <span class="data-val">${poisson.away_match_count ?? '?'} maç · avg=${poisson.away_avg ?? '?'}</span>
+        </div>`;
+        poissonRows += `<div class="data-row">
+            <span class="data-key">  kaynak</span>
+            ${srcLabel(pAway)}
+        </div>`;
+        poissonRows += `<div class="data-row">
+            <span class="data-key">H2H</span>
+            <span class="data-val ${poisson.h2h_used ? 'green' : 'yellow'}">${poisson.h2h_used ? '✅ %20 ağırlıkla karıştırıldı' : '⚠️ atlandı'}</span>
+        </div>`;
+        poissonRows += `<div class="data-row">
+            <span class="data-key">xG kullanılan</span>
+            <span class="data-val blue">ev=${poisson.home_xg ?? '?'} · dep=${poisson.away_xg ?? '?'}</span>
+        </div>`;
+        const usedPoisson = (pHome !== 'league_avg' || pAway !== 'league_avg');
+        poissonRows += `<div class="data-row">
+            <span class="data-key">Yöntem</span>
+            <span class="data-val ${usedPoisson ? 'green' : 'red'}">${usedPoisson ? '✅ Poisson kullanıldı' : '❌ Lig ortalamasına düşüldü'}</span>
+        </div>`;
+        poissonRows += `<div class="data-row">
+            <span class="data-key">Tahmin</span>
+            <span class="data-val purple" style="font-size:13px;font-weight:800;">${poisson.score ?? '?'} <span style="font-size:10px;color:#666;">(p=${poisson.best_prob ?? '?'})</span></span>
+        </div>`;
+    }
+
     // ── Karar Zinciri ──
     const decision = data.decision || {};
     let decisionHtml = '<div class="decision-chain">';
@@ -581,6 +634,15 @@ function renderDebug(data, match) {
             </div>
             ${h2h.avg_goals !== undefined ? `<div class="data-row"><span class="data-key">Ort. gol</span><span class="data-val blue">${h2h.avg_goals}</span></div>` : ''}
             ${h2h.home_wins !== undefined ? `<div class="data-row"><span class="data-key">Ev / Dep / Ber</span><span class="data-val purple">${h2h.home_wins}W · ${h2h.away_wins}W · ${h2h.draws}D</span></div>` : ''}
+        </div>
+
+        <!-- Skor Tahmin (Poisson) -->
+        <div class="debug-card ${poissonCardStatus}">
+            <div class="card-header">
+                <div class="card-title">🎯 SKOR TAHMİN (Poisson)</div>
+                <div class="card-badge ${badgeClass(poissonCardStatus)}">${badgeText(poissonCardStatus)}</div>
+            </div>
+            ${poissonRows}
         </div>
 
         <!-- Karar Zinciri -->

@@ -1110,7 +1110,7 @@ def _repair_ht_from_ft(ft_score_text, ht2g_pct=None):
     return '1-0'
 
 
-def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None):
+def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None, return_debug=False):
     """
     Poisson dağılımı kullanarak en olasılıklı skoru tahmin eder.
 
@@ -1180,14 +1180,17 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
     if _avg(h_scored_home) is not None:
         h_attack = _avg(h_scored_home)
         h_defense = _avg(h_conceded_home) or LEAGUE_AWAY_AVG
+        home_data_source = 'venue'
     elif _avg(h_scored_all) is not None:
         logger.warning(f'[SKOR TAHMİN] {home_name} - home/away verisi yok, genel ortalama kullanıldı')
         h_attack = _avg(h_scored_all)
         h_defense = _avg(h_conceded_all) or LEAGUE_AWAY_AVG
+        home_data_source = 'general'
     else:
         logger.warning(f'[SKOR TAHMİN] {home_name} - son maç verisi yok, ortalama kullanıldı')
         h_attack = LEAGUE_HOME_AVG
         h_defense = LEAGUE_AWAY_AVG
+        home_data_source = 'league_avg'
 
     # ── 2. Deplasman hücum/savunma ortalamaları ───────────────────────────────
     a_scored_away, a_conceded_away = _extract_venue_goals(away_matches, away_name, False)
@@ -1196,20 +1199,24 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
     if _avg(a_scored_away) is not None:
         a_attack = _avg(a_scored_away)
         a_defense = _avg(a_conceded_away) or LEAGUE_HOME_AVG
+        away_data_source = 'venue'
     elif _avg(a_scored_all) is not None:
         logger.warning(f'[SKOR TAHMİN] {away_name} - home/away verisi yok, genel ortalama kullanıldı')
         a_attack = _avg(a_scored_all)
         a_defense = _avg(a_conceded_all) or LEAGUE_HOME_AVG
+        away_data_source = 'general'
     else:
         logger.warning(f'[SKOR TAHMİN] {away_name} - son maç verisi yok, ortalama kullanıldı')
         a_attack = LEAGUE_AWAY_AVG
         a_defense = LEAGUE_HOME_AVG
+        away_data_source = 'league_avg'
 
     # ── 3. Beklenen gol = (takım hücum ort + rakip savunma zafiyeti) / 2 ─────
     home_xg = (h_attack + a_defense) / 2
     away_xg = (a_attack + h_defense) / 2
 
     # ── 4. H2H karıştırma (%20 ağırlık) ──────────────────────────────────────
+    h2h_used = False
     if h2h_data:
         h2h_home_goals, h2h_away_goals = [], []
         for m in (h2h_data or [])[-5:]:
@@ -1234,6 +1241,7 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
             h2h_away_xg = sum(h2h_away_goals) / len(h2h_away_goals)
             home_xg = home_xg * 0.8 + h2h_home_xg * 0.2
             away_xg = away_xg * 0.8 + h2h_away_xg * 0.2
+            h2h_used = True
         else:
             logger.warning('[SKOR TAHMİN] H2H bulunamadı, ağırlık atlandı')
     else:
@@ -1262,7 +1270,22 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
         f'{away_name} xG={away_xg:.2f} → {best_home_goals}-{best_away_goals} '
         f'(p={best_prob:.4f})'
     )
-    return f'{best_home_goals}-{best_away_goals}'
+    score_str = f'{best_home_goals}-{best_away_goals}'
+    if not return_debug:
+        return score_str
+    return {
+        'score': score_str,
+        'home_match_count': len(home_matches) if home_matches else 0,
+        'away_match_count': len(away_matches) if away_matches else 0,
+        'home_avg': round(h_attack, 2),
+        'away_avg': round(a_attack, 2),
+        'home_data_source': home_data_source,
+        'away_data_source': away_data_source,
+        'h2h_used': h2h_used,
+        'home_xg': round(home_xg, 2),
+        'away_xg': round(away_xg, 2),
+        'best_prob': round(best_prob, 4),
+    }
 
 
 def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
