@@ -1526,6 +1526,19 @@ def api_iy_gol_telegram():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route('/api/iy-gol/debug')
+def api_iy_gol_debug():
+    from backend.database import get_conn
+    import json
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, match_date, home_team, away_team, iy_result, iy2_result FROM iy_gol_tracker ORDER BY id")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify([{'id':r[0],'date':r[1],'home':r[2],'away':r[3],'iy_result':r[4],'iy2_result':r[5]} for r in rows])
+
+
 @app.route('/api/iy-gol/stats')
 def api_iy_gol_stats():
     try:
