@@ -169,6 +169,7 @@
         dateDisplay.textContent = fmtDate(d);
         datePicker.value = d;
         loadMatches(d);
+        loadStats(d);
     }
 
     document.getElementById('prevDay').onclick = () => {
@@ -183,9 +184,9 @@
     };
     datePicker.onchange = () => setDate(datePicker.value);
 
-    async function loadStats() {
+    async function loadStats(date) {
         try {
-            const r = await fetch('/api/iy-gol/stats');
+            const r = await fetch(`/api/iy-gol/stats?date=${date}`);
             const s = await r.json();
             const total = s.total_resolved || 0;
 
@@ -375,7 +376,7 @@
                 newDisplay.querySelector('.result-edit-btn').onclick = () => editResult(newDisplay.querySelector('.result-edit-btn'));
                 // Kart border rengini güncelle
                 card.className = `match-card ${cardResultClass(updated)}`;
-                loadStats();
+                loadStats(currentDate);
             } else {
                 showToast(d.message || 'Hata', true);
             }
@@ -454,7 +455,6 @@
 
     // Init
     setDate(today);
-    loadStats();
     </script>
 </body>
 </html>

@@ -768,18 +768,29 @@ def update_iy_result(row_id, iy_result, iy2_result, iy_score=None, ft_score=None
     conn.close()
 
 
-def get_iy_stats():
+def get_iy_stats(date=None):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('''
-        SELECT
-            COUNT(*) as total_resolved,
-            SUM(CASE WHEN iy_result = 1 THEN 1 ELSE 0 END) as iy_correct,
-            SUM(CASE WHEN iy_result = 0 AND iy2_result = 1 THEN 1 ELSE 0 END) as saved,
-            SUM(CASE WHEN iy_result = 0 AND iy2_result = 0 THEN 1 ELSE 0 END) as none
-        FROM iy_gol_tracker
-        WHERE iy_result IS NOT NULL AND (iy_result = 1 OR iy2_result IS NOT NULL)
-    ''')
+    if date:
+        cur.execute('''
+            SELECT
+                COUNT(*) as total_resolved,
+                SUM(CASE WHEN iy_result = 1 THEN 1 ELSE 0 END) as iy_correct,
+                SUM(CASE WHEN iy_result = 0 AND iy2_result = 1 THEN 1 ELSE 0 END) as saved,
+                SUM(CASE WHEN iy_result = 0 AND iy2_result = 0 THEN 1 ELSE 0 END) as none
+            FROM iy_gol_tracker
+            WHERE match_date=%s AND iy_result IS NOT NULL AND (iy_result = 1 OR iy2_result IS NOT NULL)
+        ''', (date,))
+    else:
+        cur.execute('''
+            SELECT
+                COUNT(*) as total_resolved,
+                SUM(CASE WHEN iy_result = 1 THEN 1 ELSE 0 END) as iy_correct,
+                SUM(CASE WHEN iy_result = 0 AND iy2_result = 1 THEN 1 ELSE 0 END) as saved,
+                SUM(CASE WHEN iy_result = 0 AND iy2_result = 0 THEN 1 ELSE 0 END) as none
+            FROM iy_gol_tracker
+            WHERE iy_result IS NOT NULL AND (iy_result = 1 OR iy2_result IS NOT NULL)
+        ''')
     row = dict(cur.fetchone())
     cur.close()
     conn.close()

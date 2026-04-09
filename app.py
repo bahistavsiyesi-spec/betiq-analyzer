@@ -1529,7 +1529,8 @@ def api_iy_gol_telegram():
 @app.route('/api/iy-gol/stats')
 def api_iy_gol_stats():
     try:
-        stats = get_iy_stats()
+        date = request.args.get('date')
+        stats = get_iy_stats(date=date)
         return jsonify(stats)
     except Exception as e:
         logger.error(f"IY gol stats error: {e}")
