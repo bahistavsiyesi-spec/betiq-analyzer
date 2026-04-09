@@ -607,11 +607,23 @@ def api_telegram_send_card():
         if not token or not chat_id:
             return jsonify({"status": "error", "message": "Telegram ayarlari eksik"}), 400
         img_bytes = base64.b64decode(image_data)
+        if len(img_bytes) > 1 * 1024 * 1024:
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(img_bytes))
+            quality = 85
+            while True:
+                buf = io.BytesIO()
+                img.save(buf, format='JPEG', quality=quality, optimize=True)
+                img_bytes = buf.getvalue()
+                if len(img_bytes) <= 1 * 1024 * 1024 or quality <= 40:
+                    break
+                quality -= 15
         resp = req.post(
             f'https://api.telegram.org/bot{token}/sendPhoto',
             data={'chat_id': chat_id, 'caption': caption, 'parse_mode': 'HTML'},
-            files={'photo': ('card.png', img_bytes, 'image/png')},
-            timeout=30
+            files={'photo': ('card.jpg', img_bytes, 'image/jpeg')},
+            timeout=25
         )
         resp.raise_for_status()
         return jsonify({"status": "success"})
