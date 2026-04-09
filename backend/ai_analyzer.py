@@ -1,3 +1,4 @@
+import math
 import os
 import json
 import logging
@@ -1109,6 +1110,161 @@ def _repair_ht_from_ft(ft_score_text, ht2g_pct=None):
     return '1-0'
 
 
+def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None):
+    """
+    Poisson dağılımı kullanarak en olasılıklı skoru tahmin eder.
+
+    Mantık:
+    - Son 5 maçtan ev/deplasman ayrımlı ortalama hesapla
+    - Beklenen gol = (takım hücum ort + rakip savunma zafiyeti) / 2
+    - 0-5 gol arası tüm kombinasyonlar için P(h)*P(a) hesapla
+    - H2H varsa %20 ağırlıkla karıştır
+
+    Returns: "X-Y" string
+    """
+    LEAGUE_HOME_AVG = 1.55  # genel lig ev sahibi gol ortalaması
+    LEAGUE_AWAY_AVG = 1.15  # genel lig deplasman gol ortalaması
+
+    def _name_matches_home(team_name, match_home_name):
+        """Takım adının maçın ev sahibiyle eşleşip eşleşmediğini kontrol et."""
+        t = team_name.lower()
+        h = match_home_name.lower()
+        first_word = t.split()[0] if t.split() else t
+        return first_word in h or h.startswith(first_word) or t in h or h in t
+
+    def _extract_venue_goals(matches, team_name, is_home_venue):
+        """Son 5 maçtan sadece belirtilen venue'daki maçları filtrele."""
+        scored, conceded = [], []
+        for m in (matches or [])[-5:]:
+            try:
+                match_home = m['teams']['home']['name']
+                hg = m['goals']['home']
+                ag = m['goals']['away']
+                if hg is None or ag is None:
+                    continue
+                team_is_home = _name_matches_home(team_name, match_home)
+                if is_home_venue and team_is_home:
+                    scored.append(int(hg))
+                    conceded.append(int(ag))
+                elif not is_home_venue and not team_is_home:
+                    scored.append(int(ag))
+                    conceded.append(int(hg))
+            except Exception:
+                continue
+        return scored, conceded
+
+    def _extract_all_goals(matches, team_name):
+        """Son 5 maçtan tüm maçların genel ortalama değerleri."""
+        scored, conceded = [], []
+        for m in (matches or [])[-5:]:
+            try:
+                match_home = m['teams']['home']['name']
+                hg = m['goals']['home']
+                ag = m['goals']['away']
+                if hg is None or ag is None:
+                    continue
+                is_home = _name_matches_home(team_name, match_home)
+                scored.append(int(hg) if is_home else int(ag))
+                conceded.append(int(ag) if is_home else int(hg))
+            except Exception:
+                continue
+        return scored, conceded
+
+    def _avg(lst):
+        return sum(lst) / len(lst) if lst else None
+
+    # ── 1. Ev sahibi hücum/savunma ortalamaları ───────────────────────────────
+    h_scored_home, h_conceded_home = _extract_venue_goals(home_matches, home_name, True)
+    h_scored_all, h_conceded_all = _extract_all_goals(home_matches, home_name)
+
+    if _avg(h_scored_home) is not None:
+        h_attack = _avg(h_scored_home)
+        h_defense = _avg(h_conceded_home) or LEAGUE_AWAY_AVG
+    elif _avg(h_scored_all) is not None:
+        logger.warning(f'[SKOR TAHMİN] {home_name} - home/away verisi yok, genel ortalama kullanıldı')
+        h_attack = _avg(h_scored_all)
+        h_defense = _avg(h_conceded_all) or LEAGUE_AWAY_AVG
+    else:
+        logger.warning(f'[SKOR TAHMİN] {home_name} - son maç verisi yok, ortalama kullanıldı')
+        h_attack = LEAGUE_HOME_AVG
+        h_defense = LEAGUE_AWAY_AVG
+
+    # ── 2. Deplasman hücum/savunma ortalamaları ───────────────────────────────
+    a_scored_away, a_conceded_away = _extract_venue_goals(away_matches, away_name, False)
+    a_scored_all, a_conceded_all = _extract_all_goals(away_matches, away_name)
+
+    if _avg(a_scored_away) is not None:
+        a_attack = _avg(a_scored_away)
+        a_defense = _avg(a_conceded_away) or LEAGUE_HOME_AVG
+    elif _avg(a_scored_all) is not None:
+        logger.warning(f'[SKOR TAHMİN] {away_name} - home/away verisi yok, genel ortalama kullanıldı')
+        a_attack = _avg(a_scored_all)
+        a_defense = _avg(a_conceded_all) or LEAGUE_HOME_AVG
+    else:
+        logger.warning(f'[SKOR TAHMİN] {away_name} - son maç verisi yok, ortalama kullanıldı')
+        a_attack = LEAGUE_AWAY_AVG
+        a_defense = LEAGUE_HOME_AVG
+
+    # ── 3. Beklenen gol = (takım hücum ort + rakip savunma zafiyeti) / 2 ─────
+    home_xg = (h_attack + a_defense) / 2
+    away_xg = (a_attack + h_defense) / 2
+
+    # ── 4. H2H karıştırma (%20 ağırlık) ──────────────────────────────────────
+    if h2h_data:
+        h2h_home_goals, h2h_away_goals = [], []
+        for m in (h2h_data or [])[-5:]:
+            try:
+                match_home = m['teams']['home']['name']
+                hg = m['goals']['home']
+                ag = m['goals']['away']
+                if hg is None or ag is None:
+                    continue
+                is_our_home = _name_matches_home(home_name, match_home)
+                if is_our_home:
+                    h2h_home_goals.append(int(hg))
+                    h2h_away_goals.append(int(ag))
+                else:
+                    h2h_home_goals.append(int(ag))
+                    h2h_away_goals.append(int(hg))
+            except Exception:
+                continue
+
+        if h2h_home_goals and h2h_away_goals:
+            h2h_home_xg = sum(h2h_home_goals) / len(h2h_home_goals)
+            h2h_away_xg = sum(h2h_away_goals) / len(h2h_away_goals)
+            home_xg = home_xg * 0.8 + h2h_home_xg * 0.2
+            away_xg = away_xg * 0.8 + h2h_away_xg * 0.2
+        else:
+            logger.warning('[SKOR TAHMİN] H2H bulunamadı, ağırlık atlandı')
+    else:
+        logger.warning('[SKOR TAHMİN] H2H bulunamadı, ağırlık atlandı')
+
+    # ── 5. Poisson dağılımı ile 0-5 arası tüm kombinasyonları hesapla ────────
+    def poisson_prob(lam, k):
+        if lam <= 0:
+            return 1.0 if k == 0 else 0.0
+        return math.exp(-lam) * (lam ** k) / math.factorial(k)
+
+    best_prob = -1.0
+    best_home_goals = 1
+    best_away_goals = 0
+
+    for h in range(6):
+        for a in range(6):
+            prob = poisson_prob(home_xg, h) * poisson_prob(away_xg, a)
+            if prob > best_prob:
+                best_prob = prob
+                best_home_goals = h
+                best_away_goals = a
+
+    logger.info(
+        f'[SKOR TAHMİN] Poisson: {home_name} xG={home_xg:.2f} | '
+        f'{away_name} xG={away_xg:.2f} → {best_home_goals}-{best_away_goals} '
+        f'(p={best_prob:.4f})'
+    )
+    return f'{best_home_goals}-{best_away_goals}'
+
+
 def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_form='', away_form='',
                         home_goals_avg=0, away_goals_avg=0,
@@ -1429,7 +1585,16 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
 
     ai_predicted_score = result.get('predicted_score', '?-?')
     ai_predicted_ht_score = result.get('predicted_ht_score', '?-?')
-    fallback_score = _pick_score_by_csv_rules(
+
+    try:
+        poisson_score = predict_score_poisson(
+            home_matches, away_matches, home_team, away_team, h2h_data=h2h_data
+        )
+    except Exception as e:
+        logger.warning(f'[SKOR TAHMİN] Poisson hesabı başarısız, CSV fallback kullanılıyor: {e}')
+        poisson_score = None
+
+    csv_fallback_score = _pick_score_by_csv_rules(
         result.get('prediction_1x2', '?'),
         btts_pct,
         over25_pct,
@@ -1438,6 +1603,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         home_shot_stats=home_shot_stats,
         away_shot_stats=away_shot_stats,
     )
+    fallback_score = poisson_score or csv_fallback_score
 
     final_score = ai_predicted_score
     if not _is_score_valid(
@@ -1448,7 +1614,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         csv_data.get('over35_avg') if csv_data else None,
         csv_data.get('over45_avg') if csv_data else None,
     ):
-        logger.info(f'AI predicted_score invalid, fallback used: {ai_predicted_score} -> {fallback_score}')
+        logger.info(f'AI predicted_score invalid, Poisson fallback used: {ai_predicted_score} -> {fallback_score}')
         final_score = fallback_score
 
     final_ht_score = ai_predicted_ht_score
