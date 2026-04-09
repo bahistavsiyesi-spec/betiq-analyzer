@@ -512,7 +512,8 @@ def _get_football_data(endpoint, params={}):
 THESPORTSDB_BASE = 'https://www.thesportsdb.com/api/v1/json/3'
 
 
-def _thesportsdb_get_team_id(team_name):
+def _thesportsdb_get_team_info(team_name):
+    """Takım ID ve league ID'yi döner. Cache'lenir."""
     if team_name in _thesportsdb_team_id_cache:
         return _thesportsdb_team_id_cache[team_name]
     try:
@@ -521,25 +522,114 @@ def _thesportsdb_get_team_id(team_name):
             params={'t': team_name},
             timeout=10
         )
+        if resp.status_code == 429 or not resp.text.strip().startswith('{'):
+            logger.warning('TheSportsDB search unavailable for ' + team_name + ' (status=' + str(resp.status_code) + ')')
+            return None  # Cache'leme — geçici hata, tekrar denenebilmeli
         data = resp.json()
         teams = data.get('teams') or []
-        team_id = teams[0]['idTeam'] if teams else None
-        _thesportsdb_team_id_cache[team_name] = team_id
-        if team_id:
-            logger.info('TheSportsDB team ID: ' + team_name + ' -> ' + str(team_id))
+        if teams:
+            info = {'team_id': teams[0]['idTeam'], 'league_id': teams[0].get('idLeague')}
+            logger.info('TheSportsDB team: ' + team_name + ' -> team_id=' + str(info['team_id']) + ' league_id=' + str(info['league_id']))
         else:
+            info = None
             logger.info('TheSportsDB team not found: ' + team_name)
-        return team_id
+        _thesportsdb_team_id_cache[team_name] = info
+        return info
     except Exception as e:
         logger.warning('TheSportsDB team search failed for ' + team_name + ': ' + str(e))
         _thesportsdb_team_id_cache[team_name] = None
         return None
 
 
+def _thesportsdb_convert_event(ev):
+    try:
+        home_score = ev.get('intHomeScore')
+        away_score = ev.get('intAwayScore')
+        if home_score is None or away_score is None:
+            return None
+        return {
+            'teams': {
+                'home': {'name': ev['strHomeTeam'], 'id': None},
+                'away': {'name': ev['strAwayTeam'], 'id': None},
+            },
+            'goals': {'home': int(home_score), 'away': int(away_score)}
+        }
+    except Exception:
+        return None
+
+
+def _thesportsdb_current_season():
+    """Aktif futbol sezonunu döner (örn. '2025-2026')."""
+    year = datetime.now().year
+    month = datetime.now().month
+    # Ağustos öncesi eski sezon, Ağustos ve sonrası yeni sezon
+    if month >= 8:
+        return f'{year}-{year + 1}', f'{year - 1}-{year}'
+    else:
+        return f'{year - 1}-{year}', f'{year - 2}-{year - 1}'
+
+
+def _thesportsdb_last_matches_by_rounds(team_name, league_id, last=10):
+    """League round'larını geriye doğru iterasyonla takımın son maçlarını toplar."""
+    # Önce son round numarasını öğren
+    try:
+        resp = requests.get(
+            THESPORTSDB_BASE + '/eventspastleague.php',
+            params={'id': league_id},
+            timeout=10
+        )
+        events = resp.json().get('events') or []
+        rounds = [int(e['intRound']) for e in events if e.get('intRound')]
+        max_round = max(rounds) if rounds else 38
+    except Exception:
+        max_round = 38
+
+    current_season, prev_season = _thesportsdb_current_season()
+    team_name_lower = team_name.lower()
+    matches = []
+
+    for season in [current_season, prev_season]:
+        if len(matches) >= last:
+            break
+        for r in range(max_round, max(0, max_round - 20), -1):
+            if len(matches) >= last:
+                break
+            try:
+                time.sleep(0.3)
+                resp = requests.get(
+                    THESPORTSDB_BASE + '/eventsround.php',
+                    params={'id': league_id, 'r': r, 's': season},
+                    timeout=10
+                )
+                if resp.status_code == 429:
+                    logger.warning('TheSportsDB rate limit, stopping round iteration')
+                    break
+                if not resp.text.strip():
+                    continue
+                round_events = resp.json().get('events') or []
+                for ev in round_events:
+                    home = (ev.get('strHomeTeam') or '').lower()
+                    away = (ev.get('strAwayTeam') or '').lower()
+                    if team_name_lower in home or home in team_name_lower or \
+                       team_name_lower in away or away in team_name_lower:
+                        converted = _thesportsdb_convert_event(ev)
+                        if converted:
+                            matches.append(converted)
+            except Exception:
+                continue
+
+    return matches[:last]
+
+
 def _thesportsdb_last_matches(team_name, last=10):
-    team_id = _thesportsdb_get_team_id(team_name)
-    if not team_id:
+    info = _thesportsdb_get_team_info(team_name)
+    if not info:
         return []
+
+    team_id = info['team_id']
+    league_id = info.get('league_id')
+
+    # Önce eventslast dene (ücretsiz tier'da genellikle 1 maç döner)
     try:
         resp = requests.get(
             THESPORTSDB_BASE + '/eventslast.php',
@@ -548,27 +638,20 @@ def _thesportsdb_last_matches(team_name, last=10):
         )
         data = resp.json()
         events = data.get('results') or []
-        converted = []
-        for ev in events[-last:]:
-            try:
-                home_score = ev.get('intHomeScore')
-                away_score = ev.get('intAwayScore')
-                if home_score is None or away_score is None:
-                    continue
-                converted.append({
-                    'teams': {
-                        'home': {'name': ev['strHomeTeam'], 'id': None},
-                        'away': {'name': ev['strAwayTeam'], 'id': None},
-                    },
-                    'goals': {'home': int(home_score), 'away': int(away_score)}
-                })
-            except Exception:
-                continue
-        logger.info('TheSportsDB last matches: ' + team_name + ' -> ' + str(len(converted)) + ' mac')
-        return converted
-    except Exception as e:
-        logger.warning('TheSportsDB last matches failed for ' + team_name + ': ' + str(e))
-        return []
+        quick_matches = [_thesportsdb_convert_event(ev) for ev in events]
+        quick_matches = [m for m in quick_matches if m]
+    except Exception:
+        quick_matches = []
+
+    # Yeterli veri yoksa round bazlı iterasyona geç
+    if len(quick_matches) < last and league_id:
+        round_matches = _thesportsdb_last_matches_by_rounds(team_name, league_id, last)
+        if len(round_matches) > len(quick_matches):
+            logger.info('TheSportsDB rounds fallback: ' + team_name + ' -> ' + str(len(round_matches)) + ' mac')
+            return round_matches
+
+    logger.info('TheSportsDB last matches: ' + team_name + ' -> ' + str(len(quick_matches)) + ' mac')
+    return quick_matches[:last]
 
 
 def _footballdata_last_matches(team_id, team_name, last=10):
