@@ -9,9 +9,3 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: DB_PATH
-        value: /data/betting.db
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1

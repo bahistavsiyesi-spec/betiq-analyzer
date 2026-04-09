@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(DATABASE_URL, connect_timeout=5)
 
 def init_db():
     conn = get_conn()

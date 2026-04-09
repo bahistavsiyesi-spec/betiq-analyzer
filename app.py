@@ -151,7 +151,7 @@ def api_available_dates():
 def api_stats_overview():
     try:
         import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -193,7 +193,7 @@ def api_stats_overview():
 def api_stats_daily():
     try:
         import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -234,7 +234,7 @@ def api_stats_daily():
 def api_stats_by_category():
     try:
         import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -274,7 +274,7 @@ def api_stats_by_category():
 def api_stats_by_league():
     try:
         import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -311,7 +311,7 @@ def api_stats_by_league():
 def api_stats_by_confidence():
     try:
         import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -371,7 +371,7 @@ def api_stats_by_confidence():
 def api_stats_best_worst_days():
     try:
         import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -404,7 +404,7 @@ def api_stats_value_bets():
 def api_stats_ht_recovery():
     try:
         import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute('''
@@ -464,7 +464,7 @@ def api_stats_ht_recovery():
 def api_stats_combo_bets():
     try:
         import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -512,7 +512,7 @@ def api_stats_combo_bets():
 def api_stats_calibration():
     try:
         import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         buckets = [
@@ -977,7 +977,7 @@ def api_coupon_list():
 def api_coupon_delete(coupon_id):
     try:
         import psycopg2
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor()
         cur.execute('DELETE FROM coupons WHERE id = %s', (coupon_id,))
         conn.commit()
@@ -1057,7 +1057,7 @@ def api_clear_matches():
 def api_clear_before_date(date_str):
     try:
         import psycopg2
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
         cur = conn.cursor()
         cur.execute('''
             DELETE FROM match_results WHERE analysis_id IN (
