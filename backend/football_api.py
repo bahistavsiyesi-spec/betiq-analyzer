@@ -22,6 +22,7 @@ COLLECT_API_BASE = 'https://api.collectapi.com/football'
 _standings_cache = {}
 _collectapi_standings_cache = {}
 _shots_cache = {}
+_thesportsdb_team_id_cache = {}
 
 # ─── ClubElo → Düzgün isim tablosu ───────────────────────────────────────────
 NAME_FIXES = {
@@ -507,6 +508,69 @@ def _get_football_data(endpoint, params={}):
         return None
 
 
+# ─── TheSportsDB ──────────────────────────────────────────────────────────────
+THESPORTSDB_BASE = 'https://www.thesportsdb.com/api/v1/json/3'
+
+
+def _thesportsdb_get_team_id(team_name):
+    if team_name in _thesportsdb_team_id_cache:
+        return _thesportsdb_team_id_cache[team_name]
+    try:
+        resp = requests.get(
+            THESPORTSDB_BASE + '/searchteams.php',
+            params={'t': team_name},
+            timeout=10
+        )
+        data = resp.json()
+        teams = data.get('teams') or []
+        team_id = teams[0]['idTeam'] if teams else None
+        _thesportsdb_team_id_cache[team_name] = team_id
+        if team_id:
+            logger.info('TheSportsDB team ID: ' + team_name + ' -> ' + str(team_id))
+        else:
+            logger.info('TheSportsDB team not found: ' + team_name)
+        return team_id
+    except Exception as e:
+        logger.warning('TheSportsDB team search failed for ' + team_name + ': ' + str(e))
+        _thesportsdb_team_id_cache[team_name] = None
+        return None
+
+
+def _thesportsdb_last_matches(team_name, last=10):
+    team_id = _thesportsdb_get_team_id(team_name)
+    if not team_id:
+        return []
+    try:
+        resp = requests.get(
+            THESPORTSDB_BASE + '/eventslast.php',
+            params={'id': team_id},
+            timeout=10
+        )
+        data = resp.json()
+        events = data.get('results') or []
+        converted = []
+        for ev in events[-last:]:
+            try:
+                home_score = ev.get('intHomeScore')
+                away_score = ev.get('intAwayScore')
+                if home_score is None or away_score is None:
+                    continue
+                converted.append({
+                    'teams': {
+                        'home': {'name': ev['strHomeTeam'], 'id': None},
+                        'away': {'name': ev['strAwayTeam'], 'id': None},
+                    },
+                    'goals': {'home': int(home_score), 'away': int(away_score)}
+                })
+            except Exception:
+                continue
+        logger.info('TheSportsDB last matches: ' + team_name + ' -> ' + str(len(converted)) + ' mac')
+        return converted
+    except Exception as e:
+        logger.warning('TheSportsDB last matches failed for ' + team_name + ': ' + str(e))
+        return []
+
+
 def _footballdata_last_matches(team_id, team_name, last=10):
     try:
         result = _get_football_data('teams/' + str(team_id) + '/matches', {'status': 'FINISHED', 'limit': last})
@@ -960,6 +1024,9 @@ def get_team_last_matches(team_name, last=10):
         if team_id:
             return _footballdata_last_matches(team_id, team_name, last)
         return []
+    result = _thesportsdb_last_matches(team_name, last)
+    if result:
+        return result
     logger.info('No stats source for ' + team_name + ', using ClubElo only')
     return []
 
