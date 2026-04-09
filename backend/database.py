@@ -803,7 +803,7 @@ def get_iy_stats(date=None):
         'iy_correct': iy_correct,
         'iy_pct': round(iy_correct / total * 100) if total else 0,
         'saved': saved,
-        'saved_pct': round(saved / total * 100) if total else 0,
+        'saved_pct': round(saved / (total - iy_correct) * 100) if (total - iy_correct) > 0 else 0,
         'none': none_,
         'none_pct': round(none_ / total * 100) if total else 0,
     }
