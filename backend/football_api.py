@@ -584,39 +584,36 @@ def _thesportsdb_last_matches_by_rounds(team_name, league_id, last=10):
     except Exception:
         max_round = 38
 
-    current_season, prev_season = _thesportsdb_current_season()
+    current_season, _ = _thesportsdb_current_season()
     team_name_lower = team_name.lower()
     matches = []
 
-    for season in [current_season, prev_season]:
+    for r in range(max_round, max(0, max_round - 20), -1):
         if len(matches) >= last:
             break
-        for r in range(max_round, max(0, max_round - 20), -1):
-            if len(matches) >= last:
+        try:
+            time.sleep(1)
+            resp = requests.get(
+                THESPORTSDB_BASE + '/eventsround.php',
+                params={'id': league_id, 'r': r, 's': current_season},
+                timeout=10
+            )
+            if resp.status_code == 429:
+                logger.warning('TheSportsDB rate limit, stopping round iteration')
                 break
-            try:
-                time.sleep(0.3)
-                resp = requests.get(
-                    THESPORTSDB_BASE + '/eventsround.php',
-                    params={'id': league_id, 'r': r, 's': season},
-                    timeout=10
-                )
-                if resp.status_code == 429:
-                    logger.warning('TheSportsDB rate limit, stopping round iteration')
-                    break
-                if not resp.text.strip():
-                    continue
-                round_events = resp.json().get('events') or []
-                for ev in round_events:
-                    home = (ev.get('strHomeTeam') or '').lower()
-                    away = (ev.get('strAwayTeam') or '').lower()
-                    if team_name_lower in home or home in team_name_lower or \
-                       team_name_lower in away or away in team_name_lower:
-                        converted = _thesportsdb_convert_event(ev)
-                        if converted:
-                            matches.append(converted)
-            except Exception:
+            if not resp.text.strip():
                 continue
+            round_events = resp.json().get('events') or []
+            for ev in round_events:
+                home = (ev.get('strHomeTeam') or '').lower()
+                away = (ev.get('strAwayTeam') or '').lower()
+                if team_name_lower in home or home in team_name_lower or \
+                   team_name_lower in away or away in team_name_lower:
+                    converted = _thesportsdb_convert_event(ev)
+                    if converted:
+                        matches.append(converted)
+        except Exception:
+            continue
 
     return matches[:last]
 
