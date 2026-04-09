@@ -789,7 +789,11 @@ async function loadFixtures() {
     const container=document.getElementById('fixturesList');
     container.innerHTML=`<div class="loading-fixtures"><div class="spinner"></div><span>Yukleniyor...</span></div>`;
     try {
-        const resp=await fetch('/api/fixtures/today');
+        const ctrl=new AbortController();
+        const tid=setTimeout(()=>ctrl.abort(),10000);
+        const resp=await fetch('/api/fixtures/today',{signal:ctrl.signal});
+        clearTimeout(tid);
+        if(!resp.ok){container.innerHTML=`<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;return;}
         const fixtures=await resp.json();
         if(!fixtures||fixtures.length===0){
             container.innerHTML=`<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
@@ -995,7 +999,12 @@ async function sendToTelegram(){
 async function loadMatches(){
     const container=document.getElementById('matchesContainer');
     try {
-        const resp=await fetch('/api/matches/today'); const matches=await resp.json();
+        const ctrl=new AbortController();
+        const tid=setTimeout(()=>ctrl.abort(),10000);
+        const resp=await fetch('/api/matches/today',{signal:ctrl.signal});
+        clearTimeout(tid);
+        if(!resp.ok){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;return;}
+        const matches=await resp.json();
         if(!matches||matches.length===0){
             container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p><p>Sol taraftan mac secip analiz et.</p></div>`;return;
         }

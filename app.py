@@ -18,7 +18,8 @@ from backend.database import (
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static', static_url_path='/static')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-init_db()
+
+_app_initialized = False
 
 def _get_month_filter(request):
     """?month=2026-04 parametresinden WHERE clause ve params döndürür"""
@@ -54,7 +55,20 @@ def midnight_reset():
 scheduler = BackgroundScheduler()
 scheduler.add_job(scheduled_result_check, 'interval', hours=6, id='result_check')
 scheduler.add_job(midnight_reset, 'cron', hour=0, minute=1, id='midnight_reset')
-scheduler.start()
+
+@app.before_request
+def ensure_app_initialized():
+    global _app_initialized
+    if not _app_initialized:
+        try:
+            init_db()
+        except Exception as e:
+            logger.error(f"DB init failed: {e}")
+        try:
+            scheduler.start()
+        except Exception as e:
+            logger.error(f"Scheduler start failed: {e}")
+        _app_initialized = True
 
 @app.route('/')
 def index():
@@ -585,7 +599,7 @@ def api_analyze_selected():
             logger.error(f"Analysis error: {e}")
 
     thread = threading.Thread(target=run_analysis)
-    thread.daemon = False
+    thread.daemon = True
     thread.start()
     total = len(manual_matches)
     return jsonify({"status": "success", "message": f"{total} mac analiz ediliyor...", "total": total})
