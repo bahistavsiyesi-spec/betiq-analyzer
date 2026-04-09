@@ -769,7 +769,7 @@ def api_coupon_today():
         coupon_type = request.args.get('type', 'taraf')  # taraf | ust | iy | ust_kg
 
         min_count = 3
-        max_count = 5
+        max_count = 3
 
         HIGH_CONF = ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
 
