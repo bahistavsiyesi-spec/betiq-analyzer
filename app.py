@@ -4,7 +4,6 @@ import logging
 import os
 import threading
 from datetime import datetime
-from backend.analyzer import run_selected_analysis
 from backend.database import (
     init_db, get_today_matches, get_analyses_by_date,
     get_available_dates, save_pending_matches, get_pending_matches,
@@ -594,6 +593,7 @@ def api_analyze_selected():
 
     def run_analysis():
         try:
+            from backend.analyzer import run_selected_analysis
             run_selected_analysis([], manual_matches, ai_provider=ai_provider)
         except Exception as e:
             logger.error(f"Analysis error: {e}")
