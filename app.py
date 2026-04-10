@@ -18,7 +18,6 @@ app = Flask(__name__, template_folder='frontend/templates', static_folder='front
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-_app_initialized = False
 
 def _get_month_filter(request):
     """?month=2026-04 parametresinden WHERE clause ve params döndürür"""
@@ -55,22 +54,21 @@ scheduler = BackgroundScheduler(job_defaults={'misfire_grace_time': 60})
 scheduler.add_job(scheduled_result_check, 'interval', hours=6, id='result_check')
 scheduler.add_job(midnight_reset, 'cron', hour=0, minute=1, id='midnight_reset')
 
-@app.before_request
-def ensure_app_initialized():
-    global _app_initialized
-    if not _app_initialized:
-        try:
-            init_db()
-        except Exception as e:
-            logger.error(f"DB init failed: {e}")
-        try:
-            # wait=False: shutdown sırasında çalışan job'ları beklemez → atexit deadlock yok
-            scheduler.start()
-            import atexit
-            atexit.register(lambda: scheduler.shutdown(wait=False))
-        except Exception as e:
-            logger.error(f"Scheduler start failed: {e}")
-        _app_initialized = True
+# Startup: DB init + scheduler — before_request hook yerine doğrudan başlat
+# (--preload ile gunicorn master'da çalışır; health check ilk request gelmeden önce de geçer)
+try:
+    init_db()
+    logger.info("DB initialized")
+except Exception as e:
+    logger.error(f"DB init failed: {e}")
+
+try:
+    scheduler.start()
+    import atexit
+    atexit.register(lambda: scheduler.shutdown(wait=False))
+    logger.info("Scheduler started")
+except Exception as e:
+    logger.error(f"Scheduler start failed: {e}")
 
 @app.route('/')
 def index():
