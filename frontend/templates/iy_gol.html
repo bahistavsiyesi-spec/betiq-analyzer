@@ -78,6 +78,9 @@
         .save-btn { padding:7px 16px; border-radius:8px; border:none; background:#7c3aed; color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; align-self:flex-end; }
         .save-btn:hover { background:#6d28d9; }
         .save-btn:disabled { opacity:.5; cursor:not-allowed; }
+        .tg-check-wrap { display:flex; align-items:center; gap:5px; align-self:flex-end; padding-bottom:7px; }
+        .tg-check-wrap input[type="checkbox"] { accent-color:#38bdf8; width:15px; height:15px; cursor:pointer; }
+        .tg-check-wrap label { font-size:11px; color:#38bdf8; cursor:pointer; font-weight:600; white-space:nowrap; }
 
         /* Telegram */
         .card-actions { display:flex; gap:8px; padding:10px 16px; border-top:1px solid #13131f; }
@@ -269,6 +272,10 @@
                 <span class="entry-lbl">Maç Sonu</span>
                 <input class="score-input" data-field="ft_score" placeholder="2-1" value="${m.ft_score || ''}">
             </div>
+            <label class="tg-check-wrap">
+                <input type="checkbox" class="tg-send-check">
+                <span>📤 Telegram'a Gönder</span>
+            </label>
             <button class="save-btn" data-id="${m.id}">Kaydet</button>
         </div>`;
     }
@@ -337,6 +344,9 @@
         const iy2Goals = (ftScore.h - iyScore.h) + (ftScore.a - iyScore.a);
         const iy2_result = iy2Goals > 1 ? 1 : 0;
 
+        const tgCheck = card.querySelector('.tg-send-check');
+        const telegram_send = tgCheck ? tgCheck.checked : false;
+
         btn.disabled = true;
         btn.textContent = '⏳';
         try {
@@ -347,11 +357,22 @@
                     id, iy_result, iy2_result,
                     iy_score: iyInput.value.trim(),
                     ft_score: ftInput.value.trim(),
+                    telegram_send,
+                    home_team: card.dataset.home,
+                    away_team: card.dataset.away,
                 })
             });
             const d = await r.json();
             if (d.status === 'success') {
-                showToast('Sonuç kaydedildi');
+                if (d.telegram_sent === true) {
+                    showToast('Sonuç kaydedildi • ✅ Telegram\'a gönderildi');
+                } else if (d.telegram_sent === false) {
+                    showToast('Sonuç kaydedildi • ❌ Telegram gönderilemedi', true);
+                } else if ('telegram_sent' in d && d.telegram_sent === null) {
+                    showToast('Sonuç kaydedildi • Tutmadı, Telegram\'a gönderilmedi');
+                } else {
+                    showToast('Sonuç kaydedildi');
+                }
                 // Kartı güncelle (full reload yerine local update)
                 const updated = {
                     ...Object.fromEntries([...card.querySelectorAll('[data-field]')].map(el => [el.dataset.field, el.value])),

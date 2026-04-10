@@ -1521,12 +1521,55 @@ def api_iy_gol_result():
         row_id = data.get('id')
         iy_result = data.get('iy_result')
         iy2_result = data.get('iy2_result')
-        iy_score = data.get('iy_score')
-        ft_score = data.get('ft_score')
+        iy_score = data.get('iy_score', '')
+        ft_score = data.get('ft_score', '')
+        telegram_send = data.get('telegram_send', False)
+        home_team = data.get('home_team', '')
+        away_team = data.get('away_team', '')
         if row_id is None:
             return jsonify({"status": "error", "message": "id eksik"}), 400
         update_iy_result(row_id, iy_result, iy2_result, iy_score=iy_score, ft_score=ft_score)
-        return jsonify({"status": "success"})
+
+        telegram_sent = None
+        if telegram_send:
+            try:
+                from backend.telegram_sender import send_message
+                import re as _re
+
+                def _parse_score(s):
+                    m = _re.search(r'(\d+)\s*[-:]\s*(\d+)', str(s or ''))
+                    return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+
+                iy_h, iy_a = _parse_score(iy_score)
+                ft_h, ft_a = _parse_score(ft_score)
+                iy_total = iy_h + iy_a
+                ft_total = ft_h + ft_a
+
+                if iy_total > 0:
+                    # İY'de gol var → İY Gol tuttu
+                    msg = (
+                        f"✅ İY GOL TUTTU! {home_team} vs {away_team} | "
+                        f"İY: {iy_score} | MS: {ft_score}\n"
+                        f"🎯 Bahisimiz kazandı!"
+                    )
+                    telegram_sent = send_message(msg)
+                elif ft_total >= 2:
+                    # İY 0-0, maç sonu ≥2 gol → 1.5 Üst kurtardı
+                    msg = (
+                        f"⚠️ İY GOL OLMADI ama 1.5 ÜST KURTARDI! "
+                        f"{home_team} vs {away_team} | İY: 0-0 | MS: {ft_score}\n"
+                        f"💪 Maçı 1.5 üst alarak kurtardık!"
+                    )
+                    telegram_sent = send_message(msg)
+                # else: İY 0-0 ve ft_total ≤ 1 → gönderme
+            except Exception as tg_err:
+                logger.error(f"IY gol telegram send error: {tg_err}")
+                telegram_sent = False
+
+        resp = {"status": "success"}
+        if telegram_send:
+            resp["telegram_sent"] = telegram_sent
+        return jsonify(resp)
     except Exception as e:
         logger.error(f"IY gol result error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
