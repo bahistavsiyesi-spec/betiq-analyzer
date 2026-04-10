@@ -1546,22 +1546,33 @@ def api_iy_gol_result():
                 ft_total = ft_h + ft_a
 
                 if iy_total > 0:
-                    # İY'de gol var → İY Gol tuttu
-                    msg = (
+                    tg_msg = (
                         f"✅ İY GOL TUTTU! {home_team} vs {away_team} | "
                         f"İY: {iy_score} | MS: {ft_score}\n"
                         f"🎯 Bahisimiz kazandı!"
                     )
-                    telegram_sent = send_message(msg)
                 elif ft_total >= 2:
-                    # İY 0-0, maç sonu ≥2 gol → 1.5 Üst kurtardı
-                    msg = (
+                    tg_msg = (
                         f"⚠️ İY GOL OLMADI ama 1.5 ÜST KURTARDI! "
                         f"{home_team} vs {away_team} | İY: 0-0 | MS: {ft_score}\n"
                         f"💪 Maçı 1.5 üst alarak kurtardık!"
                     )
-                    telegram_sent = send_message(msg)
-                # else: İY 0-0 ve ft_total ≤ 1 → gönderme
+                else:
+                    tg_msg = None  # tutmadı → gönderme
+
+                if tg_msg:
+                    result_holder = [None]
+                    done_event = threading.Event()
+
+                    def _send_tg():
+                        result_holder[0] = send_message(tg_msg)
+                        done_event.set()
+
+                    t = threading.Thread(target=_send_tg)
+                    t.daemon = True
+                    t.start()
+                    done_event.wait(timeout=10)  # max 10s bekle, worker'ı öldürtme
+                    telegram_sent = result_holder[0]  # timeout → None kalır
             except Exception as tg_err:
                 logger.error(f"IY gol telegram send error: {tg_err}")
                 telegram_sent = False
