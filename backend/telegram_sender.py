@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import time
 import requests
 from datetime import datetime, timezone, timedelta
 
@@ -11,25 +12,24 @@ TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 TR_TZ = timezone(timedelta(hours=3))
 
 
-def send_message(text, parse_mode='HTML'):
+def send_message(text, parse_mode='HTML', max_retries=3, retry_delay=5):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         logger.warning("Telegram credentials not set")
         return False
-    try:
-        resp = requests.post(
-            f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage',
-            json={
-                'chat_id': TELEGRAM_CHAT_ID,
-                'text': text,
-                'parse_mode': parse_mode
-            },
-            timeout=30
-        )
-        resp.raise_for_status()
-        return True
-    except Exception as e:
-        logger.error(f"Telegram send failed: {e}")
-        return False
+    url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage'
+    payload = {'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': parse_mode}
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = requests.post(url, json=payload, timeout=30)
+            resp.raise_for_status()
+            return True
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"Telegram send failed (attempt {attempt}/{max_retries}): {e} — retrying in {retry_delay}s")
+                time.sleep(retry_delay)
+            else:
+                logger.error(f"Telegram send failed after {max_retries} attempts: {e}")
+    return False
 
 def pct_bar(pct, length=10):
     pct = int(pct)
