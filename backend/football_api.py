@@ -562,7 +562,7 @@ def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
 
 # ─── Gerçek H2H (football-data.org /matches/{id}/head2head) ──────────────────
 
-_FD_SUPPORTED_COMPETITIONS = ('CL',)
+_FD_SUPPORTED_COMPETITIONS = ('CL', 'PL', 'PD', 'BL1', 'SA', 'FL1', 'PPL', 'DED')
 
 def get_footballdata_match_id(home_team, away_team, league_code):
     """Bugünkü maçlar arasından football-data.org maç ID'sini döndür."""
