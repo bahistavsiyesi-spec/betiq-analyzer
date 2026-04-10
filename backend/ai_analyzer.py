@@ -1095,7 +1095,7 @@ def _repair_ht_from_ft(ft_score_text, ht2g_pct=None):
     return '1-0'
 
 
-def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None, return_debug=False):
+def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None, h2h_fd=None, return_debug=False):
     """
     Poisson dağılımı kullanarak en olasılıklı skoru tahmin eder.
 
@@ -1228,8 +1228,21 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
             away_xg = away_xg * 0.8 + h2h_away_xg * 0.2
             h2h_used = True
         else:
-            logger.warning('[SKOR TAHMİN] H2H bulunamadı, ağırlık atlandı')
-    else:
+            logger.warning('[SKOR TAHMİN] H2H raw maç listesi boş, h2h_fd fallback deneniyor')
+
+    # h2h_data boşsa h2h_fd summary'den avg_goals ile xG ölçekle (%20 ağırlık)
+    if not h2h_used and h2h_fd and h2h_fd.get('total', 0) >= 3:
+        h2h_avg = h2h_fd['avg_goals']
+        current_total = home_xg + away_xg
+        if current_total > 0:
+            # Toplam gol ortalamasını h2h verisiyle blend et, ev/dep oranını koru
+            blended_total = current_total * 0.8 + h2h_avg * 0.2
+            scale = blended_total / current_total
+            home_xg *= scale
+            away_xg *= scale
+            h2h_used = True
+            logger.info(f'[SKOR TAHMİN] h2h_fd fallback: avg_goals={h2h_avg} ({h2h_fd["total"]} maç) → xG scale={scale:.3f}')
+    elif not h2h_used:
         logger.warning('[SKOR TAHMİN] H2H bulunamadı, ağırlık atlandı')
 
     # ── 5. Poisson dağılımı ile 0-5 arası tüm kombinasyonları hesapla ────────
@@ -1596,7 +1609,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
 
     try:
         poisson_score = predict_score_poisson(
-            home_matches, away_matches, home_team, away_team, h2h_data=h2h_data
+            home_matches, away_matches, home_team, away_team,
+            h2h_data=h2h_data, h2h_fd=h2h_fd,
         )
     except Exception as e:
         logger.warning(f'[SKOR TAHMİN] Poisson hesabı başarısız, CSV fallback kullanılıyor: {e}')

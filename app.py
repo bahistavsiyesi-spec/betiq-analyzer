@@ -51,7 +51,7 @@ def midnight_reset():
     except Exception as e:
         logger.error(f"Midnight reset failed: {e}")
 
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(job_defaults={'misfire_grace_time': 60})
 scheduler.add_job(scheduled_result_check, 'interval', hours=6, id='result_check')
 scheduler.add_job(midnight_reset, 'cron', hour=0, minute=1, id='midnight_reset')
 
@@ -64,7 +64,10 @@ def ensure_app_initialized():
         except Exception as e:
             logger.error(f"DB init failed: {e}")
         try:
+            # wait=False: shutdown sırasında çalışan job'ları beklemez → atexit deadlock yok
             scheduler.start()
+            import atexit
+            atexit.register(lambda: scheduler.shutdown(wait=False))
         except Exception as e:
             logger.error(f"Scheduler start failed: {e}")
         _app_initialized = True
@@ -1289,10 +1292,9 @@ def api_debug_analysis_data(analysis_id):
         }
 
         try:
-            h2h_raw_poisson = get_h2h(home_team, away_team, last=5) if not is_youth else []
             poisson_debug = predict_score_poisson(
                 home_matches, away_matches, home_team, away_team,
-                h2h_data=h2h_raw_poisson, return_debug=True
+                h2h_data=h2h_raw, h2h_fd=h2h_fd, return_debug=True,
             )
         except Exception as e:
             poisson_debug = {'error': str(e)}
