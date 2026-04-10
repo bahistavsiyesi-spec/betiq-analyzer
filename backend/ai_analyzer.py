@@ -586,12 +586,8 @@ def build_prompt(home_team, away_team, league, match_time,
     prediction_rules += 'KARAR HİYERARŞİSİ (öncelik sırası):\n'
     prediction_rules += '  1. Bahisçi oranı (piyasa konsensüsü) — en güvenilir gösterge\n'
     prediction_rules += '  2. Güncel PPG (sezon içi form trendi)\n'
-    prediction_rules += '  3. Ev/deplasman sırası (bu sahadaki performans)\n'
-    prediction_rules += '  4. xG farkı (tehlike göstergesi, KAZANMA değil GOL beklentisi)\n'
-    prediction_rules += '  5. Puan durumu (genel sıra)\n'
-    prediction_rules += '  6. H2H geçmişi\n\n'
-    prediction_rules += '⚠️ xG yüksek = çok gol atabilir, ama KAZANIR anlamına gelmez!\n'
-    prediction_rules += '⚠️ Bahisçi + PPG aynı tarafı gösteriyorsa, xG tek başına bunu geçemez.\n\n'
+    prediction_rules += '  3. Final Güven (bahisçi + PPG uyumu)\n\n'
+    prediction_rules += '⚠️ xG verisi SADECE over/under ve BTTS tahmininde kullanılır, taraf kararını ETKİLEMEZ.\n\n'
     prediction_rules += 'prediction_1x2 ve güven seviyesi belirlenirken aşağıdaki kurallara KESINLIKLE uy:\n\n'
 
     # Odds analizi
@@ -644,17 +640,6 @@ def build_prompt(home_team, away_team, league, match_time,
         else:
             prediction_rules += f'  → Ev/dep performansları dengeli\n\n'
 
-    if xg_diff is not None:
-        prediction_rules += f'xG Durumu: {home_team}={hxg} xG, {away_team}={axg} xG, fark={abs(xg_diff)} ({home_team if xg_diff > 0 else away_team} daha tehlikeli)\n'
-        prediction_rules += f'  ⚠️ xG = GOL BEKLENTİSİ, KAZANMA ihtimali değil!\n\n'
-        prediction_rules += 'xG tek başına tahmin kuralı:\n'
-        prediction_rules += f'  - xG farkı > 0.8 VE bahisçi + PPG destekliyorsa → güçlü favori\n'
-        prediction_rules += f'  - xG farkı > 0.8 AMA bahisçi karşı tarafı gösteriyorsa → bahisçiye uyu\n'
-        prediction_rules += f'  - xG farkı 0.4-0.8 → hafif gösterge, bahisçi + PPG belirler\n'
-        prediction_rules += f'  - xG farkı < 0.4 → göz ardı et, diğer faktörler belirler\n\n'
-    else:
-        prediction_rules += 'xG verisi yok — bahisçi + PPG + ev/dep istatistik belirler\n\n'
-
     # Kombinasyon kuralları
     prediction_rules += 'Kombinasyon karar kuralları (ZORUNLU):\n'
     if odds_favors and odds_favors != 'X' and ppg_favors and ppg_favors != 'X':
@@ -676,7 +661,7 @@ def build_prompt(home_team, away_team, league, match_time,
     prediction_rules += '  - Tüm göstergeler çelişkili → "X" ver\n\n'
 
     prediction_rules += 'Beraberlik (X) ne zaman verilmeli:\n'
-    prediction_rules += '  - Bahisçi dengeli VE xG farkı < 0.4 VE PPG benzer\n'
+    prediction_rules += '  - Bahisçi dengeli VE PPG benzer\n'
     prediction_rules += '  - Her iki takım da tutarsız form gösteriyorsa\n'
     prediction_rules += '  ❌ YANLIŞ: xG eşit diye otomatik X verme!\n\n'
     prediction_rules += '── Taraf Kuralları Sonu ──\n'
@@ -695,11 +680,11 @@ KARAR FAKTÖRLERİ (öncelik sırası):
 ⚠️ "Çok Yüksek" artık KULLANILMIYOR. Maksimum güven seviyesi "Yüksek"tir.
 
 KURAL 1 — "Yüksek":
-  Bahisçi (1) + PPG (2) + ev/dep sırası (3) üçü aynı tarafı gösteriyorsa
+  Bahisçi (1) + PPG (2) aynı tarafı gösteriyorsa — ev/dep sırası eksik veya farklı olsa bile
+  (Bahisçi + PPG + ev/dep üçü aynı yönde → yine Yüksek)
 
 KURAL 2 — "Orta":
-  Bahisçi (1) + PPG (2) aynı tarafı gösteriyor ama ev/dep sırası (3) farklı ya da veri yok
-  VEYA sadece bahisçi net favori, PPG verisi yok
+  Sadece bahisçi net favori, PPG verisi yok
   VEYA göstergeler dengeli
 
 KURAL 3 — "Düşük":
@@ -1509,7 +1494,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             and _conf_ppg_favors not in ('X', None)
         )
 
-        if three_aligned:
+        if three_aligned or two_aligned:
             confidence = 'Yüksek'
         elif odds_ppg_conflict:
             confidence = 'Düşük'

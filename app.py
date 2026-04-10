@@ -1215,7 +1215,7 @@ def api_debug_analysis_data(analysis_id):
             'ht2g_pct':   clamp_info('ht_over05_avg', 5, analysis.get('ht2g_pct', 40)),
         }
 
-        odds_side = odds_detail = ppg_side = ppg_detail = xg_side = xg_detail = None
+        odds_side = odds_detail = ppg_side = ppg_detail = None
 
         if csv_data:
             try:
@@ -1242,22 +1242,6 @@ def api_debug_analysis_data(analysis_id):
                     else:          ppg_side, ppg_detail = 'X (dengeli)', f'Fark: {abs(d):.2f}'
             except: pass
 
-            try:
-                hxg = float(csv_data.get('home_xg') or 0)
-                axg = float(csv_data.get('away_xg') or 0)
-                if hxg > 0 or axg > 0:
-                    d = hxg - axg
-                    if abs(d) >= 0.8:
-                        xg_side = home_team if d > 0 else away_team
-                        xg_detail = f'Fark: {abs(d):.2f} xG ({home_team}: {hxg} · {away_team}: {axg})'
-                    elif abs(d) >= 0.4:
-                        xg_side = f'Hafif: {home_team if d>0 else away_team}'
-                        xg_detail = f'Fark: {abs(d):.2f} xG'
-                    else:
-                        xg_side = 'Dengeli'
-                        xg_detail = f'{home_team}: {hxg} · {away_team}: {axg}'
-            except: pass
-
         pred = analysis.get('prediction_1x2', '?')
         conf = analysis.get('confidence', 'Orta')
 
@@ -1266,8 +1250,6 @@ def api_debug_analysis_data(analysis_id):
             'odds_detail': odds_detail,
             'ppg_side':    ppg_side   or '— (CSV PPG yok)',
             'ppg_detail':  ppg_detail,
-            'xg_side':     xg_side    or '— (CSV xG yok)',
-            'xg_detail':   xg_detail,
             'ai_pred':     pred,
             'confidence':  conf,
             'final_conf':  conf,

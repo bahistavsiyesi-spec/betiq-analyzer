@@ -519,9 +519,8 @@ function renderDebug(data, match) {
     const steps = [
         ['1', 'Bahisçi Oranı', decision.odds_side, decision.odds_detail],
         ['2', 'Güncel PPG',    decision.ppg_side,  decision.ppg_detail],
-        ['3', 'xG Farkı',      decision.xg_side,   decision.xg_detail],
-        ['4', 'AI Tahmini',    decision.ai_pred,   decision.confidence],
-        ['5', 'Final Güven',   decision.final_conf,decision.conf_reason],
+        ['3', 'AI Tahmini',    decision.ai_pred,   decision.confidence],
+        ['4', 'Final Güven',   decision.final_conf,decision.conf_reason],
     ];
     steps.forEach(([num, label, val, detail]) => {
         const valStr = val || '—';
