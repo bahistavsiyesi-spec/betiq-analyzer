@@ -1094,7 +1094,8 @@ def api_debug_analysis_data(analysis_id):
         from backend.database import get_analysis_by_id
         from backend.football_api import (
             get_team_last_matches, get_h2h, get_team_shot_stats,
-            get_team_standing, is_youth_or_reserve,
+            get_team_standing, is_youth_or_reserve, get_h2h_footballdata,
+            LEAGUE_CODES,
         )
         from backend.analyzer import (
             extract_form_from_fixtures, extract_goals_avg,
@@ -1191,12 +1192,22 @@ def api_debug_analysis_data(analysis_id):
 
         h2h_raw = get_h2h(home_team, away_team, last=5) if not is_youth else []
         h2h_summary = extract_h2h_summary(h2h_raw, home_team, away_team)
+
+        # get_h2h boş döndüyse get_h2h_footballdata ile dene (analyzer.py ile aynı fallback)
+        h2h_fd = None
+        if not h2h_summary and not is_youth:
+            fd_league_code = LEAGUE_CODES.get(country_code) if country_code else None
+            if fd_league_code:
+                h2h_fd = get_h2h_footballdata(home_team, away_team, fd_league_code)
+
+        effective_h2h = h2h_fd or h2h_summary
         h2h = {
-            'count':     h2h_summary.get('total', 0)     if h2h_summary else 0,
-            'avg_goals': h2h_summary.get('avg_goals')    if h2h_summary else None,
-            'home_wins': h2h_summary.get('home_wins')    if h2h_summary else None,
-            'away_wins': h2h_summary.get('away_wins')    if h2h_summary else None,
-            'draws':     h2h_summary.get('draws')        if h2h_summary else None,
+            'count':     effective_h2h.get('total', 0)     if effective_h2h else 0,
+            'avg_goals': effective_h2h.get('avg_goals')    if effective_h2h else None,
+            'home_wins': effective_h2h.get('home_wins')    if effective_h2h else None,
+            'away_wins': effective_h2h.get('away_wins')    if effective_h2h else None,
+            'draws':     effective_h2h.get('draws')        if effective_h2h else None,
+            'source':    'footballdata_h2h' if h2h_fd else ('extract' if h2h_summary else 'none'),
         }
 
         def clamp_info(csv_key, margin, analysis_val):
