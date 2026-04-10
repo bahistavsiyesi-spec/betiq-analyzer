@@ -978,7 +978,8 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
             return '2-1' if btts >= 55 else '3-0'
         if pred_1x2 == '2':
             return '1-2' if btts >= 55 else '0-3'
-        return '2-2' if btts >= 55 else '1-1'
+        # 'X' + over25≥70%: eşitlik skoru en az 4 gol → her zaman 2-2
+        return '2-2'
 
     # 2.5 ALT eğilimli maç
     if o25 <= 35:
@@ -1095,7 +1096,7 @@ def _repair_ht_from_ft(ft_score_text, ht2g_pct=None):
     return '1-0'
 
 
-def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None, h2h_fd=None, return_debug=False):
+def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None, h2h_fd=None, csv_data=None, return_debug=False):
     """
     Poisson dağılımı kullanarak en olasılıklı skoru tahmin eder.
 
@@ -1245,7 +1246,33 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
     elif not h2h_used:
         logger.warning('[SKOR TAHMİN] H2H bulunamadı, ağırlık atlandı')
 
-    # ── 5. Poisson dağılımı ile 0-5 arası tüm kombinasyonları hesapla ────────
+    # ── 5. CSV blend: season-long avg_goals / over25_avg (%45 ağırlık) ───────
+    # Form datası son 5 maçtır (küçük örnek). CSV tüm sezon verisidir ve
+    # xG toplamını doğrulamak için daha güvenilirdir.
+    csv_total_target = None
+    if csv_data:
+        csv_avg_g = _safe_float(csv_data.get('avg_goals'))
+        csv_o25   = _safe_float(csv_data.get('over25_avg'))
+        if csv_avg_g is not None and csv_avg_g > 0:
+            csv_total_target = csv_avg_g
+        elif csv_o25 is not None and csv_o25 > 0:
+            # over25% → Poisson lambda kaba tahmini
+            # 80% → ~3.2, 65% → ~2.7, 50% → ~2.2, 40% → ~1.9
+            csv_total_target = max(1.5, csv_o25 / 24.5 + 0.5)
+
+    if csv_total_target is not None:
+        current_total = home_xg + away_xg
+        if current_total > 0:
+            blended_total = current_total * 0.55 + csv_total_target * 0.45
+            scale = blended_total / current_total
+            home_xg *= scale
+            away_xg *= scale
+            logger.info(
+                f'[SKOR TAHMİN] CSV blend: target={csv_total_target:.2f} → '
+                f'total {current_total:.2f}→{home_xg+away_xg:.2f} (scale={scale:.3f})'
+            )
+
+    # ── 6. Poisson dağılımı ile 0-5 arası tüm kombinasyonları hesapla ────────
     def poisson_prob(lam, k):
         if lam <= 0:
             return 1.0 if k == 0 else 0.0
@@ -1280,6 +1307,7 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
         'home_data_source': home_data_source,
         'away_data_source': away_data_source,
         'h2h_used': h2h_used,
+        'csv_target': round(csv_total_target, 2) if csv_total_target else None,
         'home_xg': round(home_xg, 2),
         'away_xg': round(away_xg, 2),
         'best_prob': round(best_prob, 4),
@@ -1607,35 +1635,34 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     ai_predicted_score = result.get('predicted_score', '?-?')
     ai_predicted_ht_score = result.get('predicted_ht_score', '?-?')
 
+    _pred_1x2   = result.get('prediction_1x2', '?')
+    _over35_avg = csv_data.get('over35_avg') if csv_data else None
+    _over45_avg = csv_data.get('over45_avg') if csv_data else None
+
     try:
         poisson_score = predict_score_poisson(
             home_matches, away_matches, home_team, away_team,
-            h2h_data=h2h_data, h2h_fd=h2h_fd,
+            h2h_data=h2h_data, h2h_fd=h2h_fd, csv_data=csv_data,
         )
     except Exception as e:
-        logger.warning(f'[SKOR TAHMİN] Poisson hesabı başarısız, CSV fallback kullanılıyor: {e}')
+        logger.warning(f'[SKOR TAHMİN] Poisson hesabı başarısız: {e}')
         poisson_score = None
 
     csv_fallback_score = _pick_score_by_csv_rules(
-        result.get('prediction_1x2', '?'),
-        btts_pct,
-        over25_pct,
-        csv_data.get('over35_avg') if csv_data else None,
-        csv_data.get('over45_avg') if csv_data else None,
-        home_shot_stats=home_shot_stats,
-        away_shot_stats=away_shot_stats,
+        _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg,
+        home_shot_stats=home_shot_stats, away_shot_stats=away_shot_stats,
     )
-    fallback_score = poisson_score or csv_fallback_score
+
+    # Poisson skoru önce doğrula; geçersizse CSV fallback kullan
+    if poisson_score and _is_score_valid(poisson_score, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
+        fallback_score = poisson_score
+    else:
+        if poisson_score:
+            logger.info(f'[SKOR TAHMİN] Poisson skoru ({poisson_score}) geçersiz, csv_fallback kullanılıyor: {csv_fallback_score}')
+        fallback_score = csv_fallback_score
 
     final_score = ai_predicted_score
-    if not _is_score_valid(
-        final_score,
-        result.get('prediction_1x2', '?'),
-        btts_pct,
-        over25_pct,
-        csv_data.get('over35_avg') if csv_data else None,
-        csv_data.get('over45_avg') if csv_data else None,
-    ):
+    if not _is_score_valid(final_score, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
         logger.info(f'AI predicted_score invalid, Poisson fallback used: {ai_predicted_score} -> {fallback_score}')
         final_score = fallback_score
 
