@@ -96,6 +96,8 @@
         .ssc-stat-lbl { font-size:10px; color:#666; font-weight:600; letter-spacing:0.5px; }
         .ssc-total { text-align:center; font-size:12px; color:#666; }
         .ssc-total span { color:#7c3aed; font-weight:700; }
+        .ssc-stat-count { font-size:9px; color:#444; margin-top:3px; letter-spacing:0.3px; }
+        .summary-item .s-count { font-size:10px; color:#555; margin-top:2px; }
     </style>
 </head>
 <body>
@@ -129,10 +131,10 @@
                 <div class="available-dates-hint" id="availableDatesHint"></div>
                 <div id="summaryBar" style="display:none;margin-top:16px;" class="summary-bar">
                     <div class="summary-item"><div class="s-value" id="totalMatches">0</div><div class="s-label">Toplam Maç</div></div>
-                    <div class="summary-item"><div class="s-value" id="correct1x2">0%</div><div class="s-label">1X2 Doğru</div></div>
-                    <div class="summary-item"><div class="s-value" id="correctOver25">0%</div><div class="s-label">2.5 Üstü</div></div>
-                    <div class="summary-item"><div class="s-value" id="correctBtts">0%</div><div class="s-label">KG Var</div></div>
-                    <div class="summary-item"><div class="s-value" id="correctHt">-</div><div class="s-label">İY 0.5 Üst</div></div>
+                    <div class="summary-item"><div class="s-value" id="correct1x2">0%</div><div class="s-label">1X2 Doğru</div><div class="s-count" id="count1x2"></div></div>
+                    <div class="summary-item"><div class="s-value" id="correctOver25">0%</div><div class="s-label">2.5 Üstü</div><div class="s-count" id="countOver25"></div></div>
+                    <div class="summary-item"><div class="s-value" id="correctBtts">0%</div><div class="s-label">KG Var</div><div class="s-count" id="countBtts"></div></div>
+                    <div class="summary-item"><div class="s-value" id="correctHt">-</div><div class="s-label">İY 0.5 Üst</div><div class="s-count" id="countHt"></div></div>
                     <div class="summary-item"><div class="s-value" id="correctScore">0</div><div class="s-label">Skor Doğru</div></div>
                     <div style="margin-left:auto;">
                         <button class="btn-share" style="margin-top:0;" onclick="openStatsShare()">📊 İstatistiği Paylaş</button>
@@ -237,23 +239,36 @@
             const withResults = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
             document.getElementById('totalMatches').textContent = matches.length;
             let s1x2='-', sOver='-', sBtts='-', sHt='-', sScore=0;
+            let t1x2=0, c1x2=0, tOver=0, cOver=0, tBtts=0, cBtts=0, tHt=0, cHt=0;
             if (withResults.length > 0) {
                 const highConf = withResults.filter(m => ['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence));
-                s1x2 = highConf.length > 0 ? `${Math.round(highConf.filter(m=>m.pred_1x2_correct).length/highConf.length*100)}%` : '-';
+                t1x2 = highConf.length; c1x2 = highConf.filter(m=>m.pred_1x2_correct).length;
+                s1x2 = t1x2 > 0 ? `${Math.round(c1x2/t1x2*100)}%` : '-';
                 const over25Eligible = withResults.filter(m => (m.over25_pct||0) >= THRESH);
-                sOver = over25Eligible.length > 0 ? `${Math.round(over25Eligible.filter(m=>m.over25_correct).length/over25Eligible.length*100)}%` : '-';
+                tOver = over25Eligible.length; cOver = over25Eligible.filter(m=>m.over25_correct).length;
+                sOver = tOver > 0 ? `${Math.round(cOver/tOver*100)}%` : '-';
                 const bttsEligible = withResults.filter(m => (m.btts_pct||0) >= THRESH);
-                sBtts = bttsEligible.length > 0 ? `${Math.round(bttsEligible.filter(m=>m.btts_correct).length/bttsEligible.length*100)}%` : '-';
+                tBtts = bttsEligible.length; cBtts = bttsEligible.filter(m=>m.btts_correct).length;
+                sBtts = tBtts > 0 ? `${Math.round(cBtts/tBtts*100)}%` : '-';
                 const htEligible = withResults.filter(m => (m.ht2g_pct||0) >= THRESH && m.ht_home_score !== null && m.ht_home_score !== undefined);
-                sHt = htEligible.length > 0 ? `${Math.round(htEligible.filter(m=>m.ht_correct).length/htEligible.length*100)}%` : '-';
+                tHt = htEligible.length; cHt = htEligible.filter(m=>m.ht_correct).length;
+                sHt = tHt > 0 ? `${Math.round(cHt/tHt*100)}%` : '-';
                 sScore = withResults.filter(m=>m.score_correct).length;
+            }
+            function countLabel(total, correct) {
+                if (total === 0) return '';
+                return `${total} maçtan ${correct} tuttu`;
             }
             document.getElementById('correct1x2').textContent = s1x2;
             document.getElementById('correctOver25').textContent = sOver;
             document.getElementById('correctBtts').textContent = sBtts;
             document.getElementById('correctHt').textContent = sHt;
             document.getElementById('correctScore').textContent = sScore;
-            currentSummaryData = { total:matches.length, withResults:withResults.length, s1x2, sOver, sBtts, sHt, sScore };
+            document.getElementById('count1x2').textContent = countLabel(t1x2, c1x2);
+            document.getElementById('countOver25').textContent = countLabel(tOver, cOver);
+            document.getElementById('countBtts').textContent = countLabel(tBtts, cBtts);
+            document.getElementById('countHt').textContent = countLabel(tHt, cHt);
+            currentSummaryData = { total:matches.length, withResults:withResults.length, s1x2, sOver, sBtts, sHt, sScore, t1x2, c1x2, tOver, cOver, tBtts, cBtts, tHt, cHt };
             document.getElementById('summaryBar').style.display = 'flex';
         }
 
@@ -281,10 +296,10 @@
                 </div>
                 <div class="ssc-title"><h2>Günlük İstatistik</h2><p>${dateStr} Analiz Raporu</p></div>
                 <div class="ssc-stats">
-                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.s1x2)}">${d.s1x2}</div><div class="ssc-stat-lbl">1X2 BAŞARI</div></div>
-                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sOver)}">${d.sOver}</div><div class="ssc-stat-lbl">2.5 ÜST (%65+)</div></div>
-                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sBtts)}">${d.sBtts}</div><div class="ssc-stat-lbl">KG VAR (%65+)</div></div>
-                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sHt)}">${d.sHt}</div><div class="ssc-stat-lbl">İY 0.5 ÜST (%65+)</div></div>
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.s1x2)}">${d.s1x2}</div><div class="ssc-stat-lbl">1X2 BAŞARI</div>${d.t1x2>0?`<div class="ssc-stat-count">${d.t1x2} maçtan ${d.c1x2} tuttu</div>`:''}</div>
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sOver)}">${d.sOver}</div><div class="ssc-stat-lbl">2.5 ÜST (%65+)</div>${d.tOver>0?`<div class="ssc-stat-count">${d.tOver} maçtan ${d.cOver} tuttu</div>`:''}</div>
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sBtts)}">${d.sBtts}</div><div class="ssc-stat-lbl">KG VAR (%65+)</div>${d.tBtts>0?`<div class="ssc-stat-count">${d.tBtts} maçtan ${d.cBtts} tuttu</div>`:''}</div>
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sHt)}">${d.sHt}</div><div class="ssc-stat-lbl">İY 0.5 ÜST (%65+)</div>${d.tHt>0?`<div class="ssc-stat-count">${d.tHt} maçtan ${d.cHt} tuttu</div>`:''}</div>
                 </div>
                 <div class="ssc-total">Toplam <span>${d.total}</span> maç · Sonuçlanan <span>${d.withResults}</span> maç</div>`;
         }
