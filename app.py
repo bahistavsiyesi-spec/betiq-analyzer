@@ -158,10 +158,10 @@ def api_stats_overview():
             SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
                 COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
                 SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
-                COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
-                SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
-                COUNT(CASE WHEN a.btts_pct >= 65 THEN 1 END) as total_btts,
-                SUM(CASE WHEN a.btts_pct >= 65 THEN r.btts_correct ELSE 0 END) as cbtts,
+                COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
+                SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
+                COUNT(CASE WHEN a.btts_pct >= 70 THEN 1 END) as total_btts,
+                SUM(CASE WHEN a.btts_pct >= 70 THEN r.btts_correct ELSE 0 END) as cbtts,
                 COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
                 SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
             FROM match_results r
@@ -199,10 +199,10 @@ def api_stats_daily():
         cur.execute(f'''
             SELECT a.analysis_date, COUNT(*) as total,
                 SUM(r.pred_1x2_correct) as c1x2,
-                SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
-                COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
-                SUM(CASE WHEN a.btts_pct >= 65 THEN r.btts_correct ELSE 0 END) as cbtts,
-                COUNT(CASE WHEN a.btts_pct >= 65 THEN 1 END) as total_btts,
+                SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
+                COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
+                SUM(CASE WHEN a.btts_pct >= 70 THEN r.btts_correct ELSE 0 END) as cbtts,
+                COUNT(CASE WHEN a.btts_pct >= 70 THEN 1 END) as total_btts,
                 SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht,
                 COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht
             FROM analyses a JOIN match_results r ON a.id = r.analysis_id
@@ -241,10 +241,10 @@ def api_stats_by_category():
             SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
                 COUNT(CASE WHEN a.confidence IN ('Yuksek','Coc Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
                 SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
-                COUNT(CASE WHEN a.over25_pct >= 65 THEN 1 END) as total_over25,
-                SUM(CASE WHEN a.over25_pct >= 65 THEN r.over25_correct ELSE 0 END) as cover25,
-                COUNT(CASE WHEN a.btts_pct >= 65 THEN 1 END) as total_btts,
-                SUM(CASE WHEN a.btts_pct >= 65 THEN r.btts_correct ELSE 0 END) as cbtts,
+                COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
+                SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
+                COUNT(CASE WHEN a.btts_pct >= 70 THEN 1 END) as total_btts,
+                SUM(CASE WHEN a.btts_pct >= 70 THEN r.btts_correct ELSE 0 END) as cbtts,
                 COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
                 SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
             FROM match_results r
@@ -259,8 +259,8 @@ def api_stats_by_category():
         total_ht = row['total_ht'] or 0
         categories = [
             {'name': '1X2 (Y/ÇY)', 'correct': row['c1x2'] or 0, 'total': total_1x2, 'pct': round((row['c1x2'] or 0)/total_1x2*100) if total_1x2 else 0},
-            {'name': '2.5 Ust (%65+)', 'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
-            {'name': 'KG Var (%65+)', 'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
+            {'name': '2.5 Ust (%75+)', 'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
+            {'name': 'KG Var (%70+)', 'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
             {'name': 'Skor', 'correct': row['cscore'] or 0, 'total': total, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
             {'name': 'IY 0.5 Ust (%65+)', 'correct': row['cht'] or 0, 'total': total_ht, 'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
         ]
@@ -469,20 +469,20 @@ def api_stats_combo_bets():
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
             SELECT
-                COUNT(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 THEN 1 END) as total_o25_btts,
-                SUM(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 THEN
+                COUNT(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 THEN 1 END) as total_o25_btts,
+                SUM(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 THEN
                     CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 THEN 1 ELSE 0 END
                 END) as correct_o25_btts,
-                COUNT(CASE WHEN a.over25_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_o25_ht,
-                SUM(CASE WHEN a.over25_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
+                COUNT(CASE WHEN a.over25_pct >= 75 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_o25_ht,
+                SUM(CASE WHEN a.over25_pct >= 75 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
                     CASE WHEN r.over25_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
                 END) as correct_o25_ht,
-                COUNT(CASE WHEN a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_btts_ht,
-                SUM(CASE WHEN a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
+                COUNT(CASE WHEN a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_btts_ht,
+                SUM(CASE WHEN a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
                     CASE WHEN r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
                 END) as correct_btts_ht,
-                COUNT(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_all3,
-                SUM(CASE WHEN a.over25_pct >= 65 AND a.btts_pct >= 65 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
+                COUNT(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_all3,
+                SUM(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
                     CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
                 END) as correct_all3
             FROM match_results r
@@ -820,7 +820,7 @@ def api_coupon_today():
                         'pct': conf_score * 20, 'conf_score': conf_score, 'match': m
                     })
             elif coupon_type == 'ust':
-                if over25_pct >= 65:
+                if over25_pct >= 75:
                     all_candidates.append({
                         'type': '2.5 Ust', 'label': '2.5 Gol Ustu',
                         'pct': over25_pct, 'conf_score': conf_score, 'match': m
@@ -832,7 +832,7 @@ def api_coupon_today():
                         'pct': ht2g_pct, 'conf_score': conf_score, 'match': m
                     })
             elif coupon_type == 'ust_kg':
-                if over25_pct >= 65 and btts_pct >= 65:
+                if over25_pct >= 75 and btts_pct >= 70:
                     all_candidates.append({
                         'type': '2.5 Ust + KG Var', 'label': '2.5 Ust + KG Var',
                         'pct': round((over25_pct + btts_pct) / 2),

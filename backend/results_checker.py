@@ -168,14 +168,14 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
 
     over25_pct = int(analysis.get('over25_pct', 0))
     actual_over25 = total_goals > 2.5
-    if over25_pct >= 65:
+    if over25_pct >= 75:
         over25_correct = actual_over25
     else:
         over25_correct = False
 
     btts_pct = int(analysis.get('btts_pct', 0))
     actual_btts = home_score > 0 and away_score > 0
-    if btts_pct >= 65:
+    if btts_pct >= 70:
         btts_correct = actual_btts
     else:
         btts_correct = False
@@ -259,14 +259,14 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
         line_1x2 = f"— 1X2: Oynanmadı 🚫"
 
     # 2.5 — sadece eşik üstünde
-    if over25_pct >= 65:
+    if over25_pct >= 75:
         over25_result = 'Üstü ✓' if outcomes['actual_over25'] else 'Altı ✗'
         line_over25 = f"{tick(outcomes['over25_correct'])} 2.5 Üst (%{over25_pct}) → <b>{over25_result}</b>"
     else:
         line_over25 = f"— 2.5 Gol: Oynanmadı 🚫"
 
     # KG — sadece eşik üstünde
-    if btts_pct >= 65:
+    if btts_pct >= 70:
         btts_result = 'Var ✓' if outcomes['actual_btts'] else 'Yok ✗'
         line_btts = f"{tick(outcomes['btts_correct'])} KG Var (%{btts_pct}) → <b>{btts_result}</b>"
     else:

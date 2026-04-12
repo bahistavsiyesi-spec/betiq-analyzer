@@ -235,7 +235,9 @@
         }
 
         function renderSummary(matches) {
-            const THRESH = 65;
+            const THRESH_OVER25 = 75;
+            const THRESH_BTTS = 70;
+            const THRESH_HT = 65;
             const withResults = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
             document.getElementById('totalMatches').textContent = matches.length;
             let s1x2='-', sOver='-', sBtts='-', sHt='-', sScore=0;
@@ -244,13 +246,13 @@
                 const highConf = withResults.filter(m => ['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence));
                 t1x2 = highConf.length; c1x2 = highConf.filter(m=>m.pred_1x2_correct).length;
                 s1x2 = t1x2 > 0 ? `${Math.round(c1x2/t1x2*100)}%` : '-';
-                const over25Eligible = withResults.filter(m => (m.over25_pct||0) >= THRESH);
+                const over25Eligible = withResults.filter(m => (m.over25_pct||0) >= THRESH_OVER25);
                 tOver = over25Eligible.length; cOver = over25Eligible.filter(m=>m.over25_correct).length;
                 sOver = tOver > 0 ? `${Math.round(cOver/tOver*100)}%` : '-';
-                const bttsEligible = withResults.filter(m => (m.btts_pct||0) >= THRESH);
+                const bttsEligible = withResults.filter(m => (m.btts_pct||0) >= THRESH_BTTS);
                 tBtts = bttsEligible.length; cBtts = bttsEligible.filter(m=>m.btts_correct).length;
                 sBtts = tBtts > 0 ? `${Math.round(cBtts/tBtts*100)}%` : '-';
-                const htEligible = withResults.filter(m => (m.ht2g_pct||0) >= THRESH && m.ht_home_score !== null && m.ht_home_score !== undefined);
+                const htEligible = withResults.filter(m => (m.ht2g_pct||0) >= THRESH_HT && m.ht_home_score !== null && m.ht_home_score !== undefined);
                 tHt = htEligible.length; cHt = htEligible.filter(m=>m.ht_correct).length;
                 sHt = tHt > 0 ? `${Math.round(cHt/tHt*100)}%` : '-';
                 sScore = withResults.filter(m=>m.score_correct).length;
@@ -297,8 +299,8 @@
                 <div class="ssc-title"><h2>Günlük İstatistik</h2><p>${dateStr} Analiz Raporu</p></div>
                 <div class="ssc-stats">
                     <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.s1x2)}">${d.s1x2}</div><div class="ssc-stat-lbl">1X2 BAŞARI</div>${d.t1x2>0?`<div class="ssc-stat-count">${d.t1x2} maçtan ${d.c1x2} tuttu</div>`:''}</div>
-                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sOver)}">${d.sOver}</div><div class="ssc-stat-lbl">2.5 ÜST (%65+)</div>${d.tOver>0?`<div class="ssc-stat-count">${d.tOver} maçtan ${d.cOver} tuttu</div>`:''}</div>
-                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sBtts)}">${d.sBtts}</div><div class="ssc-stat-lbl">KG VAR (%65+)</div>${d.tBtts>0?`<div class="ssc-stat-count">${d.tBtts} maçtan ${d.cBtts} tuttu</div>`:''}</div>
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sOver)}">${d.sOver}</div><div class="ssc-stat-lbl">2.5 ÜST (%75+)</div>${d.tOver>0?`<div class="ssc-stat-count">${d.tOver} maçtan ${d.cOver} tuttu</div>`:''}</div>
+                    <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sBtts)}">${d.sBtts}</div><div class="ssc-stat-lbl">KG VAR (%70+)</div>${d.tBtts>0?`<div class="ssc-stat-count">${d.tBtts} maçtan ${d.cBtts} tuttu</div>`:''}</div>
                     <div class="ssc-stat"><div class="ssc-stat-val" style="color:${statColor(d.sHt)}">${d.sHt}</div><div class="ssc-stat-lbl">İY 0.5 ÜST (%65+)</div>${d.tHt>0?`<div class="ssc-stat-count">${d.tHt} maçtan ${d.cHt} tuttu</div>`:''}</div>
                 </div>
                 <div class="ssc-total">Toplam <span>${d.total}</span> maç · Sonuçlanan <span>${d.withResults}</span> maç</div>`;
@@ -361,11 +363,10 @@
                         </div>
                     </div>
                 </div>`;
-            const THRESHOLD = 65;
             const highConf1x2 = ['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence);
-            const over25AboveThreshold = (m.over25_pct||0) >= THRESHOLD;
-            const bttsAboveThreshold = (m.btts_pct||0) >= THRESHOLD;
-            const htAboveThreshold = (m.ht2g_pct||0) >= THRESHOLD;
+            const over25AboveThreshold = (m.over25_pct||0) >= 75;
+            const bttsAboveThreshold = (m.btts_pct||0) >= 70;
+            const htAboveThreshold = (m.ht2g_pct||0) >= 65;
             function thresholdTick(a,c) { if(!a)return '<span style="color:#555;font-size:11px;">—</span>'; return c?'✅':'❌'; }
             function thresholdVal(a,v) { if(!a)return 'Oynanmadı 🚫'; return v; }
             const htPredHtml = hasHt ? `<div class="pred-item"><span class="tick">${thresholdTick(htAboveThreshold,m.ht_correct)}</span><span class="pred-label">İY 0.5 Üst:</span><span class="pred-value">${thresholdVal(htAboveThreshold,'%'+Math.round(m.ht2g_pct||0)+' → İY '+m.ht_home_score+'-'+m.ht_away_score)}</span></div>` : '';
@@ -406,9 +407,8 @@
             const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
             const pred = m.prediction_1x2||'?';
             const predText = {'1':'1 (Ev)','X':'Beraberlik','2':'2 (Dep)'}[pred]||pred;
-            const THRESH=65;
             const high1x2=['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence);
-            const o25above=(m.over25_pct||0)>=THRESH, btabove=(m.btts_pct||0)>=THRESH, htabove=(m.ht2g_pct||0)>=THRESH;
+            const o25above=(m.over25_pct||0)>=75, btabove=(m.btts_pct||0)>=70, htabove=(m.ht2g_pct||0)>=65;
             function sTick(a,c){return a?(c?'✅':'❌'):'—';}
             function sVal(a,v){return a?v:'Oynanmadı 🚫';}
             const stats = hasResult ? `
@@ -476,9 +476,8 @@
             const hasHt = m.ht_home_score !== null && m.ht_home_score !== undefined;
             const pred = m.prediction_1x2||'?';
             const predText = {'1':'1 (Ev)','X':'Beraberlik','2':'2 (Dep)'}[pred]||pred;
-            const THRESH=65;
             const high1x2=['Yuksek','Cok Yuksek','Yüksek','Çok Yüksek'].includes(m.confidence);
-            const o25above=(m.over25_pct||0)>=THRESH, btabove=(m.btts_pct||0)>=THRESH, htabove=(m.ht2g_pct||0)>=THRESH;
+            const o25above=(m.over25_pct||0)>=75, btabove=(m.btts_pct||0)>=70, htabove=(m.ht2g_pct||0)>=65;
             function sTick(a,c){return a?(c?'TUTTU ✓':'TUTMADI ✗'):'—';}
             function sVal(a,v){return a?v:'Oynanmadi';}
             function statColor(pct) {
