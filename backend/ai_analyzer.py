@@ -805,10 +805,10 @@ def call_anthropic(prompt):
         headers={'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
         json={
             'model': 'claude-sonnet-4-20250514',
-            'max_tokens': 1000,
+            'max_tokens': 4000,
             'system': 'Sen profesyonel bir futbol bahis analistisin. Tüm yanıtlar TÜRKÇE olacak. Elo kelimesini kullanma.',
             'messages': [{'role': 'user', 'content': prompt}]
-        }, timeout=30
+        }, timeout=60
     )
     response.raise_for_status()
     return response.json()['content'][0]['text'].strip()
@@ -1754,11 +1754,11 @@ def build_summary_prompt(matches):
 
     lines.append("\n── TALİMATLAR ──")
     lines.append("Aşağıdaki başlıklar altında madde madde özet yaz:")
-    lines.append("1. En güvenilir maçlar (güven seviyesi Yüksek veya Çok Yüksek olanlar)")
-    lines.append("2. En golcü beklenen maçlar (2.5 üst yüzdesi yüksek olanlar)")
-    lines.append("3. Karşılıklı gol beklentisi yüksek maçlar (KG Var yüzdesi yüksek olanlar)")
+    lines.append("1. En güvenilir maçlar - Taraf (1X2) tahmini Yüksek veya Çok Yüksek güven seviyesinde olanlar")
+    lines.append("2. En golcü beklenen maçlar (%75 ve üzeri 2.5 üst yüzdesi olanlar)")
+    lines.append("3. Karşılıklı gol beklentisi yüksek maçlar (%70 ve üzeri KG Var yüzdesi olanlar)")
     lines.append("4. Korner açısından hareketli maçlar (ortalama korner 10+ olanlar)")
-    lines.append("5. İkinci yarı gol beklentisi yüksek maçlar (2Y 0.5 üst %70+ olanlar)")
+    lines.append("5. İlk yarı gol beklentisi yüksek maçlar (İY 0.5 üst %65 ve üzeri olanlar)")
     lines.append("6. Genel risk değerlendirmesi ve günün kısa özeti")
     lines.append("")
     lines.append("Eğer bir kategoride öne çıkan maç yoksa 'Bu kategoride belirgin bir maç yok' de.")
@@ -1797,7 +1797,7 @@ def generate_daily_summary(matches, ai_provider='claude'):
                     headers={'Content-Type': 'application/json'},
                     json={
                         'contents': [{'parts': [{'text': 'Sen profesyonel bir futbol bahis analistisin. TÜRKÇE yaz.\n\n' + prompt}]}],
-                        'generationConfig': {'maxOutputTokens': 1500, 'temperature': 0.7}
+                        'generationConfig': {'maxOutputTokens': 3000, 'temperature': 0.7}
                     }, timeout=30
                 )
                 response.raise_for_status()
@@ -1826,7 +1826,7 @@ def generate_daily_summary(matches, ai_provider='claude'):
                     headers={'Content-Type': 'application/json'},
                     json={
                         'contents': [{'parts': [{'text': 'Sen profesyonel bir futbol bahis analistisin. TÜRKÇE yaz.\n\n' + prompt}]}],
-                        'generationConfig': {'maxOutputTokens': 1500, 'temperature': 0.7}
+                        'generationConfig': {'maxOutputTokens': 3000, 'temperature': 0.7}
                     }, timeout=30
                 )
                 response.raise_for_status()
