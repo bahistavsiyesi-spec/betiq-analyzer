@@ -151,6 +151,10 @@ def init_db():
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS value_bet_results TEXT',
         'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS predicted_ht_score TEXT',
         'ALTER TABLE coupons ADD COLUMN IF NOT EXISTS coupon_type TEXT DEFAULT \'dengeli\'',
+        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS home_corners INTEGER',
+        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS away_corners INTEGER',
+        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS korner_85_correct INTEGER',
+        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS korner_95_correct INTEGER',
     ]:
         try:
             cur.execute(sql)
@@ -536,7 +540,9 @@ def get_analyses_by_date_with_results(date_str):
             r.actual_over25, r.over25_correct,
             r.actual_btts, r.btts_correct,
             r.score_correct, r.ht_correct, r.total_goals,
-            r.value_bet_results
+            r.value_bet_results,
+            r.home_corners, r.away_corners,
+            r.korner_85_correct, r.korner_95_correct
         FROM analyses a
         LEFT JOIN match_results r ON a.id = r.analysis_id
         WHERE a.analysis_date = %s
@@ -601,7 +607,9 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                       actual_btts, btts_correct,
                       score_correct, total_goals, source='auto',
                       ht_home_score=None, ht_away_score=None, ht_correct=0,
-                      value_bet_results=None):
+                      value_bet_results=None,
+                      home_corners=None, away_corners=None,
+                      korner_85_correct=None, korner_95_correct=None):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute('SELECT id FROM match_results WHERE analysis_id = %s', (analysis_id,))
@@ -616,13 +624,16 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                 actual_btts=%s, btts_correct=%s,
                 score_correct=%s, ht_correct=%s,
                 total_goals=%s, source=%s,
-                value_bet_results=%s
+                value_bet_results=%s,
+                home_corners=%s, away_corners=%s,
+                korner_85_correct=%s, korner_95_correct=%s
             WHERE analysis_id=%s
         ''', (home_score, away_score, ht_home_score, ht_away_score,
               actual_1x2, pred_1x2_correct, actual_over25, over25_correct,
               actual_btts, btts_correct, score_correct, ht_correct,
               total_goals, source,
               json.dumps(value_bet_results, ensure_ascii=False) if value_bet_results else None,
+              home_corners, away_corners, korner_85_correct, korner_95_correct,
               analysis_id))
     else:
         cur.execute('''
@@ -633,8 +644,10 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                 actual_over25, over25_correct,
                 actual_btts, btts_correct,
                 score_correct, ht_correct,
-                total_goals, source, value_bet_results
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                total_goals, source, value_bet_results,
+                home_corners, away_corners,
+                korner_85_correct, korner_95_correct
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (analysis_id, fixture_id, home_score, away_score,
               ht_home_score, ht_away_score,
               actual_1x2, pred_1x2_correct,
@@ -642,7 +655,9 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
               actual_btts, btts_correct,
               score_correct, ht_correct,
               total_goals, source,
-              json.dumps(value_bet_results, ensure_ascii=False) if value_bet_results else None))
+              json.dumps(value_bet_results, ensure_ascii=False) if value_bet_results else None,
+              home_corners, away_corners,
+              korner_85_correct, korner_95_correct))
     conn.commit()
     cur.close()
     conn.close()

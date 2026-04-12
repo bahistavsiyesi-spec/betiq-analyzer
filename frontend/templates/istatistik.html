@@ -287,13 +287,18 @@
             const resp = await fetch('/api/stats/overview' + buildMonthParam());
             const d = await resp.json();
             if (d.error) { document.getElementById('overviewGrid').innerHTML = '<div class="no-data">Veri yok</div>'; return; }
+            const k85 = d.korner85 || {pct:0,total:0,correct:0};
+            const k95 = d.korner95 || {pct:0,total:0,correct:0};
+            const k85html = k85.total > 0 ? `<div class="overview-card" style="border-color:#0ea5e9;"><div class="ov-value" style="color:#0ea5e9;">%${k85.pct}</div><div class="ov-label">Korner 8.5 Ust</div><div style="font-size:10px;color:#444;margin-top:2px;">${k85.total} mac</div></div>` : '';
+            const k95html = k95.total > 0 ? `<div class="overview-card" style="border-color:#06b6d4;"><div class="ov-value" style="color:#06b6d4;">%${k95.pct}</div><div class="ov-label">Korner 9.5 Ust</div><div style="font-size:10px;color:#444;margin-top:2px;">${k95.total} mac</div></div>` : '';
             document.getElementById('overviewGrid').innerHTML = `
                 <div class="overview-card"><div class="ov-value">${d.total}</div><div class="ov-label">Toplam Sonuc</div></div>
                 <div class="overview-card green"><div class="ov-value">%${d['1x2'].pct}</div><div class="ov-label">1X2 Basari</div></div>
                 <div class="overview-card yellow"><div class="ov-value">%${d.over25.pct}</div><div class="ov-label">2.5 Ust</div></div>
                 <div class="overview-card blue"><div class="ov-value">%${d.btts.pct}</div><div class="ov-label">KG Var</div></div>
                 <div class="overview-card pink"><div class="ov-value">%${d.ht.pct}</div><div class="ov-label">IY 0.5 Ust</div></div>
-                <div class="overview-card"><div class="ov-value">${d.score.correct}</div><div class="ov-label">Skor Dogru</div></div>`;
+                <div class="overview-card"><div class="ov-value">${d.score.correct}</div><div class="ov-label">Skor Dogru</div></div>
+                ${k85html}${k95html}`;
         }
 
         async function loadDailyChart() {
@@ -373,9 +378,11 @@
                 const data = await resp.json();
                 if (data.error) { container.innerHTML = '<div class="no-data">Veri yok</div>'; return; }
                 const types = [
-                    { key: 'over25', label: '2.5 Gol Ustu', color: '#22c55e' },
-                    { key: 'btts',   label: 'KG Var',       color: '#f59e0b' },
-                    { key: 'ht2g',   label: 'IY 0.5 Ust',  color: '#a78bfa' },
+                    { key: 'over25',   label: '2.5 Gol Ustu',       color: '#22c55e' },
+                    { key: 'btts',     label: 'KG Var',              color: '#f59e0b' },
+                    { key: 'ht2g',     label: 'IY 0.5 Ust',         color: '#a78bfa' },
+                    { key: 'korner85', label: 'Korner 8.5 Ust (%65+)', color: '#0ea5e9' },
+                    { key: 'korner95', label: 'Korner 9.5 Ust (%65+)', color: '#06b6d4' },
                 ];
                 let html = '';
                 for (const type of types) {
@@ -383,13 +390,15 @@
                     if (!buckets.some(b => b.total > 0)) continue;
                     html += `<div style="margin-bottom:20px;"><div style="font-size:12px;font-weight:700;color:${type.color};margin-bottom:10px;">${type.label}</div><div class="calib-grid">`;
                     for (const b of buckets) {
-                        if (b.total === 0) { html += `<div class="calib-card calib-empty"><div class="calib-bucket">%${b.bucket}</div><div style="font-size:11px;color:#333;">Veri yok</div></div>`; continue; }
-                        const diff = b.actual_pct - b.predicted;
+                        if (b.total === 0) { html += `<div class="calib-card calib-empty"><div class="calib-bucket">${b.bucket}</div><div style="font-size:11px;color:#333;">Veri yok</div></div>`; continue; }
+                        const actualPct = b.actual_pct ?? 0;
+                        const diff = actualPct - b.predicted;
                         const absDiff = Math.abs(diff);
                         const diffColor = absDiff <= 5 ? '#22c55e' : absDiff <= 15 ? '#f59e0b' : '#ef4444';
-                        const diffLabel = absDiff <= 5 ? 'İyi kalibre' : absDiff <= 15 ? 'Sapma var' : 'Buyuk sapma';
+                        const diffLabel = absDiff <= 5 ? 'Iyi kalibre' : absDiff <= 15 ? 'Sapma var' : 'Buyuk sapma';
                         const diffText = diff > 0 ? '+'+diff+'%' : diff+'%';
-                        html += `<div class="calib-card"><div class="calib-bucket">Tahmin: %${b.bucket}</div><div class="calib-actual" style="color:${type.color}">%${b.actual_pct}</div><div class="calib-bar"><div class="calib-bar-fill" style="width:${b.actual_pct}%;background:${type.color};"></div></div><div class="calib-meta"><span class="calib-count">${b.total} mac</span><span class="calib-diff" style="color:${diffColor}">${diffText} ${diffLabel}</span></div></div>`;
+                        const bucketLabel = type.key.startsWith('korner') ? b.bucket : '%'+b.bucket;
+                        html += `<div class="calib-card"><div class="calib-bucket">Esik: ${bucketLabel}</div><div class="calib-actual" style="color:${type.color}">%${actualPct}</div><div class="calib-bar"><div class="calib-bar-fill" style="width:${actualPct}%;background:${type.color};"></div></div><div class="calib-meta"><span class="calib-count">${b.total} mac</span><span class="calib-diff" style="color:${diffColor}">${diffText} ${diffLabel}</span></div></div>`;
                     }
                     html += '</div></div>';
                 }

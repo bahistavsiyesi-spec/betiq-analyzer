@@ -336,6 +336,7 @@
             const scoreHtml = hasResult
                 ? `<div><div class="result-score">${m.home_score} - ${m.away_score}</div>${hasHt?`<div style="font-size:11px;color:#888;text-align:right;">İY: ${m.ht_home_score}-${m.ht_away_score}</div>`:''}</div>`
                 : `<div class="result-score pending-score">⏳ Sonuç Bekleniyor</div>`;
+            const hasCorners = m.home_corners !== null && m.home_corners !== undefined;
             const scoreFormHtml = `
                 <div style="margin-top:10px;">
                     <button class="btn-${hasResult?'edit':'enter'}-score" onclick="toggleScoreForm(${m.id})">${hasResult?'✏️ Skoru Düzenle':'✏️ Skor Gir'}</button>
@@ -352,6 +353,12 @@
                             <input type="number" min="0" max="20" class="score-input" id="hths-${m.id}" placeholder="0" value="${hasHt?m.ht_home_score:''}">
                             <span class="score-sep">-</span>
                             <input type="number" min="0" max="20" class="score-input" id="htas-${m.id}" placeholder="0" value="${hasHt?m.ht_away_score:''}">
+                        </div>
+                        <div style="font-size:11px;color:#888;margin:8px 0 6px 0;">🚩 Korner <span style="color:#555;">(opsiyonel: Ev + Dep)</span></div>
+                        <div class="score-form">
+                            <input type="number" min="0" max="30" class="score-input" id="hc-${m.id}" placeholder="0" value="${hasCorners?m.home_corners:''}">
+                            <span class="score-sep">+</span>
+                            <input type="number" min="0" max="30" class="score-input" id="ac-${m.id}" placeholder="0" value="${hasCorners?m.away_corners:''}">
                         </div>
                         <div style="margin-top:10px;">
                             <button class="btn-save-score" onclick="saveScore(${m.id})">💾 Kaydet</button>
@@ -370,12 +377,17 @@
             function thresholdTick(a,c) { if(!a)return '<span style="color:#555;font-size:11px;">—</span>'; return c?'✅':'❌'; }
             function thresholdVal(a,v) { if(!a)return 'Oynanmadı 🚫'; return v; }
             const htPredHtml = hasHt ? `<div class="pred-item"><span class="tick">${thresholdTick(htAboveThreshold,m.ht_correct)}</span><span class="pred-label">İY 0.5 Üst:</span><span class="pred-value">${thresholdVal(htAboveThreshold,'%'+Math.round(m.ht2g_pct||0)+' → İY '+m.ht_home_score+'-'+m.ht_away_score)}</span></div>` : '';
+            const hasCornerResult = m.home_corners !== null && m.home_corners !== undefined;
+            const cornerResultHtml = hasCornerResult
+                ? `<div class="pred-item"><span class="tick">🚩</span><span class="pred-label">Korner:</span><span class="pred-value">${m.home_corners}-${m.away_corners} (Top: ${m.home_corners+m.away_corners})</span></div>`
+                : '';
             const predsHtml = hasResult ? `
                 <div class="result-preds">
                     <div class="pred-item"><span class="tick">${highConf1x2?(m.pred_1x2_correct?'✅':'❌'):'<span style=\"color:#555;font-size:11px;\">—</span>'}</span><span class="pred-label">1X2:</span><span class="pred-value">${highConf1x2?predText+' → '+m.actual_1x2:'Oynanmadı 🚫'}</span></div>
                     <div class="pred-item"><span class="tick">${thresholdTick(over25AboveThreshold,m.over25_correct)}</span><span class="pred-label">2.5 Gol:</span><span class="pred-value">${thresholdVal(over25AboveThreshold,'%'+Math.round(m.over25_pct)+' → '+(m.actual_over25?'Üstü':'Altı'))}</span></div>
                     <div class="pred-item"><span class="tick">${thresholdTick(bttsAboveThreshold,m.btts_correct)}</span><span class="pred-label">KG Var:</span><span class="pred-value">${thresholdVal(bttsAboveThreshold,'%'+Math.round(m.btts_pct)+' → '+(m.actual_btts?'Var':'Yok'))}</span></div>
                     ${htPredHtml}
+                    ${cornerResultHtml}
                     <div class="pred-item"><span class="tick">${m.score_correct?'✅':'❌'}</span><span class="pred-label">Skor:</span><span class="pred-value">${m.predicted_score||'?-?'}</span></div>
                     <div class="pred-item"><span class="tick">—</span><span class="pred-label">Tahmini İY:</span><span class="pred-value">${m.predicted_ht_score||'?-?'}</span></div>
                 </div>${scoreFormHtml}` : `
@@ -568,6 +580,8 @@
             const as_=parseInt(document.getElementById('as-'+analysisId).value);
             const hths=document.getElementById('hths-'+analysisId).value;
             const htas=document.getElementById('htas-'+analysisId).value;
+            const hcVal=document.getElementById('hc-'+analysisId)?.value;
+            const acVal=document.getElementById('ac-'+analysisId)?.value;
             const msg=document.getElementById('saveMsg-'+analysisId);
             const sendTg=document.getElementById('tgCheck-'+analysisId)?.checked||false;
             if(isNaN(hs)||isNaN(as_)){msg.textContent='❌ Maç sonu skorunu gir!';msg.style.color='#ef4444';return;}
@@ -576,6 +590,8 @@
                     body:JSON.stringify({analysis_id:analysisId,home_score:hs,away_score:as_,
                         ht_home_score:hths!==''?parseInt(hths):null,
                         ht_away_score:htas!==''?parseInt(htas):null,
+                        home_corners:hcVal!==''&&hcVal!==undefined?parseInt(hcVal):null,
+                        away_corners:acVal!==''&&acVal!==undefined?parseInt(acVal):null,
                         send_telegram:sendTg})});
                 const data=await resp.json();
                 if(data.status==='success'){

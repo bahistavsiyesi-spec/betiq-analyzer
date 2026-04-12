@@ -155,7 +155,16 @@ def calculate_value_bet_results(analysis, outcomes):
     return results if results else None
 
 
-def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_away_score=None):
+def _normalize_korner_pct(val):
+    """CSV'den gelen korner yüzdesini 0-100 aralığına normalize et."""
+    if val is None:
+        return None
+    f = float(val)
+    return f * 100 if f <= 1 else f
+
+
+def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_away_score=None,
+                       home_corners=None, away_corners=None):
     total_goals = home_score + away_score
 
     if home_score > away_score:
@@ -212,6 +221,24 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
         else:
             ht2_over15_correct = None
 
+    # ── Korner hesaplama ─────────────────────────────────────────────────────
+    korner_85_correct = None
+    korner_95_correct = None
+    if home_corners is not None and away_corners is not None:
+        total_corners = home_corners + away_corners
+        csv_data = analysis.get('csv_data') or {}
+        if isinstance(csv_data, str):
+            try:
+                csv_data = json.loads(csv_data)
+            except Exception:
+                csv_data = {}
+        k85_pct = _normalize_korner_pct((csv_data or {}).get('avg_corners_85'))
+        k95_pct = _normalize_korner_pct((csv_data or {}).get('avg_corners_95'))
+        if k85_pct is not None and k85_pct >= 65:
+            korner_85_correct = 1 if total_corners > 8.5 else 0
+        if k95_pct is not None and k95_pct >= 65:
+            korner_95_correct = 1 if total_corners > 9.5 else 0
+
     return {
         'actual_1x2': actual_1x2,
         'pred_1x2_correct': pred_1x2_correct,
@@ -223,6 +250,10 @@ def calculate_outcomes(analysis, home_score, away_score, ht_home_score=None, ht_
         'ht_correct': ht_correct,
         'total_goals': total_goals,
         'ht2_over15_correct': ht2_over15_correct,
+        'home_corners': home_corners,
+        'away_corners': away_corners,
+        'korner_85_correct': korner_85_correct,
+        'korner_95_correct': korner_95_correct,
     }
 
 
@@ -291,12 +322,19 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
             ht2_text = f"2Y 1.5 Üst: {ht2_home+ht2_away} gol ({'Tuttu ✓' if ht2_val else 'Tutmadı ✗'})"
             ht2_line = f"\n{ht2_icon} <i>{ht2_text}</i>"
 
+    # Korner satırı
+    corner_line = ''
+    hc = outcomes.get('home_corners')
+    ac = outcomes.get('away_corners')
+    if hc is not None and ac is not None:
+        corner_line = f"\n🚩 Korner: {hc}-{ac} (Top: {hc + ac})"
+
     msg = f"""
 <b>{'─' * 28}</b>
 ⚽ <b>SONUÇ: {analysis.get('home_team')} vs {analysis.get('away_team')}</b>
 🏆 {analysis.get('league', '')}  🕐 {time_str}
 
-📊 <b>Gerçek Skor: {home_score}-{away_score}</b>
+📊 <b>Gerçek Skor: {home_score}-{away_score}</b>{corner_line}
 
 <b>Tahmin Sonuçları:</b>
 {line_1x2}
@@ -346,8 +384,9 @@ def check_and_send_results():
             outcomes['btts_correct']     = int(outcomes['btts_correct'])
             outcomes['score_correct']    = int(outcomes['score_correct'])
             outcomes['ht_correct']       = int(outcomes['ht_correct'])
-            # ht2_over15_correct DB'ye kaydedilmiyor, save_match_result'e gönderme
+            # ht2_over15_correct DB'ye kaydedilmiyor
             ht2_val = outcomes.pop('ht2_over15_correct', None)
+            # Otomatik kontrolde corner verisi API'den gelmiyor; None kalır
 
             vb_results = calculate_value_bet_results(analysis, outcomes)
 

@@ -174,6 +174,23 @@ def api_stats_overview():
         total_over25 = row['total_over25'] or 0
         total_btts = row['total_btts'] or 0
         total_ht = row['total_ht'] or 0
+        # Korner istatistikleri (threshold >= 65 olan maçlar)
+        cur.execute(f'''
+            SELECT
+                COUNT(CASE WHEN r.korner_85_correct IS NOT NULL THEN 1 END) as total_k85,
+                SUM(CASE WHEN r.korner_85_correct IS NOT NULL THEN r.korner_85_correct ELSE 0 END) as correct_k85,
+                COUNT(CASE WHEN r.korner_95_correct IS NOT NULL THEN 1 END) as total_k95,
+                SUM(CASE WHEN r.korner_95_correct IS NOT NULL THEN r.korner_95_correct ELSE 0 END) as correct_k95
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE r.home_corners IS NOT NULL {{month_clause}}
+        '''.format(month_clause=month_clause), month_params)
+        krow = dict(cur.fetchone())
+        total_k85 = krow['total_k85'] or 0
+        total_k95 = krow['total_k95'] or 0
+        correct_k85 = krow['correct_k85'] or 0
+        correct_k95 = krow['correct_k95'] or 0
+
         result = {
             'total': total,
             '1x2': {'correct': row['c1x2'] or 0, 'total': total_1x2, 'pct': round((row['c1x2'] or 0)/total_1x2*100) if total_1x2 else 0},
@@ -182,6 +199,8 @@ def api_stats_overview():
             'score': {'correct': row['cscore'] or 0, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
             'ht': {'correct': row['cht'] or 0, 'total': total_ht,
                    'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
+            'korner85': {'correct': correct_k85, 'total': total_k85, 'pct': round(correct_k85/total_k85*100) if total_k85 else 0},
+            'korner95': {'correct': correct_k95, 'total': total_k95, 'pct': round(correct_k95/total_k95*100) if total_k95 else 0},
         }
         cur.close(); conn.close()
         return jsonify(result)
@@ -522,7 +541,7 @@ def api_stats_calibration():
             (90, 101, '90+'),
         ]
 
-        result = {'over25': [], 'btts': [], 'ht2g': []}
+        result = {'over25': [], 'btts': [], 'ht2g': [], 'korner85': [], 'korner95': []}
 
         for low, high, label in buckets:
             cur.execute('''
@@ -558,6 +577,30 @@ def api_stats_calibration():
             correct = row['correct'] or 0
             result['ht2g'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
                 'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
+
+        # Korner kalibrasyonu: korner_85_correct / korner_95_correct sütunlarından
+        # Bu değerler zaten >=65 eşiği uygulanmış olarak saklandığından tek bucket kullanıyoruz
+        cur.execute('''
+            SELECT
+                COUNT(CASE WHEN r.korner_85_correct IS NOT NULL THEN 1 END) as total_k85,
+                SUM(CASE WHEN r.korner_85_correct IS NOT NULL THEN r.korner_85_correct ELSE 0 END) as correct_k85,
+                COUNT(CASE WHEN r.korner_95_correct IS NOT NULL THEN 1 END) as total_k95,
+                SUM(CASE WHEN r.korner_95_correct IS NOT NULL THEN r.korner_95_correct ELSE 0 END) as correct_k95
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE r.home_corners IS NOT NULL
+        ''')
+        krow = dict(cur.fetchone())
+        result['korner85'].append({
+            'bucket': '65+', 'predicted': 65,
+            'total': krow['total_k85'] or 0, 'correct': krow['correct_k85'] or 0,
+            'actual_pct': round((krow['correct_k85'] or 0) / krow['total_k85'] * 100) if (krow['total_k85'] or 0) > 0 else None
+        })
+        result['korner95'].append({
+            'bucket': '65+', 'predicted': 65,
+            'total': krow['total_k95'] or 0, 'correct': krow['correct_k95'] or 0,
+            'actual_pct': round((krow['correct_k95'] or 0) / krow['total_k95'] * 100) if (krow['total_k95'] or 0) > 0 else None
+        })
 
         cur.close()
         conn.close()
@@ -681,6 +724,8 @@ def api_manual_result():
         away_score = data.get('away_score')
         ht_home_score = data.get('ht_home_score')
         ht_away_score = data.get('ht_away_score')
+        home_corners = data.get('home_corners')
+        away_corners = data.get('away_corners')
         if analysis_id is None or home_score is None or away_score is None:
             return jsonify({"status": "error", "message": "Eksik veri"}), 400
         from backend.database import get_analysis_by_id, save_match_result, mark_telegram_sent
@@ -690,7 +735,9 @@ def api_manual_result():
             return jsonify({"status": "error", "message": "Analiz bulunamadi"}), 404
         ht_hs = int(ht_home_score) if ht_home_score not in (None, '') else None
         ht_as = int(ht_away_score) if ht_away_score not in (None, '') else None
-        outcomes = calculate_outcomes(analysis, home_score, away_score, ht_hs, ht_as)
+        hc = int(home_corners) if home_corners not in (None, '') else None
+        ac = int(away_corners) if away_corners not in (None, '') else None
+        outcomes = calculate_outcomes(analysis, home_score, away_score, ht_hs, ht_as, hc, ac)
         for k in ['pred_1x2_correct','actual_over25','over25_correct','actual_btts','btts_correct','score_correct','ht_correct']:
             outcomes[k] = int(outcomes[k])
         # ht2_over15_correct DB'ye kaydedilmiyor, outcomes'dan çıkar
