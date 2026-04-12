@@ -329,6 +329,13 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
     if hc is not None and ac is not None:
         corner_line = f"\n🚩 Korner: {hc}-{ac} (Top: {hc + ac})"
 
+    # İY 0-0 ama maç sonu >= 2 gol → kurtarma satırı
+    recovery_line = ''
+    if (ht_home_score is not None and ht_away_score is not None
+            and ht_home_score == 0 and ht_away_score == 0
+            and (home_score + away_score) >= 2):
+        recovery_line = "\n\n💪 <i>Devre arası 1.5 Üst alarak İY zararını kapattı!</i>"
+
     msg = f"""
 <b>{'─' * 28}</b>
 ⚽ <b>SONUÇ: {analysis.get('home_team')} vs {analysis.get('away_team')}</b>
@@ -339,7 +346,7 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
 <b>Tahmin Sonuçları:</b>
 {line_1x2}
 {line_over25}
-{line_btts}{ht_line}{ht2_line}"""
+{line_btts}{ht_line}{ht2_line}{recovery_line}"""
 
     send_message(msg)
 
