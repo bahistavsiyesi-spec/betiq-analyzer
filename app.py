@@ -661,6 +661,17 @@ def api_stats_momentum():
         ''', month_params)
         rows_over25 = [dict(r) for r in cur.fetchall()]
 
+        # Son 10 sonuç: KG Var (%70+)
+        cur.execute(f'''
+            SELECT r.btts_correct, a.analysis_date
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE a.btts_pct >= 70 {month_clause}
+            ORDER BY a.analysis_date DESC, a.id DESC
+            LIMIT 10
+        ''', month_params)
+        rows_btts = [dict(r) for r in cur.fetchall()]
+
         # Son 10 sonuç: İY 0.5 (%65+, ht skoru girilen)
         cur.execute(f'''
             SELECT r.ht_correct, a.analysis_date
@@ -698,6 +709,7 @@ def api_stats_momentum():
         result = {
             '1x2':   build_series(rows_1x2,   'pred_1x2_correct'),
             'over25': build_series(rows_over25, 'over25_correct'),
+            'btts':  build_series(rows_btts,  'btts_correct'),
             'ht':    build_series(rows_ht,    'ht_correct'),
         }
         return jsonify(result)
