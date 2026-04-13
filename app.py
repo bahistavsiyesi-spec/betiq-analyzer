@@ -1,4 +1,5 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response
+from functools import wraps
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 import os
@@ -17,6 +18,26 @@ from backend.database import (
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static', static_url_path='/static')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _check_auth(username, password):
+    return (
+        username == os.getenv('ADMIN_USERNAME') and
+        password == os.getenv('ADMIN_PASSWORD')
+    )
+
+
+@app.before_request
+def require_basic_auth():
+    if request.path.startswith('/static/'):
+        return
+    auth = request.authorization
+    if not auth or not _check_auth(auth.username, auth.password):
+        return Response(
+            'Yetkisiz erişim.',
+            401,
+            {'WWW-Authenticate': 'Basic realm="BetIQ Analyzer"'}
+        )
 
 
 def _get_month_filter(request):
