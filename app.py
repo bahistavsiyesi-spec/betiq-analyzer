@@ -630,6 +630,82 @@ def api_stats_calibration():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/stats/momentum')
+def api_stats_momentum():
+    """Son 10 maçın W/L dizisi + 1X2, Over 2.5, İY 0.5 için momentum."""
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        month_clause, month_params = _get_month_filter(request)
+
+        # Son 10 sonuç: 1X2
+        cur.execute(f'''
+            SELECT r.pred_1x2_correct, a.analysis_date
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE 1=1 {month_clause}
+            ORDER BY a.analysis_date DESC, a.id DESC
+            LIMIT 10
+        ''', month_params)
+        rows_1x2 = [dict(r) for r in cur.fetchall()]
+
+        # Son 10 sonuç: Over 2.5 (%75+)
+        cur.execute(f'''
+            SELECT r.over25_correct, a.analysis_date
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE a.over25_pct >= 75 {month_clause}
+            ORDER BY a.analysis_date DESC, a.id DESC
+            LIMIT 10
+        ''', month_params)
+        rows_over25 = [dict(r) for r in cur.fetchall()]
+
+        # Son 10 sonuç: İY 0.5 (%65+, ht skoru girilen)
+        cur.execute(f'''
+            SELECT r.ht_correct, a.analysis_date
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL {month_clause}
+            ORDER BY a.analysis_date DESC, a.id DESC
+            LIMIT 10
+        ''', month_params)
+        rows_ht = [dict(r) for r in cur.fetchall()]
+
+        cur.close(); conn.close()
+
+        def build_series(rows, key):
+            if not rows:
+                return None
+            series = [int(r[key] or 0) for r in rows]  # en yeni → en eski
+            series_display = list(reversed(series))       # en eski → en yeni (görsel için)
+            n = len(series)
+            n5 = min(5, n)
+            pct10 = round(sum(series) / n * 100)
+            pct5  = round(sum(series[:n5]) / n5 * 100)
+            if pct5 >= 70:   badge = ('fire',    '🔥 İyi Form')
+            elif pct5 < 50:  badge = ('down',    '📉 Zayıf Form')
+            else:             badge = ('stable',  '➡️ Stabil')
+            return {
+                'series': series_display,   # 0/1 listesi, kronolojik
+                'pct10': pct10,
+                'pct5': pct5,
+                'count': n,
+                'badge': badge[0],
+                'badge_label': badge[1],
+            }
+
+        result = {
+            '1x2':   build_series(rows_1x2,   'pred_1x2_correct'),
+            'over25': build_series(rows_over25, 'over25_correct'),
+            'ht':    build_series(rows_ht,    'ht_correct'),
+        }
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Momentum error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # Analiz
 @app.route('/api/analyze/selected', methods=['POST'])
 def api_analyze_selected():
