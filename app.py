@@ -72,7 +72,6 @@ def midnight_reset():
         logger.error(f"Midnight reset failed: {e}")
 
 scheduler = BackgroundScheduler(job_defaults={'misfire_grace_time': 60})
-scheduler.add_job(scheduled_result_check, 'interval', hours=6, id='result_check')
 scheduler.add_job(midnight_reset, 'cron', hour=0, minute=1, id='midnight_reset')
 
 # Startup: DB init + scheduler — before_request hook yerine doğrudan başlat
