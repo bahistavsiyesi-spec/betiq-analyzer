@@ -84,25 +84,24 @@
         .calib-count { color: #444; }
         /* Momentum kartı */
         .momentum-card { background:#12121f; border:1px solid #2a2a3e; border-radius:14px; padding:18px 20px; margin-bottom:20px; }
-        .momentum-row { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
-        .momentum-col { flex:1; min-width:180px; }
-        .momentum-label { font-size:11px; font-weight:700; color:#555; letter-spacing:0.4px; margin-bottom:10px; }
-        .momentum-dots { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; }
-        .m-dot { width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0; }
+        .momentum-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        .momentum-col { background:#0d0d1a; border:1px solid #1e1e3a; border-radius:12px; padding:14px 16px; }
+        .momentum-label { font-size:11px; font-weight:700; letter-spacing:0.4px; margin-bottom:10px; }
+        .momentum-dots { display:flex; gap:4px; margin-bottom:10px; }
+        .m-dot { width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0; }
         .m-dot.win  { background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.4); color:#22c55e; }
         .m-dot.loss { background:rgba(239,68,68,0.15);  border:1px solid rgba(239,68,68,0.4);  color:#ef4444; }
-        .momentum-pcts { display:flex; gap:12px; margin-bottom:8px; }
+        .momentum-pcts { display:flex; gap:14px; margin-bottom:10px; }
         .momentum-pct { font-size:11px; color:#555; }
-        .momentum-pct span { font-weight:800; font-size:14px; }
-        .momentum-pct span.hi { color:#22c55e; }
+        .momentum-pct span { font-weight:800; font-size:13px; }
+        .momentum-pct span.hi  { color:#22c55e; }
         .momentum-pct span.mid { color:#f59e0b; }
         .momentum-pct span.lo  { color:#ef4444; }
-        .momentum-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+        .momentum-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
         .badge-fire   { background:rgba(34,197,94,0.12);  border:1px solid rgba(34,197,94,0.3);  color:#22c55e; }
         .badge-down   { background:rgba(239,68,68,0.12);  border:1px solid rgba(239,68,68,0.3);  color:#ef4444; }
         .badge-stable { background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; }
-        .momentum-divider { width:1px; background:#1e1e3a; align-self:stretch; margin:0 4px; }
-        @media(max-width:600px){ .momentum-divider { display:none; } }
+        @media(max-width:540px){ .momentum-grid { grid-template-columns:1fr; } }
 
         .month-picker-wrap { display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap; background:#12121f; border:1px solid #2a2a3e; border-radius:12px; padding:14px 16px; }
         .month-picker-label { font-size:13px; color:#666; }
@@ -156,7 +155,7 @@
                         ⚡ SON DÖNEM MOMENTUM
                         <span style="font-size:10px;font-weight:400;color:#444;">(son 10 sonuç)</span>
                     </div>
-                    <div class="momentum-row" id="momentumRow"></div>
+                    <div class="momentum-grid" id="momentumRow"></div>
                 </div>
 
                 <!-- Tab Bar -->
@@ -338,20 +337,25 @@
                 let anyData = false;
                 let colsHtml = '';
 
-                markets.forEach((m, idx) => {
+                for (const m of markets) {
                     const data = d[m.key];
-                    if (!data || data.count === 0) return;
+                    if (!data || data.count === 0) {
+                        colsHtml += `<div class="momentum-col" style="opacity:0.3;">
+                            <div class="momentum-label" style="color:${m.color};">${m.label}</div>
+                            <div style="font-size:11px;color:#333;padding:8px 0;">Veri yok</div>
+                        </div>`;
+                        continue;
+                    }
                     anyData = true;
 
                     const dots = data.series.map(v =>
                         `<div class="m-dot ${v ? 'win' : 'loss'}">${v ? 'W' : 'L'}</div>`
                     ).join('');
 
-                    const pctColor5 = data.pct5 >= 70 ? 'hi' : data.pct5 >= 50 ? 'mid' : 'lo';
+                    const pctColor5  = data.pct5  >= 70 ? 'hi' : data.pct5  >= 50 ? 'mid' : 'lo';
                     const pctColor10 = data.pct10 >= 60 ? 'hi' : data.pct10 >= 45 ? 'mid' : 'lo';
                     const badgeClass = { fire: 'badge-fire', down: 'badge-down', stable: 'badge-stable' }[data.badge];
 
-                    if (idx > 0) colsHtml += '<div class="momentum-divider"></div>';
                     colsHtml += `
                         <div class="momentum-col">
                             <div class="momentum-label" style="color:${m.color};">${m.label}</div>
@@ -362,7 +366,7 @@
                             </div>
                             <span class="momentum-badge ${badgeClass}">${data.badge_label}</span>
                         </div>`;
-                });
+                }
 
                 if (!anyData) return;
                 document.getElementById('momentumRow').innerHTML = colsHtml;
