@@ -138,6 +138,7 @@
                     <button class="tab-btn" onclick="switchTab('guven')">💡 Guven & Lig</button>
                     <button class="tab-btn" onclick="switchTab('gunler')">🏆 En Iyi/Kotu</button>
                     <button class="tab-btn" onclick="switchTab('iy')">🔄 IY Analizi</button>
+                    <button class="tab-btn" onclick="switchTab('korner')">🚩 Korner</button>
                 </div>
 
                 <!-- Sekmeler -->
@@ -205,6 +206,11 @@
                         <div id="htRecoveryContent"><div class="loading">Yukleniyor...</div></div>
                     </div>
                 </div>
+
+                <div class="tab-content" id="tab-korner">
+                    <div class="section-title">🚩 Korner Kalibrasyon & Lig Bazli</div>
+                    <div id="kornerContent"><div class="loading">Yukleniyor...</div></div>
+                </div>
             </div>
         </main>
     </div>
@@ -236,6 +242,7 @@
             else if (name === 'guven') { loadConfidence(); loadLeagues(); }
             else if (name === 'gunler') loadBestWorst();
             else if (name === 'iy') loadHtRecovery();
+            else if (name === 'korner') loadKornerDetail();
         }
 
         function reloadAll() {
@@ -449,6 +456,93 @@
             container.innerHTML = `
                 <div class="day-card"><h4 class="best">En Iyi Gunler (1X2)</h4>${bestHtml||'<div class="no-data">Veri yok</div>'}</div>
                 <div class="day-card"><h4 class="worst">En Kotu Gunler (1X2)</h4>${worstHtml||'<div class="no-data">Veri yok</div>'}</div>`;
+        }
+
+        async function loadKornerDetail() {
+            const container = document.getElementById('kornerContent');
+            try {
+                const resp = await fetch('/api/stats/korner-detail' + buildMonthParam());
+                const d = await resp.json();
+                if (d.error || !d.has_data) {
+                    container.innerHTML = '<div class="no-data">Henuz korner verisi yok (mac sonucu girerken korne ekleyin)</div>';
+                    return;
+                }
+
+                function renderBuckets(buckets, color, label) {
+                    const hasAny = buckets.some(b => b.total > 0);
+                    if (!hasAny) return '';
+                    let html = `<div style="margin-bottom:20px;">
+                        <div style="font-size:12px;font-weight:700;color:${color};margin-bottom:10px;">${label}</div>
+                        <div class="calib-grid">`;
+                    for (const b of buckets) {
+                        if (b.total === 0) {
+                            html += `<div class="calib-card calib-empty"><div class="calib-bucket">%${b.label}</div><div style="font-size:11px;color:#333;">Veri yok</div></div>`;
+                            continue;
+                        }
+                        const pct = b.pct ?? 0;
+                        const midpoint = b.label === '90+' ? 93 : parseInt(b.label.split('-')[0]) + 5;
+                        const diff = pct - midpoint;
+                        const absDiff = Math.abs(diff);
+                        const diffColor = absDiff <= 8 ? '#22c55e' : absDiff <= 18 ? '#f59e0b' : '#ef4444';
+                        const diffLabel = absDiff <= 8 ? 'Iyi kalibre' : absDiff <= 18 ? 'Sapma var' : 'Buyuk sapma';
+                        const diffText = diff > 0 ? '+' + diff + '%' : diff + '%';
+                        html += `<div class="calib-card">
+                            <div class="calib-bucket">Tahmin: %${b.label}</div>
+                            <div class="calib-actual" style="color:${color}">%${pct}</div>
+                            <div class="calib-bar"><div class="calib-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+                            <div class="calib-meta">
+                                <span class="calib-count">${b.total} mac</span>
+                                <span class="calib-diff" style="color:${diffColor}">${diffText} ${diffLabel}</span>
+                            </div>
+                        </div>`;
+                    }
+                    html += '</div></div>';
+                    return html;
+                }
+
+                let html = '<div class="chart-box">';
+                html += renderBuckets(d.buckets_85, '#0ea5e9', '🚩 8.5 Üst Korner Kalibrasyonu');
+                html += renderBuckets(d.buckets_95, '#06b6d4', '🚩 9.5 Üst Korner Kalibrasyonu');
+                if (!d.buckets_85.some(b => b.total > 0) && !d.buckets_95.some(b => b.total > 0)) {
+                    html += '<div class="no-data">Bucket verisi henuz yok</div>';
+                }
+                html += '</div>';
+
+                // Lig bazlı tablo
+                if (d.by_league && d.by_league.length > 0) {
+                    html += `<div class="chart-box" style="margin-top:16px;">
+                        <div style="font-size:12px;font-weight:700;color:#0ea5e9;margin-bottom:12px;">🏆 Lig Bazında Korner Doğruluk</div>
+                        <table class="cat-table">
+                            <thead>
+                                <tr>
+                                    <th>Lig</th>
+                                    <th>8.5 Üst</th>
+                                    <th>9.5 Üst</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    for (const lg of d.by_league) {
+                        const p85 = lg.k85_pct;
+                        const p95 = lg.k95_pct;
+                        const color85 = p85 === null ? '#444' : p85 >= 60 ? '#22c55e' : p85 >= 40 ? '#f59e0b' : '#ef4444';
+                        const color95 = p95 === null ? '#444' : p95 >= 60 ? '#22c55e' : p95 >= 40 ? '#f59e0b' : '#ef4444';
+                        html += `<tr>
+                            <td class="cat-name">${lg.league}</td>
+                            <td>${lg.k85_total > 0 ? `<span style="color:${color85};font-weight:700;">%${p85}</span> <span style="color:#444;font-size:10px;">(${lg.k85_total})</span>` : '<span style="color:#333;">—</span>'}</td>
+                            <td>${lg.k95_total > 0 ? `<span style="color:${color95};font-weight:700;">%${p95}</span> <span style="color:#444;font-size:10px;">(${lg.k95_total})</span>` : '<span style="color:#333;">—</span>'}</td>
+                            <td>
+                                ${lg.k85_total > 0 ? `<div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${p85}%;background:${color85};"></div></div>` : ''}
+                            </td>
+                        </tr>`;
+                    }
+                    html += `</tbody></table></div>`;
+                }
+
+                container.innerHTML = html;
+            } catch(e) {
+                container.innerHTML = '<div class="no-data">Yuklenemedi: ' + e.message + '</div>';
+            }
         }
 
         async function loadHtRecovery() {

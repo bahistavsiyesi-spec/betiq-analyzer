@@ -52,6 +52,39 @@
         .refresh-bar { padding:0 20px 12px; max-width:640px; margin:0 auto; display:flex; gap:8px; align-items:center; }
         .refresh-btn { padding:8px 16px; border-radius:8px; border:none; background:#1e1e3a; color:#a78bfa; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
         .refresh-btn:hover { background:#2a1a4e; }
+
+        /* ── Kupon İstatistikleri ─────────────────────────────────────── */
+        .stats-section { padding:0 20px 8px; max-width:640px; margin:0 auto; }
+        .stats-section-title { font-size:11px; font-weight:700; color:#555; letter-spacing:0.5px; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+        .stats-section-title::after { content:''; flex:1; height:1px; background:#1e1e3a; }
+        .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-bottom:12px; }
+        .stat-box { background:#12121f; border:1px solid #1e1e3a; border-radius:12px; padding:12px; text-align:center; }
+        .stat-box .sv { font-size:20px; font-weight:800; }
+        .stat-box .sl { font-size:10px; color:#555; margin-top:2px; }
+        .sv-green { color:#22c55e; }
+        .sv-red { color:#ef4444; }
+        .sv-purple { color:#a78bfa; }
+        .sv-yellow { color:#f59e0b; }
+        .sv-blue { color:#3b82f6; }
+        .monthly-table { width:100%; border-collapse:collapse; margin-bottom:12px; }
+        .monthly-table th { font-size:10px; color:#444; text-align:left; padding:6px 8px; border-bottom:1px solid #1a1a2e; }
+        .monthly-table td { font-size:12px; padding:8px 8px; border-bottom:1px solid #111; }
+        .monthly-table tr:last-child td { border-bottom:none; }
+        .roi-pos { color:#22c55e; font-weight:700; }
+        .roi-neg { color:#ef4444; font-weight:700; }
+        .roi-null { color:#555; }
+        .type-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-bottom:12px; }
+        .type-card { background:#12121f; border:1px solid #1e1e3a; border-radius:10px; padding:10px 12px; }
+        .type-card .tc-label { font-size:11px; color:#a78bfa; font-weight:700; margin-bottom:6px; }
+        .type-card .tc-rate { font-size:18px; font-weight:800; }
+        .type-card .tc-meta { font-size:10px; color:#555; margin-top:2px; }
+        .streak-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; }
+        .streak-win { background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); color:#22c55e; }
+        .streak-loss { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:#ef4444; }
+        .streak-none { background:#12121f; border:1px solid #1e1e3a; color:#555; }
+        .stats-toggle { font-size:12px; color:#a78bfa; cursor:pointer; background:none; border:none; font-family:inherit; font-weight:600; padding:4px 0; margin-bottom:8px; }
+        .stats-body { display:none; }
+        .stats-body.open { display:block; }
     </style>
 </head>
 <body>
@@ -60,6 +93,15 @@
         <h1>🎫 Kuponlarım</h1>
     </div>
     <div class="summary-bar" id="summaryBar"></div>
+
+    <!-- Kupon İstatistikleri -->
+    <div class="stats-section" id="couponStatsSection" style="display:none;">
+        <div class="stats-section-title">📊 KUPON İSTATİSTİKLERİ
+            <button class="stats-toggle" onclick="toggleStats()" id="statsToggle">▼ Göster</button>
+        </div>
+        <div class="stats-body" id="statsBody"></div>
+    </div>
+
     <div class="refresh-bar">
         <button class="refresh-btn" onclick="refreshResults()" id="refreshBtn">🔄 Sonuçları Güncelle</button>
         <span id="refreshMsg" style="font-size:12px;color:#555;"></span>
@@ -187,6 +229,80 @@
     }
 
     loadCoupons();
+    loadCouponStats();
+
+    function toggleStats() {
+        const body = document.getElementById('statsBody');
+        const btn = document.getElementById('statsToggle');
+        body.classList.toggle('open');
+        btn.textContent = body.classList.contains('open') ? '▲ Gizle' : '▼ Göster';
+    }
+
+    async function loadCouponStats() {
+        try {
+            const resp = await fetch('/api/coupon/stats');
+            const d = await resp.json();
+            if (d.error || d.completed === 0) return;
+            document.getElementById('couponStatsSection').style.display = '';
+
+            const roiColor = d.roi === null ? 'roi-null' : d.roi >= 0 ? 'roi-pos' : 'roi-neg';
+            const roiText = d.roi === null ? 'N/A' : (d.roi >= 0 ? '+' : '') + d.roi + '%';
+            const winRateColor = d.win_rate >= 55 ? 'sv-green' : d.win_rate >= 40 ? 'sv-yellow' : 'sv-red';
+
+            // Mevcut seri badge
+            let streakHtml = '';
+            if (d.cur_streak && d.cur_streak_type) {
+                const cls = d.cur_streak_type === 'win' ? 'streak-win' : 'streak-loss';
+                const icon = d.cur_streak_type === 'win' ? '🔥' : '❄️';
+                streakHtml = `<span class="streak-badge ${cls}">${icon} Mevcut ${d.cur_streak_type === 'win' ? 'Kazanma' : 'Kaybetme'} Serisi: ${d.cur_streak}</span>`;
+            } else {
+                streakHtml = `<span class="streak-badge streak-none">— Seri yok</span>`;
+            }
+
+            // Tip bazlı başarı
+            const typeHtml = (d.by_type || []).map(t => {
+                const tc = t.win_rate >= 55 ? 'sv-green' : t.win_rate >= 40 ? 'sv-yellow' : 'sv-red';
+                return `<div class="type-card">
+                    <div class="tc-label">${t.label}</div>
+                    <div class="tc-rate ${tc}">%${t.win_rate}</div>
+                    <div class="tc-meta">${t.won}/${t.total} kazandı</div>
+                </div>`;
+            }).join('');
+
+            // Aylık tablo
+            const monthlyHtml = (d.monthly || []).length ? `
+                <table class="monthly-table">
+                    <thead><tr><th>Ay</th><th>Kazandı/Kaybetti</th><th>Oran</th><th>ROI</th></tr></thead>
+                    <tbody>${(d.monthly || []).map(m => {
+                        const rc = m.roi === null ? 'roi-null' : m.roi >= 0 ? 'roi-pos' : 'roi-neg';
+                        const rt = m.roi === null ? '—' : (m.roi >= 0 ? '+' : '') + m.roi + '%';
+                        const [y, mo] = m.month.split('-');
+                        const label = new Date(y, mo-1).toLocaleDateString('tr-TR', {month:'long', year:'numeric'});
+                        return `<tr>
+                            <td style="color:#aaa;">${label}</td>
+                            <td style="color:#888;">${m.won}K / ${m.lost}K</td>
+                            <td style="color:${m.win_rate>=55?'#22c55e':m.win_rate>=40?'#f59e0b':'#ef4444'};font-weight:700;">%${m.win_rate}</td>
+                            <td class="${rc}">${rt}</td>
+                        </tr>`;
+                    }).join('')}</tbody>
+                </table>` : '';
+
+            document.getElementById('statsBody').innerHTML = `
+                <div class="stats-row">
+                    <div class="stat-box"><div class="sv sv-purple">${d.completed}</div><div class="sl">Tamamlanan</div></div>
+                    <div class="stat-box"><div class="sv ${winRateColor}">%${d.win_rate}</div><div class="sl">Kazanma Oranı</div></div>
+                    <div class="stat-box"><div class="sv ${roiColor}">${roiText}</div><div class="sl">Toplam ROI</div></div>
+                    <div class="stat-box"><div class="sv sv-green">${d.max_win_streak}</div><div class="sl">Max Kazanma Serisi</div></div>
+                    <div class="stat-box"><div class="sv sv-red">${d.max_loss_streak}</div><div class="sl">Max Kaybetme Serisi</div></div>
+                </div>
+                <div style="margin-bottom:10px;">${streakHtml}</div>
+                ${typeHtml ? `<div style="font-size:10px;color:#444;margin-bottom:6px;font-weight:700;">TİP BAZLI BAŞARI</div><div class="type-grid">${typeHtml}</div>` : ''}
+                ${monthlyHtml ? `<div style="font-size:10px;color:#444;margin-bottom:6px;font-weight:700;">AYLIK PERFORMANS</div>${monthlyHtml}` : ''}
+            `;
+        } catch(e) {
+            console.error('Kupon stats yüklenemedi:', e);
+        }
+    }
     </script>
 </body>
 </html>

@@ -1056,6 +1056,145 @@ def api_coupon_delete(coupon_id):
         logger.error(f"Coupon delete error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/coupon/stats')
+def api_coupon_stats():
+    """Kupon istatistikleri: kazanma oranı, ROI, seriler, tip bazlı başarı."""
+    try:
+        import psycopg2, psycopg2.extras, json as _json, math
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            SELECT id, coupon_date, items, status, won, total_items, correct_items,
+                   COALESCE(coupon_type, 'taraf') as coupon_type
+            FROM coupons ORDER BY coupon_date ASC, id ASC
+        ''')
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close(); conn.close()
+
+        total = len(rows)
+        completed = [r for r in rows if r['status'] == 'completed']
+        wins = [r for r in completed if r['won'] == 1]
+        losses = [r for r in completed if r['won'] == 0]
+        pending = [r for r in rows if r['status'] == 'pending']
+
+        win_rate = round(len(wins) / len(completed) * 100) if completed else 0
+
+        # Seri hesabı
+        max_win_streak = cur_win = 0
+        max_loss_streak = cur_loss = 0
+        for r in completed:
+            if r['won'] == 1:
+                cur_win += 1; cur_loss = 0
+                max_win_streak = max(max_win_streak, cur_win)
+            else:
+                cur_loss += 1; cur_win = 0
+                max_loss_streak = max(max_loss_streak, cur_loss)
+
+        # Mevcut seri
+        cur_streak = 0
+        cur_streak_type = None
+        for r in reversed(completed):
+            if cur_streak_type is None:
+                cur_streak_type = 'win' if r['won'] == 1 else 'loss'
+                cur_streak = 1
+            elif (cur_streak_type == 'win' and r['won'] == 1) or (cur_streak_type == 'loss' and r['won'] == 0):
+                cur_streak += 1
+            else:
+                break
+
+        # ROI hesabı — birleşik oran × birim bahis
+        total_stake = 0
+        total_return = 0
+        for r in completed:
+            try:
+                items = _json.loads(r['items']) if isinstance(r['items'], str) else (r['items'] or [])
+                odds_list = [float(item['odds']) for item in items if item.get('odds')]
+                if not odds_list:
+                    continue
+                combined_odds = 1.0
+                for o in odds_list:
+                    combined_odds *= o
+                combined_odds = round(combined_odds, 2)
+                total_stake += 1
+                if r['won'] == 1:
+                    total_return += combined_odds
+            except Exception:
+                continue
+        roi = round((total_return - total_stake) / total_stake * 100, 1) if total_stake > 0 else None
+
+        # Aylık ROI
+        monthly = {}
+        for r in completed:
+            month = str(r['coupon_date'])[:7]
+            if month not in monthly:
+                monthly[month] = {'won': 0, 'lost': 0, 'stake': 0, 'ret': 0.0}
+            monthly[month]['won' if r['won'] == 1 else 'lost'] += 1
+            try:
+                items = _json.loads(r['items']) if isinstance(r['items'], str) else (r['items'] or [])
+                odds_list = [float(item['odds']) for item in items if item.get('odds')]
+                if odds_list:
+                    combined = 1.0
+                    for o in odds_list: combined *= o
+                    monthly[month]['stake'] += 1
+                    if r['won'] == 1:
+                        monthly[month]['ret'] += combined
+            except Exception:
+                pass
+
+        monthly_stats = []
+        for m, d in sorted(monthly.items(), reverse=True)[:6]:
+            total_m = d['won'] + d['lost']
+            m_roi = round((d['ret'] - d['stake']) / d['stake'] * 100, 1) if d['stake'] > 0 else None
+            monthly_stats.append({
+                'month': m,
+                'total': total_m,
+                'won': d['won'],
+                'lost': d['lost'],
+                'win_rate': round(d['won'] / total_m * 100) if total_m else 0,
+                'roi': m_roi,
+            })
+
+        # Tip bazlı başarı
+        type_map = {}
+        for r in completed:
+            t = r.get('coupon_type') or 'taraf'
+            if t not in type_map:
+                type_map[t] = {'won': 0, 'lost': 0}
+            type_map[t]['won' if r['won'] == 1 else 'lost'] += 1
+
+        type_labels = {'taraf': '🎯 Taraf', 'ust': '⚽ 2.5 Üst', 'iy': '⏱️ İY Gol', 'ust_kg': '💎 Üst + KG Var', 'dengeli': '⚖️ Dengeli'}
+        type_stats = []
+        for t, d in type_map.items():
+            total_t = d['won'] + d['lost']
+            type_stats.append({
+                'type': t,
+                'label': type_labels.get(t, t),
+                'total': total_t,
+                'won': d['won'],
+                'win_rate': round(d['won'] / total_t * 100) if total_t else 0,
+            })
+        type_stats.sort(key=lambda x: x['total'], reverse=True)
+
+        return jsonify({
+            'total': total,
+            'completed': len(completed),
+            'pending': len(pending),
+            'wins': len(wins),
+            'losses': len(losses),
+            'win_rate': win_rate,
+            'roi': roi,
+            'max_win_streak': max_win_streak,
+            'max_loss_streak': max_loss_streak,
+            'cur_streak': cur_streak,
+            'cur_streak_type': cur_streak_type,
+            'monthly': monthly_stats,
+            'by_type': type_stats,
+        })
+    except Exception as e:
+        logger.error(f"Coupon stats error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/coupon/update/<date_str>', methods=['POST'])
 def api_coupon_update(date_str):
     try:
@@ -1064,6 +1203,279 @@ def api_coupon_update(date_str):
     except Exception as e:
         logger.error(f"Coupon update error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/summary/highlights/<date_str>')
+def api_summary_highlights(date_str):
+    """Belirli bir tarih için yapısal öne çıkanlar: value bet, güvenli pick, risk uyarıları."""
+    try:
+        import psycopg2, psycopg2.extras, json as _json
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            SELECT a.id, a.home_team, a.away_team, a.league, a.match_time,
+                   a.prediction_1x2, a.confidence, a.over25_pct, a.btts_pct,
+                   a.ht2g_pct, a.value_bets, a.csv_data
+            FROM analyses a
+            WHERE a.analysis_date = %s
+            ORDER BY a.id
+        ''', (date_str,))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close(); conn.close()
+
+        if not rows:
+            return jsonify({'best_value_bet': None, 'safest_pick': None, 'risk_alerts': []})
+
+        # ── En iyi value bet ──────────────────────────────────────────────────
+        best_vb = None
+        best_vb_diff = 0
+        for m in rows:
+            try:
+                vb_raw = m.get('value_bets')
+                vb_list = _json.loads(vb_raw) if isinstance(vb_raw, str) and vb_raw else (vb_raw or [])
+                for vb in vb_list:
+                    diff = float(vb.get('diff') or 0)
+                    if diff > best_vb_diff:
+                        best_vb_diff = diff
+                        best_vb = {
+                            'home_team': m['home_team'],
+                            'away_team': m['away_team'],
+                            'league': m.get('league', ''),
+                            'match_time': m.get('match_time', ''),
+                            'label': vb.get('label', ''),
+                            'odds': vb.get('odds'),
+                            'our_pct': vb.get('our_pct'),
+                            'implied_pct': vb.get('implied_pct'),
+                            'diff': round(diff, 1),
+                        }
+            except Exception:
+                continue
+
+        # ── En güvenli pick (Yüksek güven + en düşük oran → en tutarlı) ──────
+        safest = None
+        HIGH_CONF = ('Yüksek', 'Yuksek', 'Çok Yüksek', 'Cok Yuksek')
+        high_conf_matches = [m for m in rows if (m.get('confidence') or '') in HIGH_CONF]
+        if high_conf_matches:
+            for m in high_conf_matches:
+                pred = m.get('prediction_1x2', '?')
+                odds_key = {'1': 'odds_home', 'X': 'odds_draw', '2': 'odds_away'}.get(pred)
+                odds_val = None
+                try:
+                    csv_raw = m.get('csv_data')
+                    csv_d = _json.loads(csv_raw) if isinstance(csv_raw, str) and csv_raw else (csv_raw or {})
+                    if odds_key:
+                        odds_val = float(csv_d.get(odds_key) or 0) or None
+                except Exception:
+                    pass
+                pred_label = {'1': f"{m['home_team']} Kazanır", 'X': 'Beraberlik', '2': f"{m['away_team']} Kazanır"}.get(pred, pred)
+                candidate = {
+                    'home_team': m['home_team'],
+                    'away_team': m['away_team'],
+                    'league': m.get('league', ''),
+                    'match_time': m.get('match_time', ''),
+                    'prediction': pred_label,
+                    'confidence': m.get('confidence', ''),
+                    'odds': odds_val,
+                    'over25_pct': m.get('over25_pct'),
+                    'btts_pct': m.get('btts_pct'),
+                }
+                # Yüksek güvenli + en düşük oran (en favorit) → en güvenli
+                if safest is None:
+                    safest = candidate
+                elif odds_val and safest.get('odds') and odds_val < safest['odds']:
+                    safest = candidate
+                elif odds_val and not safest.get('odds'):
+                    safest = candidate
+
+        # ── Risk uyarıları (Düşük güven veya çelişkili sinyaller) ─────────────
+        risk_alerts = []
+        LOW_CONF = ('Düşük', 'Dusuk')
+        for m in rows:
+            conf = (m.get('confidence') or '').strip()
+            reasons = []
+            if conf in LOW_CONF:
+                reasons.append('Düşük güven seviyesi')
+            # Over ve BTTS çelişkisi: over düşük ama btts yüksek
+            over25 = float(m.get('over25_pct') or 0)
+            btts = float(m.get('btts_pct') or 0)
+            if btts >= 65 and over25 < 50:
+                reasons.append(f'KG Var yüksek (%{round(btts)}) ama Over 2.5 düşük (%{round(over25)})')
+            if reasons:
+                risk_alerts.append({
+                    'home_team': m['home_team'],
+                    'away_team': m['away_team'],
+                    'league': m.get('league', ''),
+                    'match_time': m.get('match_time', ''),
+                    'confidence': conf,
+                    'reasons': reasons,
+                })
+
+        return jsonify({
+            'best_value_bet': best_vb,
+            'safest_pick': safest,
+            'risk_alerts': risk_alerts,
+            'total_matches': len(rows),
+        })
+    except Exception as e:
+        logger.error(f"Summary highlights error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/summary/highlights/telegram', methods=['POST'])
+def api_summary_highlights_telegram():
+    """Yapısal günün özeti öne çıkanlarını Telegram'a metin olarak gönder."""
+    try:
+        from backend.telegram_sender import send_message
+        data = request.get_json()
+        date_str = data.get('date', datetime.now().strftime('%Y-%m-%d'))
+        highlights = data.get('highlights', {})
+
+        lines = [f"📊 <b>Günün Öne Çıkanları — {date_str}</b>"]
+
+        bvb = highlights.get('best_value_bet')
+        if bvb:
+            lines.append(f"\n💎 <b>En İyi Value Bet</b>")
+            lines.append(f"⚽ {bvb['home_team']} vs {bvb['away_team']}")
+            lines.append(f"🏆 {bvb.get('league','')} | {bvb.get('match_time','')}")
+            lines.append(f"🎯 {bvb['label']} @ {bvb.get('odds','?')}")
+            lines.append(f"📈 Bizim: %{bvb.get('our_pct','?')} | Bahisçi: %{bvb.get('implied_pct','?')} | Edge: +%{bvb.get('diff','?')}")
+
+        sp = highlights.get('safest_pick')
+        if sp:
+            lines.append(f"\n🏆 <b>En Güvenli Pick</b>")
+            lines.append(f"⚽ {sp['home_team']} vs {sp['away_team']}")
+            lines.append(f"🏆 {sp.get('league','')} | {sp.get('match_time','')}")
+            lines.append(f"✅ {sp['prediction']} | Güven: {sp.get('confidence','')}")
+            if sp.get('odds'):
+                lines.append(f"📊 Oran: {sp['odds']}")
+
+        risks = highlights.get('risk_alerts', [])
+        if risks:
+            lines.append(f"\n⚠️ <b>Risk Uyarıları ({len(risks)} maç)</b>")
+            for r in risks[:3]:
+                lines.append(f"• {r['home_team']} vs {r['away_team']}: {', '.join(r['reasons'])}")
+
+        lines.append(f"\n🤖 GOLLAZIM Analiz")
+        msg = '\n'.join(lines)
+
+        ok = send_message(msg, parse_mode='HTML')
+        if ok:
+            return jsonify({"status": "success"})
+        return jsonify({"status": "error", "message": "Telegram gönderilemedi"}), 500
+    except Exception as e:
+        logger.error(f"Highlights telegram error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/stats/korner-detail')
+def api_stats_korner_detail():
+    """Korner bucket (65-70, 70-80, 80-90, 90+) ve lig bazlı korner istatistikleri."""
+    try:
+        import psycopg2, psycopg2.extras, json as _json
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        month_clause, month_params = _get_month_filter(request)
+
+        cur.execute(f'''
+            SELECT a.league, a.csv_data,
+                   r.korner_85_correct, r.korner_95_correct,
+                   r.home_corners, r.away_corners
+            FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+            WHERE r.home_corners IS NOT NULL {month_clause}
+        ''', month_params)
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close(); conn.close()
+
+        def norm_pct(val):
+            if val is None: return None
+            try:
+                f = float(val)
+                return f * 100 if f <= 1 else f
+            except Exception:
+                return None
+
+        buckets_85 = [
+            {'label': '65-70', 'lo': 65, 'hi': 70, 'total': 0, 'correct': 0},
+            {'label': '70-80', 'lo': 70, 'hi': 80, 'total': 0, 'correct': 0},
+            {'label': '80-90', 'lo': 80, 'hi': 90, 'total': 0, 'correct': 0},
+            {'label': '90+',   'lo': 90, 'hi': 101,'total': 0, 'correct': 0},
+        ]
+        buckets_95 = [
+            {'label': '65-70', 'lo': 65, 'hi': 70, 'total': 0, 'correct': 0},
+            {'label': '70-80', 'lo': 70, 'hi': 80, 'total': 0, 'correct': 0},
+            {'label': '80-90', 'lo': 80, 'hi': 90, 'total': 0, 'correct': 0},
+            {'label': '90+',   'lo': 90, 'hi': 101,'total': 0, 'correct': 0},
+        ]
+        leagues = {}
+
+        for r in rows:
+            try:
+                csv_d = _json.loads(r['csv_data']) if isinstance(r['csv_data'], str) and r['csv_data'] else (r.get('csv_data') or {})
+            except Exception:
+                csv_d = {}
+            k85 = norm_pct(csv_d.get('avg_corners_85'))
+            k95 = norm_pct(csv_d.get('avg_corners_95'))
+            league = r.get('league') or 'Bilinmeyen'
+            k85c = r.get('korner_85_correct')
+            k95c = r.get('korner_95_correct')
+
+            if k85 is not None and k85 >= 65 and k85c is not None:
+                for b in buckets_85:
+                    if b['lo'] <= k85 < b['hi']:
+                        b['total'] += 1
+                        b['correct'] += int(k85c)
+                        break
+                # Lig bazlı
+                if league not in leagues:
+                    leagues[league] = {'k85_total': 0, 'k85_correct': 0, 'k95_total': 0, 'k95_correct': 0}
+                leagues[league]['k85_total'] += 1
+                leagues[league]['k85_correct'] += int(k85c)
+
+            if k95 is not None and k95 >= 65 and k95c is not None:
+                for b in buckets_95:
+                    if b['lo'] <= k95 < b['hi']:
+                        b['total'] += 1
+                        b['correct'] += int(k95c)
+                        break
+                if league not in leagues:
+                    leagues[league] = {'k85_total': 0, 'k85_correct': 0, 'k95_total': 0, 'k95_correct': 0}
+                leagues[league]['k95_total'] += 1
+                leagues[league]['k95_correct'] += int(k95c)
+
+        def enrich_buckets(blist):
+            out = []
+            for b in blist:
+                t = b['total']
+                c = b['correct']
+                out.append({
+                    'label': b['label'],
+                    'total': t,
+                    'correct': c,
+                    'pct': round(c / t * 100) if t > 0 else None,
+                })
+            return out
+
+        league_list = []
+        for lg, d in sorted(leagues.items(), key=lambda x: x[1]['k85_total'] + x[1]['k95_total'], reverse=True):
+            if d['k85_total'] + d['k95_total'] < 2:
+                continue
+            league_list.append({
+                'league': lg,
+                'k85_total': d['k85_total'],
+                'k85_pct': round(d['k85_correct'] / d['k85_total'] * 100) if d['k85_total'] else None,
+                'k95_total': d['k95_total'],
+                'k95_pct': round(d['k95_correct'] / d['k95_total'] * 100) if d['k95_total'] else None,
+            })
+
+        return jsonify({
+            'buckets_85': enrich_buckets(buckets_85),
+            'buckets_95': enrich_buckets(buckets_95),
+            'by_league': league_list,
+            'has_data': len(rows) > 0,
+        })
+    except Exception as e:
+        logger.error(f"Korner detail error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # Parse Image

@@ -49,8 +49,31 @@ def calculate_value_bets(result, csv_data, home_team, away_team):
         if odds:
             try:
                 implied = round(1 / float(odds) * 100, 1)
-                conf_map = {'Çok Yüksek': 85, 'Yüksek': 75, 'Orta': 60, 'Düşük': 45}
-                our_pct = conf_map.get(result.get('confidence', 'Orta'), 60)
+                # PPG verisinden gerçek olasılık türet (conf_map sabitler yerine)
+                our_pct = None
+                try:
+                    ch = float(csv_data.get('current_home_ppg') or csv_data.get('home_ppg') or 0)
+                    ca = float(csv_data.get('current_away_ppg') or csv_data.get('away_ppg') or 0)
+                    if ch > 0 or ca > 0:
+                        total = (ch + ca) or 1.0
+                        h_frac = ch / total
+                        a_frac = ca / total
+                        if pred == '1':
+                            # Ev avantajı dahil: güçlü ev ekibinde ~70%, zayıfta ~40%
+                            our_pct = round(max(35, min(80, 35 + h_frac * 50)))
+                        elif pred == '2':
+                            # Deplasman: güçlü rakipte ~70%, zayıfta ~30%
+                            our_pct = round(max(25, min(75, 25 + a_frac * 50)))
+                        elif pred == 'X':
+                            # Beraberlik dengeli maçlarda daha yüksek
+                            balance = 1.0 - abs(h_frac - 0.5) * 2
+                            our_pct = round(max(20, min(40, 20 + balance * 20)))
+                except (ValueError, TypeError):
+                    pass
+                # PPG verisi yoksa sabit harita (son çare)
+                if our_pct is None:
+                    conf_map = {'Çok Yüksek': 80, 'Yüksek': 70, 'Orta': 57, 'Düşük': 43}
+                    our_pct = conf_map.get(result.get('confidence', 'Orta'), 57)
                 diff = round(our_pct - implied, 1)
                 if diff >= VALUE_THRESHOLD:
                     value_bets.append({'label': label, 'our_pct': our_pct, 'implied_pct': implied, 'diff': diff, 'odds': float(odds)})

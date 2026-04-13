@@ -165,6 +165,55 @@
         .md-p { margin-bottom: 6px; color: #888; font-style: italic; }
         .md-space { height: 6px; }
 
+        /* Highlights Kartları */
+        .highlights-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .hl-card {
+            background: #0d0d1a;
+            border: 1px solid #1e1e3a;
+            border-radius: 14px;
+            padding: 16px;
+        }
+        .hl-card.vb-card  { border-color: rgba(34,197,94,0.3); }
+        .hl-card.sp-card  { border-color: rgba(124,58,237,0.3); }
+        .hl-card.risk-card { border-color: rgba(245,158,11,0.3); }
+        .hl-title {
+            font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+            margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+        }
+        .hl-title.green  { color: #22c55e; }
+        .hl-title.purple { color: #a78bfa; }
+        .hl-title.yellow { color: #f59e0b; }
+        .hl-teams { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+        .hl-league { font-size: 10px; color: #444; margin-bottom: 8px; }
+        .hl-metric { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #666; padding: 4px 0; border-top: 1px solid #111; }
+        .hl-metric span { font-weight: 700; }
+        .hl-metric .green  { color: #22c55e; }
+        .hl-metric .purple { color: #a78bfa; }
+        .hl-metric .yellow { color: #f59e0b; }
+        .hl-empty { font-size: 11px; color: #333; text-align: center; padding: 12px 0; }
+        .risk-item { font-size: 11px; color: #f59e0b; padding: 3px 0; border-top: 1px solid #111; display: flex; gap: 6px; }
+        .risk-teams { font-size: 11px; font-weight: 700; color: #ddd; }
+        .btn-hl-telegram {
+            padding: 8px 16px;
+            border-radius: 10px;
+            border: none;
+            background: rgba(37,99,235,0.15);
+            border: 1px solid rgba(37,99,235,0.4);
+            color: #60a5fa;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-hl-telegram:hover { background: rgba(37,99,235,0.25); }
+        .btn-hl-telegram:disabled { opacity: 0.4; cursor: not-allowed; }
+
         .empty-state {
             text-align: center; padding: 40px 20px;
             color: #333; font-size: 13px;
@@ -257,6 +306,15 @@
                     style="display:none;background:#7c3aed;">
                     📸 PNG İndir
                 </button>
+                <button class="btn-hl-telegram" id="hlTelegramBtn" onclick="sendHighlightsToTelegram()" style="display:none;">
+                    📊 Öne Çıkanları Telegram'a Gönder
+                </button>
+            </div>
+
+            <!-- Yapısal Öne Çıkanlar -->
+            <div id="highlightsSection" style="display:none;">
+                <div style="font-size:11px;font-weight:700;color:#555;letter-spacing:0.5px;margin-bottom:10px;">📌 GÜNÜN ÖNE ÇIKANLARI</div>
+                <div class="highlights-row" id="highlightsRow"></div>
             </div>
 
             <!-- Özet Kutusu -->
@@ -282,6 +340,7 @@
 let selectedAi = 'claude';
 let currentSummary = null;
 let currentDate = new Date().toISOString().split('T')[0];
+let currentHighlights = null;
 
 // ── Markdown Render ────────────────────────────────────────────────────────────
 function renderMarkdown(text) {
@@ -355,6 +414,7 @@ function navigateDate(dir) {
     currentDate = d.toISOString().split('T')[0];
     updateDateUI();
     loadSummaryForDate(currentDate);
+    loadHighlights(currentDate);
 }
 
 function onDatePickerChange() {
@@ -365,6 +425,7 @@ function onDatePickerChange() {
     currentDate = val;
     updateDateUI();
     loadSummaryForDate(currentDate);
+    loadHighlights(currentDate);
 }
 
 // ── AI Seçimi ─────────────────────────────────────────────────────────────────
@@ -387,6 +448,104 @@ function renderSummary(content, aiProvider, createdAt) {
     `;
     document.getElementById('telegramOzBtn').style.display = '';
     document.getElementById('downloadOzBtn').style.display = '';
+}
+
+// ── Highlights ────────────────────────────────────────────────────────────────
+async function loadHighlights(dateStr) {
+    try {
+        const resp = await fetch(`/api/summary/highlights/${dateStr}`);
+        const d = await resp.json();
+        if (d.error || d.total_matches === 0) {
+            document.getElementById('highlightsSection').style.display = 'none';
+            document.getElementById('hlTelegramBtn').style.display = 'none';
+            currentHighlights = null;
+            return;
+        }
+        currentHighlights = d;
+        renderHighlights(d);
+        document.getElementById('highlightsSection').style.display = '';
+        document.getElementById('hlTelegramBtn').style.display = '';
+    } catch(e) {
+        console.error('Highlights yüklenemedi:', e);
+    }
+}
+
+function renderHighlights(d) {
+    const row = document.getElementById('highlightsRow');
+    let html = '';
+
+    // En iyi value bet
+    const vb = d.best_value_bet;
+    if (vb) {
+        html += `<div class="hl-card vb-card">
+            <div class="hl-title green">💎 EN İYİ VALUE BET</div>
+            <div class="hl-teams">${vb.home_team} vs ${vb.away_team}</div>
+            <div class="hl-league">${vb.league || ''}${vb.match_time ? ' · ' + vb.match_time : ''}</div>
+            <div class="hl-metric">Bahis <span class="green">${vb.label}</span></div>
+            <div class="hl-metric">Oran <span class="green">${vb.odds ?? '—'}</span></div>
+            <div class="hl-metric">Bizim % <span class="green">%${vb.our_pct ?? '?'}</span></div>
+            <div class="hl-metric">Bahisçi % <span>${vb.implied_pct ?? '?'}%</span></div>
+            <div class="hl-metric">Edge <span class="green">+%${vb.diff}</span></div>
+        </div>`;
+    } else {
+        html += `<div class="hl-card vb-card"><div class="hl-title green">💎 EN İYİ VALUE BET</div><div class="hl-empty">Bugün value bet yok</div></div>`;
+    }
+
+    // En güvenli pick
+    const sp = d.safest_pick;
+    if (sp) {
+        html += `<div class="hl-card sp-card">
+            <div class="hl-title purple">🏆 EN GÜVENLİ PİCK</div>
+            <div class="hl-teams">${sp.home_team} vs ${sp.away_team}</div>
+            <div class="hl-league">${sp.league || ''}${sp.match_time ? ' · ' + sp.match_time : ''}</div>
+            <div class="hl-metric">Tahmin <span class="purple">${sp.prediction}</span></div>
+            <div class="hl-metric">Güven <span class="purple">${sp.confidence}</span></div>
+            ${sp.odds ? `<div class="hl-metric">Oran <span class="purple">${sp.odds}</span></div>` : ''}
+            ${sp.over25_pct ? `<div class="hl-metric">Over 2.5 <span>%${Math.round(sp.over25_pct)}</span></div>` : ''}
+        </div>`;
+    } else {
+        html += `<div class="hl-card sp-card"><div class="hl-title purple">🏆 EN GÜVENLİ PİCK</div><div class="hl-empty">Yüksek güvenli tahmin yok</div></div>`;
+    }
+
+    // Risk uyarıları
+    const risks = d.risk_alerts || [];
+    if (risks.length > 0) {
+        const riskItems = risks.map(r => `
+            <div style="margin-bottom:8px;">
+                <div class="risk-teams">${r.home_team} vs ${r.away_team}</div>
+                ${r.reasons.map(rs => `<div class="risk-item"><span>⚠️</span><span>${rs}</span></div>`).join('')}
+            </div>`).join('');
+        html += `<div class="hl-card risk-card">
+            <div class="hl-title yellow">⚠️ RİSK UYARILARI (${risks.length})</div>
+            ${riskItems}
+        </div>`;
+    }
+
+    row.innerHTML = html;
+}
+
+async function sendHighlightsToTelegram() {
+    if (!currentHighlights) return;
+    const btn = document.getElementById('hlTelegramBtn');
+    btn.disabled = true; btn.textContent = '⏳ Gönderiliyor...';
+    try {
+        const resp = await fetch('/api/summary/highlights/telegram', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: currentDate, highlights: currentHighlights })
+        });
+        const data = await resp.json();
+        if (data.status === 'success') {
+            btn.textContent = '✅ Gönderildi!';
+            setTimeout(() => { btn.textContent = '📊 Öne Çıkanları Telegram\'a Gönder'; btn.disabled = false; }, 3000);
+        } else {
+            alert('Hata: ' + data.message);
+            btn.disabled = false; btn.textContent = '📊 Öne Çıkanları Telegram\'a Gönder';
+        }
+    } catch(e) {
+        alert('Hata: ' + e.message);
+        btn.disabled = false; btn.textContent = '📊 Öne Çıkanları Telegram\'a Gönder';
+    }
 }
 
 // ── Yükle ─────────────────────────────────────────────────────────────────────
@@ -541,7 +700,10 @@ async function sendSummaryToTelegram() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     updateDateUI();
-    await loadSummaryForDate(currentDate);
+    await Promise.all([
+        loadSummaryForDate(currentDate),
+        loadHighlights(currentDate),
+    ]);
     await loadHistory();
 });
 </script>
