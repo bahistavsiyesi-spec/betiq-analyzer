@@ -1872,7 +1872,7 @@ def api_debug_analysis_data(analysis_id):
             poisson_debug = predict_score_poisson(
                 home_matches, away_matches, home_team, away_team,
                 h2h_data=h2h_raw, h2h_fd=h2h_fd, csv_data=csv_data or None,
-                return_debug=True,
+                return_debug=True, league_code=country_code,
             )
         except Exception as e:
             poisson_debug = {'error': str(e)}
