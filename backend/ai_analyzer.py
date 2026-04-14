@@ -6,6 +6,8 @@ import requests
 import time
 from datetime import datetime
 
+from backend.football_api import get_league_goal_averages
+
 logger = logging.getLogger(__name__)
 
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
@@ -1117,7 +1119,7 @@ def _repair_ht_from_ft(ft_score_text, ht2g_pct=None):
     return '1-0'
 
 
-def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None, h2h_fd=None, csv_data=None, return_debug=False):
+def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None, h2h_fd=None, csv_data=None, league_code=None, return_debug=False):
     """
     Poisson dağılımı kullanarak en olasılıklı skoru tahmin eder.
 
@@ -1129,8 +1131,9 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
 
     Returns: "X-Y" string
     """
-    LEAGUE_HOME_AVG = 1.55  # genel lig ev sahibi gol ortalaması
-    LEAGUE_AWAY_AVG = 1.15  # genel lig deplasman gol ortalaması
+    league_avgs = get_league_goal_averages(league_code) if league_code else None
+    LEAGUE_HOME_AVG = league_avgs['home'] if league_avgs else 1.55
+    LEAGUE_AWAY_AVG = league_avgs['away'] if league_avgs else 1.15
 
     def _name_matches_home(team_name, match_home_name):
         """Takım adının maçın ev sahibiyle eşleşip eşleşmediğini kontrol et."""
@@ -1347,7 +1350,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                         home_btts_stats=None, away_btts_stats=None,
                         btts_mathematical=None,
                         home_goals_trend=None, away_goals_trend=None,
-                        csv_data=None,
+                        csv_data=None, league_code=None,
                         ai_provider='claude'):
 
     home_team = fixture['teams']['home']['name']
@@ -1664,6 +1667,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         poisson_score = predict_score_poisson(
             home_matches, away_matches, home_team, away_team,
             h2h_data=h2h_data, h2h_fd=h2h_fd, csv_data=csv_data,
+            league_code=league_code,
         )
     except Exception as e:
         logger.warning(f'[SKOR TAHMİN] Poisson hesabı başarısız: {e}')

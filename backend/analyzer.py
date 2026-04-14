@@ -372,6 +372,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
         home_goals_trend=home_goals_trend,
         away_goals_trend=away_goals_trend,
         csv_data=csv_data,
+        league_code=country_code,
         ai_provider=ai_provider,
     )
 

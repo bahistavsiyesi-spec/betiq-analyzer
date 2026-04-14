@@ -22,6 +22,7 @@ COLLECT_API_BASE = 'https://api.collectapi.com/football'
 _standings_cache = {}
 _collectapi_standings_cache = {}
 _shots_cache = {}
+_league_averages_cache = {}
 
 # ─── ClubElo → Düzgün isim tablosu ───────────────────────────────────────────
 NAME_FIXES = {
@@ -636,6 +637,53 @@ def get_h2h_footballdata(home_team, away_team, league_code, last=5):
     except Exception as e:
         logger.warning(f'get_h2h_footballdata failed ({home_team} vs {away_team}): {e}')
         return None
+
+
+# ─── Lig Gol Ortalamaları (football-data.org) ────────────────────────────────
+
+def get_league_goal_averages(league_code, season=2025):
+    """
+    football-data.org'dan ligin bu sezonki biten maçlarından
+    ev/deplasman gol ortalamalarını hesaplar. Günlük cache'lenir.
+    Desteklenen ligler: BL1, PL, PD, SA, FL1, PPL, DED, CL
+    """
+    if not FOOTBALL_DATA_KEY or not league_code:
+        return None
+    if league_code in ('EL', 'EC'):
+        return None
+    today = date.today()
+    if league_code in _league_averages_cache:
+        cached = _league_averages_cache[league_code]
+        if cached['date'] == today:
+            return cached['data']
+    result = _get_football_data(
+        f'competitions/{league_code}/matches',
+        {'season': season, 'status': 'FINISHED'}
+    )
+    if not result or not result.get('matches'):
+        logger.info(f'League averages: {league_code} için maç verisi bulunamadı')
+        return None
+    home_goals, away_goals = [], []
+    for m in result['matches']:
+        hs = m.get('score', {}).get('fullTime', {}).get('home')
+        as_ = m.get('score', {}).get('fullTime', {}).get('away')
+        if hs is not None and as_ is not None:
+            home_goals.append(hs)
+            away_goals.append(as_)
+    if len(home_goals) < 5:
+        logger.info(f'League averages: {league_code} için yeterli maç yok ({len(home_goals)})')
+        return None
+    data = {
+        'home': round(sum(home_goals) / len(home_goals), 3),
+        'away': round(sum(away_goals) / len(away_goals), 3),
+        'matches': len(home_goals),
+    }
+    _league_averages_cache[league_code] = {'date': today, 'data': data}
+    logger.info(
+        f'League averages {league_code}: ev={data["home"]} dep={data["away"]} '
+        f'({data["matches"]} maç, sezon {season})'
+    )
+    return data
 
 
 # ─── Puan Durumu (football-data.org) ─────────────────────────────────────────
