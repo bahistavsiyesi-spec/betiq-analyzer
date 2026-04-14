@@ -289,7 +289,16 @@ function getWinnerLabel(prediction, homeTeam, awayTeam) {
 function pctClass(pct) { const v=parseFloat(pct)||0; return v>=70?'pct-high':v>=40?'pct-medium':'pct-low'; }
 function barClass(pct) { const v=parseFloat(pct)||0; return v>=70?'bar-high':v>=40?'bar-medium':'bar-low'; }
 function cardConfidenceClass(c) {
-    return {'Cok Yuksek':'card-confidence-very-high','Yuksek':'card-confidence-high','Orta':'card-confidence-medium','Dusuk':'card-confidence-low'}[c]||'card-confidence-medium';
+    if (!c) return 'card-confidence-medium';
+    const n = c.toLowerCase()
+        .replace(/ç/g,'c').replace(/ş/g,'s').replace(/ğ/g,'g')
+        .replace(/ü/g,'u').replace(/ö/g,'o').replace(/ı/g,'i')
+        .replace(/\s+/g,'');
+    if (n === 'cokyuksek') return 'card-confidence-very-high';
+    if (n === 'yuksek')    return 'card-confidence-high';
+    if (n === 'orta')      return 'card-confidence-medium';
+    if (n === 'dusuk')     return 'card-confidence-low';
+    return 'card-confidence-medium';
 }
 
 // ===== Güven seviyesi badge CSS class =====
