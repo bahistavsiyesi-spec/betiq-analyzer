@@ -156,14 +156,7 @@ def build_csv_section(home_team, away_team, csv_data):
     if btts is not None or btts1h is not None:
         lines.append('BTTS İstatistikleri (CSV):')
         if btts is not None:
-            # xG-BTTS fix: her iki takım xG >= 1.0 ise btts min %50 göster
-            btts_display = btts
-            try:
-                if hxg and axg and float(hxg) >= 1.0 and float(axg) >= 1.0 and float(btts) < 50:
-                    btts_display = 50
-            except (ValueError, TypeError) as e:
-                logger.debug(f'xG-BTTS fix skipped: {e}')
-            lines.append(f'  - KG VAR (maç geneli): %{btts_display}')
+            lines.append(f'  - KG VAR (maç geneli): %{btts}')
         if btts1h is not None: lines.append(f'  - KG VAR (ilk yarı): %{btts1h}')
     ht05 = csv_data.get('ht_over05_avg')
     ht15 = csv_data.get('ht_over15_avg')
