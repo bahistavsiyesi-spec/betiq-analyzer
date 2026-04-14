@@ -825,7 +825,7 @@ def call_anthropic(prompt):
         'https://api.anthropic.com/v1/messages',
         headers={'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
         json={
-            'model': 'claude-sonnet-4-20250514',
+            'model': 'claude-sonnet-4-6',
             'max_tokens': 4000,
             'system': 'Sen profesyonel bir futbol bahis analistisin. Tüm yanıtlar TÜRKÇE olacak. Elo kelimesini kullanma.',
             'messages': [{'role': 'user', 'content': prompt}]
