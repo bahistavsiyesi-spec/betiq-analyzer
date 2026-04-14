@@ -628,6 +628,7 @@ def get_h2h_footballdata(home_team, away_team, league_code, last=5):
             'draws': draws,
             'total_goals': total_goals,
             'avg_goals': avg_goals,
+            'matches': matches,
         }
         logger.info(
             f'H2H {home_team} vs {away_team}: {valid} maç | '

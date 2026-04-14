@@ -1224,9 +1224,9 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
         h2h_home_goals, h2h_away_goals = [], []
         for m in (h2h_data or [])[-5:]:
             try:
-                match_home = m['teams']['home']['name']
-                hg = m['goals']['home']
-                ag = m['goals']['away']
+                hg = m.get('goals', {}).get('home') or m.get('score', {}).get('fullTime', {}).get('home')
+                ag = m.get('goals', {}).get('away') or m.get('score', {}).get('fullTime', {}).get('away')
+                match_home = m.get('teams', {}).get('home', {}).get('name') or m.get('homeTeam', {}).get('name', '')
                 if hg is None or ag is None:
                     continue
                 is_our_home = _name_matches_home(home_name, match_home)

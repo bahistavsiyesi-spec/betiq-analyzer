@@ -5,7 +5,6 @@ from typing import Any, Optional
 
 from backend.database import delete_analyses_by_fixture_ids, log_run, save_analysis
 from backend.football_api import (
-    get_h2h,
     get_h2h_footballdata,
     get_team_home_away_stats,
     get_team_last_matches,
@@ -222,7 +221,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
 
     home_matches = get_team_last_matches(home_name, last=10)
     away_matches = get_team_last_matches(away_name, last=10)
-    h2h = get_h2h(home_name, away_name, last=5)
+    h2h = []
 
     # API-Football genel fallback — football-data.org'dan veri gelmeyen tüm takımlar için
     from backend.football_api import _find_league_id
@@ -262,6 +261,8 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
                 logger.info(f'H2H (football-data): veri bulunamadi ({home_name} vs {away_name})')
     except Exception as e:
         logger.warning(f'H2H footballdata call failed: {e}')
+
+    h2h_raw = h2h_fd.get('matches', []) if h2h_fd else []
 
     home_form = extract_form_from_fixtures(home_matches or [], home_name)
     away_form = extract_form_from_fixtures(away_matches or [], away_name)
@@ -345,7 +346,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
 
     return analyze_with_claude(
         fixture=fixture,
-        h2h_data=h2h,
+        h2h_data=h2h_raw or h2h,
         home_matches=home_matches,
         away_matches=away_matches,
         home_form=home_form,
