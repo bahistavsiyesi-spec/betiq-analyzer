@@ -1,8 +1,11 @@
 from flask import Flask, render_template, jsonify, request, Response
 from functools import wraps
 from apscheduler.schedulers.background import BackgroundScheduler
+import json as _json
 import logging
+import math
 import os
+import re as _re
 import threading
 from datetime import datetime
 import psycopg2
@@ -1009,9 +1012,6 @@ def api_coupon_today():
             }
             odds_val = None
             try:
-                import json as _json
-                import re as _re
-
                 def _normalize_csv_keys(data):
                     normalized = {}
                     if not isinstance(data, dict): return normalized
@@ -1138,7 +1138,6 @@ def api_coupon_delete(coupon_id):
 @app.route('/api/coupon/stats')
 def api_coupon_stats():
     """Kupon istatistikleri: kazanma oranı, ROI, seriler, tip bazlı başarı."""
-    import json as _json, math
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -1197,7 +1196,8 @@ def api_coupon_stats():
                 total_stake += 1
                 if r['won'] == 1:
                     total_return += combined_odds
-            except Exception:
+            except Exception as e:
+                logger.warning(f"ROI hesaplama hatası (kupon atlandı): {e}")
                 continue
         roi = round((total_return - total_stake) / total_stake * 100, 1) if total_stake > 0 else None
 
@@ -1217,8 +1217,8 @@ def api_coupon_stats():
                     monthly[month]['stake'] += 1
                     if r['won'] == 1:
                         monthly[month]['ret'] += combined
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Aylık ROI hesaplama hatası (kupon atlandı): {e}")
 
         monthly_stats = []
         for m, d in sorted(monthly.items(), reverse=True)[:6]:
@@ -1287,7 +1287,6 @@ def api_coupon_update(date_str):
 @app.route('/api/summary/highlights/<date_str>')
 def api_summary_highlights(date_str):
     """Belirli bir tarih için yapısal öne çıkanlar: value bet, güvenli pick, risk uyarıları."""
-    import json as _json
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -1327,7 +1326,8 @@ def api_summary_highlights(date_str):
                             'implied_pct': vb.get('implied_pct'),
                             'diff': round(diff, 1),
                         }
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Value bet parse hatası (maç atlandı): {e}")
                 continue
 
         # ── En güvenli pick (Yüksek güven + en düşük oran → en tutarlı) ──────
@@ -1344,8 +1344,8 @@ def api_summary_highlights(date_str):
                     csv_d = _json.loads(csv_raw) if isinstance(csv_raw, str) and csv_raw else (csv_raw or {})
                     if odds_key:
                         odds_val = float(csv_d.get(odds_key) or 0) or None
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Safest pick csv_data parse hatası ({m.get('home_team')}): {e}")
                 pred_label = {'1': f"{m['home_team']} Kazanır", 'X': 'Beraberlik', '2': f"{m['away_team']} Kazanır"}.get(pred, pred)
                 candidate = {
                     'home_team': m['home_team'],
@@ -1400,8 +1400,8 @@ def api_summary_highlights(date_str):
                                 if abs(implied_pct - ppg_pct) >= 20:
                                     direction = 'favori gösteriyor' if implied_pct > ppg_pct else 'underdog gösteriyor'
                                     reasons.append(f'Orta güven: Bahisçi %{round(implied_pct)} ama PPG %{ppg_pct} ({direction})')
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Risk kriterleri csv_data parse hatası ({m.get('home_team')}): {e}")
             if reasons:
                 risk_alerts.append({
                     'home_team': m['home_team'],
@@ -1472,7 +1472,6 @@ def api_summary_highlights_telegram():
 @app.route('/api/stats/korner-detail')
 def api_stats_korner_detail():
     """Korner bucket (65-70, 70-80, 80-90, 90+) ve lig bazlı korner istatistikleri."""
-    import json as _json
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -1513,7 +1512,8 @@ def api_stats_korner_detail():
         for r in rows:
             try:
                 csv_d = _json.loads(r['csv_data']) if isinstance(r['csv_data'], str) and r['csv_data'] else (r.get('csv_data') or {})
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Korner csv_data parse hatası: {e}")
                 csv_d = {}
             k85 = norm_pct(csv_d.get('avg_corners_85'))
             k95 = norm_pct(csv_d.get('avg_corners_95'))
@@ -1684,7 +1684,6 @@ def api_debug_analysis_data(analysis_id):
             extract_h2h_summary, _get_country_code,
         )
         from backend.ai_analyzer import _safe_float, calculate_value_bets, _is_score_valid, _is_ht_ft_consistent, predict_score_poisson
-        import json as _json
 
         analysis = get_analysis_by_id(analysis_id)
         if not analysis:
@@ -2113,7 +2112,6 @@ def api_iy_gol_result():
         if telegram_send:
             try:
                 from backend.telegram_sender import send_message
-                import re as _re
 
                 def _parse_score(s):
                     m = _re.search(r'(\d+)\s*[-:]\s*(\d+)', str(s or ''))
