@@ -247,7 +247,7 @@ body {
 .match-card:hover { border-color: #2a1a4e; }
 
 .card-confidence-very-high { border-left: 3px solid #22c55e; }
-.card-confidence-high      { border-left: 3px solid #7c3aed; }
+.card-confidence-high      { border-left: 3px solid #22c55e; }
 .card-confidence-medium    { border-left: 3px solid #f59e0b; }
 .card-confidence-low       { border-left: 3px solid #ef4444; }
 
