@@ -161,6 +161,19 @@ def init_db():
             conn.commit()
         except:
             conn.rollback()
+    for sql in [
+        'CREATE INDEX IF NOT EXISTS idx_analyses_date ON analyses(analysis_date)',
+        'CREATE INDEX IF NOT EXISTS idx_analyses_league ON analyses(league)',
+        'CREATE INDEX IF NOT EXISTS idx_analyses_confidence ON analyses(confidence)',
+        'CREATE INDEX IF NOT EXISTS idx_match_results_analysis_id ON match_results(analysis_id)',
+        'CREATE INDEX IF NOT EXISTS idx_match_results_fixture_id ON match_results(fixture_id)',
+        'CREATE INDEX IF NOT EXISTS idx_coupons_date ON coupons(coupon_date)',
+    ]:
+        try:
+            cur.execute(sql)
+            conn.commit()
+        except:
+            conn.rollback()
     conn.commit()
     cur.close()
     conn.close()
