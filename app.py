@@ -24,6 +24,9 @@ app = Flask(__name__, template_folder='frontend/templates', static_folder='front
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+HIGH_CONF = ('Yüksek', 'Çok Yüksek')
+LOW_CONF  = ('Düşük', 'Dusuk')
+
 
 def _check_auth(username, password):
     return (
@@ -937,8 +940,6 @@ def api_coupon_today():
         min_count = 3
         max_count = 3
 
-        HIGH_CONF = ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
-
         logger.info(f"Kupon tipi: {coupon_type} | min={min_count} max={max_count}")
 
         all_candidates = []
@@ -1332,7 +1333,6 @@ def api_summary_highlights(date_str):
 
         # ── En güvenli pick (Yüksek güven + en düşük oran → en tutarlı) ──────
         safest = None
-        HIGH_CONF = ('Yüksek', 'Yuksek', 'Çok Yüksek', 'Cok Yuksek')
         high_conf_matches = [m for m in rows if (m.get('confidence') or '') in HIGH_CONF]
         if high_conf_matches:
             for m in high_conf_matches:
@@ -1368,7 +1368,6 @@ def api_summary_highlights(date_str):
 
         # ── Risk uyarıları ────────────────────────────────────────────────────
         risk_alerts = []
-        LOW_CONF = ('Düşük', 'Dusuk')
         for m in rows:
             conf = (m.get('confidence') or '').strip()
             reasons = []

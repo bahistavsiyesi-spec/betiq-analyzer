@@ -281,7 +281,7 @@ def send_result_to_telegram(analysis, home_score, away_score, outcomes, ht_home_
     over25_pct = int(analysis.get('over25_pct', 0))
     btts_pct   = int(analysis.get('btts_pct', 0))
     confidence = analysis.get('confidence', 'Orta')
-    high_conf  = confidence in ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
+    high_conf  = confidence in ('Yüksek', 'Çok Yüksek')
 
     # 1X2 — sadece Yüksek/Çok Yüksek güvende
     if high_conf:
