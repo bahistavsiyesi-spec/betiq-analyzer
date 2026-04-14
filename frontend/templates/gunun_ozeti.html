@@ -339,7 +339,7 @@
 <script>
 let selectedAi = 'claude';
 let currentSummary = null;
-let currentDate = new Date().toISOString().split('T')[0];
+let currentDate = (function(){ const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; })();
 let currentHighlights = null;
 
 // ── Markdown Render ────────────────────────────────────────────────────────────
@@ -402,16 +402,24 @@ function formatDateTR(dateStr) {
 function updateDateUI() {
     document.getElementById('currentDateLabel').textContent = formatDateTR(currentDate);
     document.getElementById('datePicker').value = currentDate;
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr(new Date());
     document.getElementById('nextBtn').disabled = currentDate >= today;
 }
 
+function localDateStr(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
 function navigateDate(dir) {
-    const d = new Date(currentDate);
+    const [y, mo, da] = currentDate.split('-').map(Number);
+    const d = new Date(y, mo - 1, da);
     d.setDate(d.getDate() + dir);
-    const today = new Date(); today.setHours(0,0,0,0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     if (d > today) return;
-    currentDate = d.toISOString().split('T')[0];
+    currentDate = localDateStr(d);
     updateDateUI();
     loadSummaryForDate(currentDate);
     loadHighlights(currentDate);
@@ -420,7 +428,7 @@ function navigateDate(dir) {
 function onDatePickerChange() {
     const val = document.getElementById('datePicker').value;
     if (!val) return;
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr(new Date());
     if (val > today) return;
     currentDate = val;
     updateDateUI();
@@ -591,7 +599,7 @@ async function generateSummary() {
         const data = await resp.json();
         if (data.status === 'success') {
             currentSummary = data.content;
-            currentDate = new Date().toISOString().split('T')[0];
+            currentDate = localDateStr(new Date());
             updateDateUI();
             renderSummary(data.content, data.ai_provider, data.created_at);
             await loadHistory();
@@ -635,6 +643,7 @@ function selectHistory(dateStr) {
     currentDate = dateStr;
     updateDateUI();
     loadSummaryForDate(dateStr);
+    loadHighlights(dateStr);
 }
 
 // ── İndir ─────────────────────────────────────────────────────────────────────

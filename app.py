@@ -1364,7 +1364,7 @@ def api_summary_highlights(date_str):
                 elif odds_val and not safest.get('odds'):
                     safest = candidate
 
-        # ── Risk uyarıları (Düşük güven veya çelişkili sinyaller) ─────────────
+        # ── Risk uyarıları ────────────────────────────────────────────────────
         risk_alerts = []
         LOW_CONF = ('Düşük', 'Dusuk')
         for m in rows:
@@ -1372,11 +1372,34 @@ def api_summary_highlights(date_str):
             reasons = []
             if conf in LOW_CONF:
                 reasons.append('Düşük güven seviyesi')
-            # Over ve BTTS çelişkisi: over düşük ama btts yüksek
             over25 = float(m.get('over25_pct') or 0)
-            btts = float(m.get('btts_pct') or 0)
+            btts  = float(m.get('btts_pct') or 0)
+            # Çelişki 1: KG Var yüksek ama Over 2.5 düşük
             if btts >= 65 and over25 < 50:
                 reasons.append(f'KG Var yüksek (%{round(btts)}) ama Over 2.5 düşük (%{round(over25)})')
+            # Çelişki 2: Orta güven + odds ile PPG çelişkisi
+            if conf == 'Orta':
+                try:
+                    csv_raw = m.get('csv_data')
+                    csv_d = _json.loads(csv_raw) if isinstance(csv_raw, str) and csv_raw else (csv_raw or {})
+                    pred = m.get('prediction_1x2', '')
+                    ch = float(csv_d.get('current_home_ppg') or csv_d.get('home_ppg') or 0)
+                    ca = float(csv_d.get('current_away_ppg') or csv_d.get('away_ppg') or 0)
+                    if ch > 0 and ca > 0:
+                        odds_map = {'1': 'odds_home', 'X': 'odds_draw', '2': 'odds_away'}
+                        odds_key = odds_map.get(pred)
+                        if odds_key:
+                            odds_val = float(csv_d.get(odds_key) or 0)
+                            if odds_val > 0:
+                                implied_pct = round(1 / odds_val * 100, 1)
+                                total = ch + ca
+                                ppg_pct = round({'1': ch / total, 'X': 0.5 - abs(ch - ca) / total / 2, '2': ca / total}.get(pred, 0.5) * 100)
+                                # Bahisçinin olasılığı ile PPG bazlı olasılık 20 puan+ ayrışıyorsa çelişki var
+                                if abs(implied_pct - ppg_pct) >= 20:
+                                    direction = 'favori gösteriyor' if implied_pct > ppg_pct else 'underdog gösteriyor'
+                                    reasons.append(f'Orta güven: Bahisçi %{round(implied_pct)} ama PPG %{ppg_pct} ({direction})')
+                except Exception:
+                    pass
             if reasons:
                 risk_alerts.append({
                     'home_team': m['home_team'],
