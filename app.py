@@ -278,7 +278,7 @@ def api_stats_by_category():
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
             SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
-                COUNT(CASE WHEN a.confidence IN ('Yuksek','Coc Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
+                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
                 SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
                 COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
                 SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
@@ -1578,7 +1578,7 @@ def api_parse_image():
         client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
         today = datetime.now().strftime('%Y-%m-%d')
         message = client.messages.create(
-            model="claude-opus-4-5", max_tokens=1024,
+            model="claude-haiku-4-5-20251001", max_tokens=1024,
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_data}},
                 {"type": "text", "text": f"Bu gorseldeki mac programini analiz et. Bugun: {today}.\nTUM maclari JSON array olarak dondur:\n[{{\"home_team\": \"...\", \"away_team\": \"...\", \"league\": \"...\", \"time\": \"HH:MM\"}}]\nSadece JSON dondur."}
