@@ -1286,6 +1286,7 @@ def api_coupon_update(date_str):
 @app.route('/api/summary/highlights/<date_str>')
 def api_summary_highlights(date_str):
     """Belirli bir tarih için yapısal öne çıkanlar: value bet, güvenli pick, risk uyarıları."""
+    import json as _json
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
