@@ -5,8 +5,10 @@ import logging
 import os
 import threading
 from datetime import datetime
+import psycopg2
+import psycopg2.extras
 from backend.database import (
-    init_db, get_today_matches, get_analyses_by_date,
+    init_db, get_conn, get_today_matches, get_analyses_by_date,
     get_available_dates, save_pending_matches, get_pending_matches,
     clear_pending_matches, clear_old_pending_matches,
     save_coupon, get_coupons, update_coupon_results,
@@ -170,8 +172,7 @@ def api_available_dates():
 @app.route('/api/stats/overview')
 def api_stats_overview():
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -231,8 +232,7 @@ def api_stats_overview():
 @app.route('/api/stats/daily')
 def api_stats_daily():
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -272,8 +272,7 @@ def api_stats_daily():
 @app.route('/api/stats/by-category')
 def api_stats_by_category():
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -312,8 +311,7 @@ def api_stats_by_category():
 @app.route('/api/stats/by-league')
 def api_stats_by_league():
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -349,8 +347,7 @@ def api_stats_by_league():
 @app.route('/api/stats/by-confidence')
 def api_stats_by_confidence():
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -409,8 +406,7 @@ def api_stats_by_confidence():
 @app.route('/api/stats/best-worst-days')
 def api_stats_best_worst_days():
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -442,8 +438,7 @@ def api_stats_value_bets():
 @app.route('/api/stats/ht-recovery')
 def api_stats_ht_recovery():
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute('''
@@ -502,8 +497,7 @@ def api_stats_ht_recovery():
 @app.route('/api/stats/combo-bets')
 def api_stats_combo_bets():
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
         cur.execute(f'''
@@ -550,8 +544,7 @@ def api_stats_combo_bets():
 @app.route('/api/stats/calibration')
 def api_stats_calibration():
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         buckets = [
@@ -634,8 +627,7 @@ def api_stats_calibration():
 def api_stats_momentum():
     """Son 10 maçın W/L dizisi + 1X2, Over 2.5, İY 0.5 için momentum."""
     try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
 
@@ -1132,8 +1124,7 @@ def api_coupon_list():
 @app.route('/api/coupon/delete/<int:coupon_id>', methods=['DELETE'])
 def api_coupon_delete(coupon_id):
     try:
-        import psycopg2
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor()
         cur.execute('DELETE FROM coupons WHERE id = %s', (coupon_id,))
         conn.commit()
@@ -1147,8 +1138,7 @@ def api_coupon_delete(coupon_id):
 def api_coupon_stats():
     """Kupon istatistikleri: kazanma oranı, ROI, seriler, tip bazlı başarı."""
     try:
-        import psycopg2, psycopg2.extras, json as _json, math
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
             SELECT id, coupon_date, items, status, won, total_items, correct_items,
@@ -1296,8 +1286,7 @@ def api_coupon_update(date_str):
 def api_summary_highlights(date_str):
     """Belirli bir tarih için yapısal öne çıkanlar: value bet, güvenli pick, risk uyarıları."""
     try:
-        import psycopg2, psycopg2.extras, json as _json
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
             SELECT a.id, a.home_team, a.away_team, a.league, a.match_time,
@@ -1458,8 +1447,7 @@ def api_summary_highlights_telegram():
 def api_stats_korner_detail():
     """Korner bucket (65-70, 70-80, 80-90, 90+) ve lig bazlı korner istatistikleri."""
     try:
-        import psycopg2, psycopg2.extras, json as _json
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
 
@@ -1624,8 +1612,7 @@ def api_clear_matches():
 @app.route('/api/admin/clear-before/<date_str>', methods=['DELETE'])
 def api_clear_before_date(date_str):
     try:
-        import psycopg2
-        conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), connect_timeout=5)
+        conn = get_conn()
         cur = conn.cursor()
         cur.execute('''
             DELETE FROM match_results WHERE analysis_id IN (
