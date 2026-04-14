@@ -437,7 +437,21 @@ def build_prompt(home_team, away_team, league, match_time,
     btts_csv = csv_data.get('btts_avg') if csv_data else None
     ht_csv = csv_data.get('ht_over05_avg') if csv_data else None
 
-    h2h_avg_goals = None  # pct_rules bloğunda kullanılıyor, aşağıda hesaplanıyor
+    # ── H2H gol ortalaması — over25/btts için referans ───────────────────────
+    h2h_avg_goals = None
+    h2h_favors = None
+    if h2h_fd and h2h_fd.get('total', 0) >= 3:
+        h2h_avg_goals = h2h_fd['avg_goals']
+        total = h2h_fd['total']
+        hw = h2h_fd['home_wins']
+        aw = h2h_fd['away_wins']
+        if hw > aw + 1:
+            h2h_favors = '1'
+        elif aw > hw + 1:
+            h2h_favors = '2'
+        else:
+            h2h_favors = 'X'
+    # ─────────────────────────────────────────────────────────────────────────
 
     pct_rules = '\n── Yüzde Hesaplama Kuralları (ZORUNLU) ──\n'
     pct_rules += 'CSV verileri varsa aşağıdaki sapma sınırlarına KESINLIKLE uy:\n\n'
@@ -570,22 +584,6 @@ def build_prompt(home_team, away_team, league, match_time,
                     ppg_favors = 'X'
         except (ValueError, TypeError) as e:
             logger.debug(f'PPG favors calc skipped: {e}')
-    # ─────────────────────────────────────────────────────────────────────────
-
-    # ── H2H gol ortalaması — over25/btts için referans ───────────────────────
-    h2h_avg_goals = None
-    h2h_favors = None
-    if h2h_fd and h2h_fd.get('total', 0) >= 3:
-        h2h_avg_goals = h2h_fd['avg_goals']
-        total = h2h_fd['total']
-        hw = h2h_fd['home_wins']
-        aw = h2h_fd['away_wins']
-        if hw > aw + 1:
-            h2h_favors = '1'
-        elif aw > hw + 1:
-            h2h_favors = '2'
-        else:
-            h2h_favors = 'X'
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── Ev/Deplasman sırası karşılaştırması ──────────────────────────────────
