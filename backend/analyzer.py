@@ -36,7 +36,7 @@ def safe_float(value: Any) -> Optional[float]:
 
 def extract_form_from_fixtures(matches, team_name):
     form = []
-    for m in reversed(matches[-5:]):
+    for m in matches[-5:]:
         try:
             home_name = m['teams']['home']['name']
             home_goals = m['goals']['home'] or 0
@@ -84,7 +84,7 @@ def extract_goals_avg(matches, team_name):
 
 def extract_goals_trend(matches, team_name):
     scored, conceded = [], []
-    for m in reversed(matches[-5:]):
+    for m in matches[-5:]:
         try:
             home_name = m['teams']['home']['name']
             hg = m['goals']['home']
