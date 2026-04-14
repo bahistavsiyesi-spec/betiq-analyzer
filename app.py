@@ -546,6 +546,7 @@ def api_stats_calibration():
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        month_clause, month_params = _get_month_filter(request)
 
         buckets = [
             (65, 70, '65-70'),
@@ -557,34 +558,34 @@ def api_stats_calibration():
         result = {'over25': [], 'btts': [], 'ht2g': [], 'korner85': [], 'korner95': []}
 
         for low, high, label in buckets:
-            cur.execute('''
+            cur.execute(f'''
                 SELECT COUNT(*) as total, SUM(r.over25_correct) as correct
                 FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-                WHERE a.over25_pct >= %s AND a.over25_pct < %s
-            ''', (low, high))
+                WHERE a.over25_pct >= %s AND a.over25_pct < %s {month_clause}
+            ''', (low, high) + month_params)
             row = dict(cur.fetchone())
             total = row['total'] or 0
             correct = row['correct'] or 0
             result['over25'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
                 'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
 
-            cur.execute('''
+            cur.execute(f'''
                 SELECT COUNT(*) as total, SUM(r.btts_correct) as correct
                 FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-                WHERE a.btts_pct >= %s AND a.btts_pct < %s
-            ''', (low, high))
+                WHERE a.btts_pct >= %s AND a.btts_pct < %s {month_clause}
+            ''', (low, high) + month_params)
             row = dict(cur.fetchone())
             total = row['total'] or 0
             correct = row['correct'] or 0
             result['btts'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
                 'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
 
-            cur.execute('''
+            cur.execute(f'''
                 SELECT COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total,
                        SUM(CASE WHEN r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as correct
                 FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-                WHERE a.ht2g_pct >= %s AND a.ht2g_pct < %s
-            ''', (low, high))
+                WHERE a.ht2g_pct >= %s AND a.ht2g_pct < %s {month_clause}
+            ''', (low, high) + month_params)
             row = dict(cur.fetchone())
             total = row['total'] or 0
             correct = row['correct'] or 0
@@ -593,7 +594,7 @@ def api_stats_calibration():
 
         # Korner kalibrasyonu: korner_85_correct / korner_95_correct sütunlarından
         # Bu değerler zaten >=65 eşiği uygulanmış olarak saklandığından tek bucket kullanıyoruz
-        cur.execute('''
+        cur.execute(f'''
             SELECT
                 COUNT(CASE WHEN r.korner_85_correct IS NOT NULL THEN 1 END) as total_k85,
                 SUM(CASE WHEN r.korner_85_correct IS NOT NULL THEN r.korner_85_correct ELSE 0 END) as correct_k85,
@@ -601,8 +602,8 @@ def api_stats_calibration():
                 SUM(CASE WHEN r.korner_95_correct IS NOT NULL THEN r.korner_95_correct ELSE 0 END) as correct_k95
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
-            WHERE r.home_corners IS NOT NULL
-        ''')
+            WHERE r.home_corners IS NOT NULL {month_clause}
+        ''', month_params)
         krow = dict(cur.fetchone())
         result['korner85'].append({
             'bucket': '65+', 'predicted': 65,
