@@ -1280,9 +1280,21 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
         if csv_avg_g is not None and csv_avg_g > 0:
             csv_total_target = csv_avg_g
         elif csv_o25 is not None and csv_o25 > 0:
-            # over25% → Poisson lambda kaba tahmini
-            # 80% → ~3.2, 65% → ~2.7, 50% → ~2.2, 40% → ~1.9
-            csv_total_target = max(1.5, csv_o25 / 24.5 + 0.5)
+            # over25% → Poisson lambda matematiksel ters fonksiyon
+            def over25_to_lambda(over25_pct):
+                import math
+                from scipy.optimize import brentq
+                p = over25_pct / 100.0
+                def f(lam):
+                    p0 = math.exp(-lam)
+                    p1 = lam * math.exp(-lam)
+                    p2 = (lam**2 / 2) * math.exp(-lam)
+                    return (1 - p0 - p1 - p2) - p
+                try:
+                    return brentq(f, 0.01, 10.0)
+                except Exception:
+                    return max(1.5, over25_pct / 24.5 + 0.5)
+            csv_total_target = over25_to_lambda(csv_o25)
 
     if csv_total_target is not None:
         current_total = home_xg + away_xg
