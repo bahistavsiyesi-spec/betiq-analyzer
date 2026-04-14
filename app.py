@@ -638,12 +638,12 @@ def api_stats_momentum():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
 
-        # Son 10 sonuç: 1X2
+        # Son 10 sonuç: 1X2 (yalnızca Yüksek/Çok Yüksek güven)
         cur.execute(f'''
             SELECT r.pred_1x2_correct, a.analysis_date
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
-            WHERE 1=1 {month_clause}
+            WHERE a.confidence IN ('Yüksek', 'Çok Yüksek') {month_clause}
             ORDER BY a.analysis_date DESC, a.id DESC
             LIMIT 10
         ''', month_params)
