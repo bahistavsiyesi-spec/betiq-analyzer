@@ -649,6 +649,7 @@ def get_league_goal_averages(league_code, season=2025):
     """
     if not FOOTBALL_DATA_KEY or not league_code:
         return None
+    league_code = LEAGUE_CODES.get(league_code, league_code)  # 'GER' → 'BL1' vb.
     if league_code in ('EL', 'EC'):
         return None
     today = date.today()
