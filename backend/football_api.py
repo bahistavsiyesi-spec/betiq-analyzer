@@ -293,7 +293,7 @@ DUTCH_TEAM_NORMALIZED = {
     'heerenveen': 683, 'scheerenveen': 683,
     'heracles': 684, 'heraclesalmelo': 684,
     'sparta': 685, 'spartarotterdam': 685,
-    'nijmegen': 686, 'nijmegen': 686, 'necnijmegen': 686,
+    'nijmegen': 686, 'necnijmegen': 686,
     'waalwijk': 1392, 'rkceagles': 1392,
     'volendam': 1383, 'fcvolendam': 1383,
     'almere': 6806, 'almerecity': 6806,
