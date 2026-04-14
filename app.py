@@ -1138,6 +1138,7 @@ def api_coupon_delete(coupon_id):
 @app.route('/api/coupon/stats')
 def api_coupon_stats():
     """Kupon istatistikleri: kazanma oranı, ROI, seriler, tip bazlı başarı."""
+    import json as _json, math
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -1471,6 +1472,7 @@ def api_summary_highlights_telegram():
 @app.route('/api/stats/korner-detail')
 def api_stats_korner_detail():
     """Korner bucket (65-70, 70-80, 80-90, 90+) ve lig bazlı korner istatistikleri."""
+    import json as _json
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
