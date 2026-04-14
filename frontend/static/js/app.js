@@ -954,13 +954,20 @@ async function runAnalysis(){
         <small id="progressText">Baslatiliyor...</small>
     </div></div>`;
     const duration=total*10000;
-    [10,25,40,55,70,85,95].forEach((pct,i)=>{
+    [10,25,40,55,70,85].forEach((pct,i)=>{
         setTimeout(()=>{
             const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
             if(bar)bar.style.width=pct+'%';
-            if(txt)txt.textContent=`🤖 ${aiLabel} analiz yapiyor... (${Math.ceil(i*total/7)}/${total})`;
-        },(duration/7)*i);
+            if(txt)txt.textContent=`🤖 ${aiLabel} analiz yapiyor... (${Math.ceil(i*total/6)}/${total})`;
+        },(duration/6)*i);
     });
+    // %85'e geldikten sonra bitmemişse pulse animasyonu başlat
+    setTimeout(()=>{
+        const bar=document.getElementById('progressBar');
+        if(bar){ bar.style.width='85%'; bar.classList.add('progress-bar-pulse'); }
+        const txt=document.getElementById('progressText');
+        if(txt) txt.textContent=`⏳ ${aiLabel} yanıtı bekleniyor...`;
+    }, duration);
     try {
         // Analiz başlamadan önce mevcut maç sayısını kaydet
         const beforeRes=await fetch('/api/matches/today');
@@ -983,7 +990,8 @@ async function checkAndReload(statusDiv,btn,total,countBefore=0){
         // Yeni maç eklendiyse (sayı artmışsa) güncelle
         if(matches && matches.length > countBefore){
             const bar=document.getElementById('progressBar'); const txt=document.getElementById('progressText');
-            if(bar)bar.style.width='100%'; if(txt)txt.textContent='✅ Analiz tamamlandi!';
+            if(bar){ bar.classList.remove('progress-bar-pulse'); bar.style.width='100%'; }
+            if(txt) txt.textContent='✅ Analiz tamamlandi!';
             statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} mac analiz edildi!</span></div>`;
             renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et'; statusDiv.style.display='none';
             await loadFixtures();
