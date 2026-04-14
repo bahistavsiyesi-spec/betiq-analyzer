@@ -532,32 +532,6 @@ def _footballdata_last_matches(team_id, team_name, last=10):
         return []
 
 
-def _footballdata_h2h(team_id, team1_name, team2_name, last=5):
-    try:
-        result = _get_football_data('teams/' + str(team_id) + '/matches', {'status': 'FINISHED', 'limit': 20})
-        if not result or not result.get('matches'):
-            return []
-        h2h = []
-        team2_norm = normalize_name(team2_name)
-        for m in result['matches']:
-            try:
-                home_norm = normalize_name(m['homeTeam']['name'])
-                away_norm = normalize_name(m['awayTeam']['name'])
-                if team2_norm in home_norm or home_norm in team2_norm or \
-                   team2_norm in away_norm or away_norm in team2_norm:
-                    h2h.append({
-                        'teams': {
-                            'home': {'name': m['homeTeam']['name'], 'id': m['homeTeam']['id']},
-                            'away': {'name': m['awayTeam']['name'], 'id': m['awayTeam']['id']}
-                        },
-                        'goals': {'home': m['score']['fullTime']['home'], 'away': m['score']['fullTime']['away']}
-                    })
-            except:
-                continue
-        return h2h[:last]
-    except Exception as e:
-        logger.warning('Football-Data H2H failed: ' + str(e))
-        return []
 
 
 # ─── Gerçek H2H (football-data.org /matches/{id}/head2head) ──────────────────
@@ -966,49 +940,8 @@ def get_team_last_matches(team_name, last=10):
 
 
 def get_h2h(team1_name, team2_name, last=5):
-    if is_youth_or_reserve(team1_name) or is_youth_or_reserve(team2_name):
-        logger.info(f'Youth/reserve team H2H skipped: {team1_name} vs {team2_name}')
-        return []
-    if is_german_team(team1_name) or is_german_team(team2_name):
-        team_id = _find_team_id(team1_name, GERMAN_TEAM_NORMALIZED) or _find_team_id(team2_name, GERMAN_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_h2h(team_id, team1_name, team2_name, last)
-        return []
-    if is_english_team(team1_name) or is_english_team(team2_name):
-        team_id = _find_team_id(team1_name, ENGLISH_TEAM_NORMALIZED) or _find_team_id(team2_name, ENGLISH_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_h2h(team_id, team1_name, team2_name, last)
-        return []
-    if is_spanish_team(team1_name) or is_spanish_team(team2_name):
-        team_id = _find_team_id(team1_name, SPANISH_TEAM_NORMALIZED) or _find_team_id(team2_name, SPANISH_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_h2h(team_id, team1_name, team2_name, last)
-        return []
-    if is_italian_team(team1_name) or is_italian_team(team2_name):
-        team_id = _find_team_id(team1_name, ITALIAN_TEAM_NORMALIZED) or _find_team_id(team2_name, ITALIAN_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_h2h(team_id, team1_name, team2_name, last)
-        return []
-    if is_dutch_team(team1_name) or is_dutch_team(team2_name):
-        team_id = _find_team_id(team1_name, DUTCH_TEAM_NORMALIZED) or _find_team_id(team2_name, DUTCH_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_h2h(team_id, team1_name, team2_name, last)
-        return []
-    if is_portuguese_team(team1_name) or is_portuguese_team(team2_name):
-        team_id = _find_team_id(team1_name, PORTUGUESE_TEAM_NORMALIZED) or _find_team_id(team2_name, PORTUGUESE_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_h2h(team_id, team1_name, team2_name, last)
-        return []
-    if is_french_team(team1_name) or is_french_team(team2_name):
-        team_id = _find_team_id(team1_name, FRENCH_TEAM_NORMALIZED) or _find_team_id(team2_name, FRENCH_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_h2h(team_id, team1_name, team2_name, last)
-        return []
-    if is_brazilian_team(team1_name) or is_brazilian_team(team2_name):
-        team_id = _find_team_id(team1_name, BRAZILIAN_TEAM_NORMALIZED) or _find_team_id(team2_name, BRAZILIAN_TEAM_NORMALIZED)
-        if team_id:
-            return _footballdata_h2h(team_id, team1_name, team2_name, last)
-        return []
+    # Gerçek H2H, get_h2h_footballdata üzerinden h2h_fd olarak analyzer.py'de ayrıca çekiliyor.
+    # Bu fonksiyon raw maç listesi döndürmesi gerektiğinden API-Football fallback'e bırakılır.
     return []
 
 
