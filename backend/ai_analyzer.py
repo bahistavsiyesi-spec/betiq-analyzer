@@ -1492,6 +1492,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     # odds_favors ve ppg_favors build_prompt içinde hesaplandı ama burada yeniden hesaplayalım
     _conf_odds_favors = None
     _conf_ppg_favors = None
+    _odds_diff_abs = None
     if csv_data:
         try:
             h_o = float(csv_data.get('odds_home') or 0)
@@ -1500,6 +1501,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 h_imp = round(1/h_o*100, 1)
                 a_imp = round(1/a_o*100, 1)
                 d = h_imp - a_imp
+                _odds_diff_abs = abs(d)
                 if d > 15: _conf_odds_favors = '1'
                 elif d < -15: _conf_odds_favors = '2'
                 elif d > 5: _conf_odds_favors = '1_soft'
@@ -1547,29 +1549,51 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     else:
         odds_side = _conf_odds_favors.replace('_soft', '') if _conf_odds_favors else None
 
-        three_aligned = (
-            odds_side and _conf_ppg_favors and _conf_venue_rank_favors
-            and odds_side == _conf_ppg_favors == _conf_venue_rank_favors
-            and odds_side not in ('X', None)
-        )
-        two_aligned = (
-            odds_side and _conf_ppg_favors
-            and odds_side == _conf_ppg_favors
-            and odds_side not in ('X', None)
-        )
-        odds_ppg_conflict = (
-            odds_side and _conf_ppg_favors
-            and odds_side != _conf_ppg_favors
-            and odds_side not in ('X', None)
-            and _conf_ppg_favors not in ('X', None)
+        # Sinyal yön uyumu yardımcıları
+        _side_ok   = odds_side and odds_side not in ('X', None)
+        _ppg_ok    = _conf_ppg_favors and _conf_ppg_favors not in ('X', None)
+        _venue_ok  = _conf_venue_rank_favors and _conf_venue_rank_favors not in ('X', None)
+
+        ppg_aligned   = _side_ok and _ppg_ok   and _conf_ppg_favors        == odds_side
+        venue_aligned = _side_ok and _venue_ok  and _conf_venue_rank_favors == odds_side
+        venue_data_exists = _conf_venue_rank_favors is not None  # None = veri yok, 'X' = veri var ama dengeli
+
+        # Odds gücü eşikleri
+        strong_odds = _odds_diff_abs is not None and _odds_diff_abs >= 30
+        medium_odds = _odds_diff_abs is not None and 15 <= _odds_diff_abs < 30
+
+        # Çelişki: odds ve PPG farklı tarafa işaret ediyor (X/None değil)
+        conflict = (
+            _side_ok and _ppg_ok
+            and _conf_ppg_favors != odds_side
         )
 
-        if three_aligned or two_aligned:
+        # ── Yüksek: odds %30+ VE PPG aynı yön VE sıralama aynı yön ────────────
+        high = strong_odds and ppg_aligned and venue_aligned
+
+        # ── Orta: üç alt koşuldan biri ──────────────────────────────────────────
+        # 1. Odds %15-30 VE PPG + sıralama aynı yönde
+        # 2. Odds %30+ ama sıralama verisi yok (None), PPG aynı yönde
+        # 3. Odds %30 altında ama odds + PPG aynı yönde (sıralama ne olursa)
+        medium = (
+            (medium_odds and ppg_aligned and venue_aligned)
+            or (strong_odds and ppg_aligned and not venue_data_exists)
+            or (not strong_odds and _side_ok and ppg_aligned)
+        )
+
+        if high:
             confidence = 'Yüksek'
-        elif odds_ppg_conflict:
+        elif conflict:
             confidence = 'Düşük'
+        elif medium:
+            confidence = 'Orta'
         else:
             confidence = 'Orta'
+
+        logger.info(
+            f'Confidence inputs: odds_diff={_odds_diff_abs} odds={_conf_odds_favors} '
+            f'ppg={_conf_ppg_favors} venue_rank={_conf_venue_rank_favors}'
+        )
 
         logger.info(
             f'Confidence final: {confidence} | odds={_conf_odds_favors} ppg={_conf_ppg_favors} '
