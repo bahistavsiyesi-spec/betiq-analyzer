@@ -984,7 +984,13 @@ async function runAnalysis(){
     } catch(e){showError(statusDiv,btn,e.message);}
 }
 
-async function checkAndReload(statusDiv,btn,total,countBefore=0){
+async function checkAndReload(statusDiv,btn,total,countBefore=0,retries=0){
+    const MAX_RETRIES=12;
+    function timeoutDone(){
+        statusDiv.innerHTML=`<div class="status-box"><span>⚠️ Analiz tamamlandı, yeni sonuç eklenmedi.</span></div>`;
+        btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et';
+        setTimeout(()=>{ statusDiv.style.display='none'; },4000);
+    }
     try {
         const res=await fetch('/api/matches/today'); const matches=await res.json();
         // Yeni maç eklendiyse (sayı artmışsa) güncelle
@@ -995,8 +1001,12 @@ async function checkAndReload(statusDiv,btn,total,countBefore=0){
             statusDiv.innerHTML=`<div class="status-box success"><span>✅ ${matches.length} mac analiz edildi!</span></div>`;
             renderMatches(matches); btn.disabled=false; btn.innerHTML='🔍 Secilenleri Analiz Et'; statusDiv.style.display='none';
             await loadFixtures();
-        } else setTimeout(()=>checkAndReload(statusDiv,btn,total,countBefore),5000);
-    } catch(e){setTimeout(()=>checkAndReload(statusDiv,btn,total,countBefore),5000);}
+        } else if(retries>=MAX_RETRIES){ timeoutDone(); }
+        else setTimeout(()=>checkAndReload(statusDiv,btn,total,countBefore,retries+1),5000);
+    } catch(e){
+        if(retries>=MAX_RETRIES) timeoutDone();
+        else setTimeout(()=>checkAndReload(statusDiv,btn,total,countBefore,retries+1),5000);
+    }
 }
 
 function showError(statusDiv,btn,message){
