@@ -1904,3 +1904,139 @@ def generate_daily_summary(matches, ai_provider='claude'):
                 logger.error(f'Gemini summary fallback failed: {e}')
 
     return raw
+
+
+# ─── Maç Senaryoları ──────────────────────────────────────────────────────────
+
+def build_scenario_prompt(analysis):
+    """DB'deki analiz verisinden senaryo promptu oluştur."""
+    home = analysis.get('home_team', '?')
+    away = analysis.get('away_team', '?')
+    league = analysis.get('league', '')
+    pred = analysis.get('prediction_1x2', '?')
+    pred_label = {'1': f'{home} kazanır', 'X': 'Beraberlik', '2': f'{away} kazanır'}.get(pred, pred)
+    conf = analysis.get('confidence', 'Orta')
+    score = analysis.get('predicted_score', '?-?')
+    ht_score = analysis.get('predicted_ht_score', '?-?')
+    over25 = analysis.get('over25_pct', 50)
+    btts = analysis.get('btts_pct', 40)
+    ht2g = analysis.get('ht2g_pct', 40)
+    home_form = analysis.get('home_form') or 'Bilinmiyor'
+    away_form = analysis.get('away_form') or 'Bilinmiyor'
+    home_avg = analysis.get('home_goals_avg', 0)
+    away_avg = analysis.get('away_goals_avg', 0)
+    h2h = analysis.get('h2h_summary') or ''
+
+    reasoning = analysis.get('reasoning') or []
+    if isinstance(reasoning, str):
+        try:
+            reasoning = json.loads(reasoning)
+        except Exception:
+            reasoning = [reasoning]
+    reasoning_text = '\n'.join(f'  - {r}' for r in reasoning) if reasoning else '  - (yok)'
+
+    csv_data = analysis.get('csv_data') or {}
+    xg_home = csv_data.get('home_xg', '')
+    xg_away = csv_data.get('away_xg', '')
+    odds_home = csv_data.get('odds_home', '')
+    odds_away = csv_data.get('odds_away', '')
+    over35 = csv_data.get('over35_avg', '')
+
+    xg_line = f'xG: {home} {xg_home} — {away} {xg_away}' if xg_home and xg_away else ''
+    odds_line = f'Bahis oranları: {home} {odds_home} | {away} {odds_away}' if odds_home and odds_away else ''
+    over35_line = f'Over 3.5 ihtimali: %{over35}' if over35 else ''
+
+    prompt = f"""Sen profesyonel bir futbol analistisin. Aşağıdaki maç analizini kullanarak 3 farklı senaryo üret.
+
+MAÇIN ANALİZ VERİSİ:
+Maç: {home} vs {away}
+Lig: {league}
+Tahmin: {pred_label} ({conf} güven)
+Beklenen skor: {score} (İY: {ht_score})
+Over 2.5 ihtimali: %{over25}
+KG VAR ihtimali: %{btts}
+İlk yarı gol ihtimali: %{ht2g}
+{home} formu: {home_form}
+{away} formu: {away_form}
+{home} gol ortalaması: {home_avg} | {away} gol ortalaması: {away_avg}
+{xg_line}
+{odds_line}
+{over35_line}
+H2H özeti: {h2h}
+Analist değerlendirmesi:
+{reasoning_text}
+
+GÖREV: Yukarıdaki verilerden yola çıkarak aşağıdaki 3 senaryoyu Türkçe yaz:
+1. EN_OLASI: Verilerin işaret ettiği en muhtemel maç akışı. Neden bu skor/sonuç bekleniyor?
+2. SURPRIZ: Piyasanın ve verilerin görmediği ama mümkün olan bir senaryo. Ne olursa şaşırırız?
+3. FAVORİ_NASIL: Favori takım kazanırsa bunu nasıl başarır? Hangi faktörler belirleyici olur?
+
+KURALLAR:
+- Her senaryo 2-3 cümle — kısa, akıcı, anlatı dili
+- title: 4-6 kelimelik etkileyici başlık
+- story: maç nasıl gelişir — anlatı odaklı, teknik jargon yok
+- key_factor: tek cümlelik kritik faktör (örn: "Ev baskısı + form üstünlüğü")
+- Teknik terim kullanma (xG, PPG, implied vb.) — "gol üretme gücü", "güncel form" gibi ifadeler kullan
+- SADECE JSON döndür, başka hiçbir şey yazma
+
+JSON FORMAT:
+{{
+  "scenarios": [
+    {{
+      "type": "en_olasi",
+      "title": "...",
+      "story": "...",
+      "key_factor": "..."
+    }},
+    {{
+      "type": "surpriz",
+      "title": "...",
+      "story": "...",
+      "key_factor": "..."
+    }},
+    {{
+      "type": "favori_nasil",
+      "title": "...",
+      "story": "...",
+      "key_factor": "..."
+    }}
+  ]
+}}"""
+    return prompt
+
+
+def generate_scenarios(analysis):
+    """DB'deki analiz için 3 senaryo üret. Döndürür: scenarios list veya None."""
+    home = analysis.get('home_team', '?')
+    away = analysis.get('away_team', '?')
+    prompt = build_scenario_prompt(analysis)
+    raw = None
+
+    if ANTHROPIC_API_KEY:
+        try:
+            raw = call_anthropic(prompt)
+            logger.info(f'Scenarios Claude OK: {home} vs {away}')
+        except Exception as e:
+            logger.error(f'Scenarios Claude failed: {e}')
+
+    if not raw and GEMINI_API_KEY:
+        try:
+            raw = call_gemini(prompt)
+            logger.info(f'Scenarios Gemini OK: {home} vs {away}')
+        except Exception as e:
+            logger.error(f'Scenarios Gemini failed: {e}')
+
+    if not raw:
+        logger.error(f'Scenarios generation failed for {home} vs {away}')
+        return None
+
+    try:
+        parsed = parse_result(raw)
+        scenarios = parsed.get('scenarios', [])
+        if not scenarios or not isinstance(scenarios, list):
+            logger.error(f'Scenarios parse error — empty list: {home} vs {away}')
+            return None
+        return scenarios
+    except Exception as e:
+        logger.error(f'Scenarios parse error: {e} | raw: {raw[:200]}')
+        return None

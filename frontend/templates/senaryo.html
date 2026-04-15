@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Senaryo — BetIQ Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .senaryo-container { max-width: 900px; margin: 0 auto; padding: 24px; }
+
+        /* Header */
+        .senaryo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid #1e1e3a;
+        }
+        .senaryo-header h1 { font-size: 22px; font-weight: 800; color: #fff; margin: 0; }
+        .senaryo-header-sub { font-size: 12px; color: #555; margin-top: 4px; }
+
+        /* Aksiyon bölümü */
+        .action-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .btn-generate {
+            padding: 10px 22px;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-generate:hover { background: linear-gradient(135deg, #6d28d9, #5b21b6); transform: translateY(-1px); }
+        .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-regen {
+            padding: 10px 18px;
+            background: transparent;
+            border: 1px solid #2a2a4a;
+            border-radius: 10px;
+            color: #666;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-regen:hover { border-color: #7c3aed; color: #a78bfa; }
+
+        /* Progress */
+        .progress-bar-wrap {
+            background: #0d0d1a;
+            border: 1px solid #1e1e3a;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .progress-bar-wrap.visible { display: block; }
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        .progress-track {
+            height: 4px;
+            background: #1e1e3a;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #7c3aed, #a78bfa);
+            border-radius: 4px;
+            transition: width 0.4s ease;
+            width: 0%;
+        }
+        .progress-current {
+            font-size: 11px;
+            color: #555;
+            margin-top: 6px;
+        }
+
+        /* Boş durum */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #444;
+        }
+        .empty-state .empty-icon { font-size: 48px; margin-bottom: 16px; }
+        .empty-state p { font-size: 14px; line-height: 1.6; }
+
+        /* Maç kartı */
+        .scenario-card {
+            background: #0d0d1a;
+            border: 1px solid #1e1e3a;
+            border-radius: 14px;
+            margin-bottom: 16px;
+            overflow: hidden;
+            animation: fadeInUp 0.35s ease both;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .card-match-header {
+            padding: 16px 20px 14px;
+            border-bottom: 1px solid #1a1a2e;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .card-match-teams {
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .card-match-teams .vs { color: #444; font-weight: 400; margin: 0 6px; }
+        .card-match-meta {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .meta-badge {
+            padding: 3px 9px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid;
+        }
+        .meta-league { border-color: #2a2a4a; color: #666; background: transparent; }
+        .meta-pred-1 { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.08); }
+        .meta-pred-x { border-color: #f59e0b; color: #f59e0b; background: rgba(245,158,11,0.08); }
+        .meta-pred-2 { border-color: #3b82f6; color: #3b82f6; background: rgba(59,130,246,0.08); }
+        .meta-conf-yuksek { border-color: #7c3aed; color: #a78bfa; background: rgba(124,58,237,0.08); }
+        .meta-conf-orta   { border-color: #f59e0b; color: #f59e0b; background: rgba(245,158,11,0.08); }
+        .meta-conf-dusuk  { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.08); }
+        .meta-score { border-color: #1e1e3a; color: #555; background: transparent; font-family: 'JetBrains Mono', monospace; }
+
+        /* Senaryo sekmeleri */
+        .scenario-tabs {
+            display: flex;
+            border-bottom: 1px solid #1a1a2e;
+            background: #0a0a15;
+        }
+        .scenario-tab-btn {
+            flex: 1;
+            padding: 11px 8px;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #444;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .scenario-tab-btn:hover { color: #888; }
+        .scenario-tab-btn.active.tab-en-olasi  { color: #10b981; border-bottom-color: #10b981; background: rgba(16,185,129,0.04); }
+        .scenario-tab-btn.active.tab-surpriz   { color: #f59e0b; border-bottom-color: #f59e0b; background: rgba(245,158,11,0.04); }
+        .scenario-tab-btn.active.tab-favori    { color: #a78bfa; border-bottom-color: #7c3aed; background: rgba(124,58,237,0.04); }
+
+        /* Senaryo içeriği */
+        .scenario-panels { }
+        .scenario-panel {
+            display: none;
+            padding: 20px;
+            animation: fadeIn 0.2s ease;
+        }
+        .scenario-panel.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .scenario-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+        .scenario-story {
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.7;
+            margin-bottom: 14px;
+        }
+        .scenario-keyfactor {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .panel-en-olasi .scenario-title  { color: #10b981; }
+        .panel-en-olasi .scenario-keyfactor { background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
+        .panel-surpriz .scenario-title   { color: #f59e0b; }
+        .panel-surpriz .scenario-keyfactor  { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+        .panel-favori .scenario-title    { color: #a78bfa; }
+        .panel-favori .scenario-keyfactor   { background: rgba(124,58,237,0.1); color: #a78bfa; border: 1px solid rgba(124,58,237,0.2); }
+
+        /* Yükleniyor kart placeholder */
+        .loading-card {
+            background: #0d0d1a;
+            border: 1px solid #1e1e3a;
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #555;
+            font-size: 13px;
+        }
+        .loading-card .spinner-sm {
+            width: 18px; height: 18px;
+            border: 2px solid #2a2a4a;
+            border-top-color: #7c3aed;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Mevcut senaryo durumu */
+        .existing-notice {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            background: rgba(124,58,237,0.06);
+            border: 1px solid rgba(124,58,237,0.2);
+            border-radius: 8px;
+            font-size: 12px;
+            color: #a78bfa;
+            margin-bottom: 20px;
+        }
+
+        /* Nav */
+        .sn-nav { display:flex; gap:8px; align-items:center; }
+        .sn-nav a {
+            padding:7px 14px; border-radius:8px;
+            border:1px solid #2a1a4e; background:transparent;
+            color:#a78bfa; font-size:12px; font-weight:600;
+            text-decoration:none; transition:all 0.2s;
+        }
+        .sn-nav a:hover { background:#2a1a4e; color:#fff; }
+        .sn-nav a.active { background:#7c3aed; border-color:#7c3aed; color:#fff; }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">BetIQ</span>
+                <span class="logo-sub">ANALYZER</span>
+            </div>
+            <nav class="sn-nav">
+                <a href="/">🏠 Ana Sayfa</a>
+                <a href="/gecmis">📅 Geçmiş</a>
+                <a href="/istatistik">📊 İstatistik</a>
+                <a href="/kuponlar">🎫 Kuponlar</a>
+                <a href="/senaryo" class="active">🎭 Senaryo</a>
+                <a href="/debug">🔬 Debug</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="senaryo-container">
+            <div class="senaryo-header">
+                <div>
+                    <h1>🎭 Maç Senaryoları</h1>
+                    <div class="senaryo-header-sub">Her maç için 3 farklı senaryo — AI tarafından üretildi</div>
+                </div>
+                <div id="headerDate" style="font-size:12px;color:#555;font-family:'JetBrains Mono',monospace;"></div>
+            </div>
+
+            <div class="action-bar">
+                <button class="btn-generate" id="btnGenerate" onclick="startGeneration(false)">
+                    <span>🎬</span> Senaryo Oluştur
+                </button>
+                <button class="btn-regen" id="btnRegen" onclick="startGeneration(true)" style="display:none;">
+                    🔄 Yeniden Oluştur
+                </button>
+            </div>
+
+            <!-- Progress -->
+            <div class="progress-bar-wrap" id="progressWrap">
+                <div class="progress-info">
+                    <span id="progressText">Senaryolar hazırlanıyor...</span>
+                    <span id="progressCount">0 / 0</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-current" id="progressCurrent"></div>
+            </div>
+
+            <!-- İçerik alanı -->
+            <div id="scenarioContent"></div>
+        </div>
+    </main>
+</div>
+
+<script>
+    let totalMatches = 0;
+    let doneMatches = 0;
+    let hasExisting = false;
+
+    function today() {
+        return new Date().toISOString().slice(0, 10);
+    }
+
+    function fmtDate(d) {
+        if (!d) return '';
+        const [y, m, day] = d.split('-');
+        return `${day}.${m}.${y}`;
+    }
+
+    function predLabel(pred, home, away) {
+        if (pred === '1') return { text: `${home} Kazanır`, cls: 'meta-pred-1' };
+        if (pred === '2') return { text: `${away} Kazanır`, cls: 'meta-pred-2' };
+        return { text: 'Beraberlik', cls: 'meta-pred-x' };
+    }
+
+    function confClass(conf) {
+        if (!conf) return '';
+        const c = conf.toLowerCase();
+        if (c.includes('yüksek') || c.includes('yuksek')) return 'meta-conf-yuksek';
+        if (c.includes('düşük') || c.includes('dusuk'))    return 'meta-conf-dusuk';
+        return 'meta-conf-orta';
+    }
+
+    function renderCard(data, index) {
+        const home = data.home_team || '?';
+        const away = data.away_team || '?';
+        const scenarios = data.scenarios || [];
+
+        const pl = predLabel(data.prediction_1x2, home, away);
+        const cc = confClass(data.confidence);
+        const league = data.league || '';
+        const score  = data.predicted_score || '';
+
+        const scenMap = {};
+        scenarios.forEach(s => { scenMap[s.type] = s; });
+        const en   = scenMap['en_olasi']    || {};
+        const sur  = scenMap['surpriz']     || {};
+        const fav  = scenMap['favori_nasil'] || {};
+
+        const id = `card_${data.analysis_id || index}`;
+
+        const leagueBadge = league ? `<span class="meta-badge meta-league">${league}</span>` : '';
+        const scoreBadge  = score  ? `<span class="meta-badge meta-score">${score}</span>` : '';
+
+        return `
+<div class="scenario-card" id="${id}">
+    <div class="card-match-header">
+        <div class="card-match-teams">
+            ${home} <span class="vs">vs</span> ${away}
+        </div>
+        <div class="card-match-meta">
+            ${leagueBadge}
+            <span class="meta-badge ${pl.cls}">${pl.text}</span>
+            ${data.confidence ? `<span class="meta-badge ${cc}">${data.confidence}</span>` : ''}
+            ${scoreBadge}
+        </div>
+    </div>
+    <div class="scenario-tabs">
+        <button class="scenario-tab-btn tab-en-olasi active" onclick="switchTab('${id}','en_olasi',this)">
+            🎯 En Olası
+        </button>
+        <button class="scenario-tab-btn tab-surpriz" onclick="switchTab('${id}','surpriz',this)">
+            ⚡ Sürpriz
+        </button>
+        <button class="scenario-tab-btn tab-favori" onclick="switchTab('${id}','favori_nasil',this)">
+            🏆 Favori Nasıl?
+        </button>
+    </div>
+    <div class="scenario-panels">
+        <div class="scenario-panel panel-en-olasi active" id="${id}_en_olasi">
+            <div class="scenario-title">${en.title || 'Beklenen Akış'}</div>
+            <div class="scenario-story">${en.story || '—'}</div>
+            <div class="scenario-keyfactor">⚡ ${en.key_factor || '—'}</div>
+        </div>
+        <div class="scenario-panel panel-surpriz" id="${id}_surpriz">
+            <div class="scenario-title">${sur.title || 'Sürpriz Senaryo'}</div>
+            <div class="scenario-story">${sur.story || '—'}</div>
+            <div class="scenario-keyfactor">⚡ ${sur.key_factor || '—'}</div>
+        </div>
+        <div class="scenario-panel panel-favori" id="${id}_favori_nasil">
+            <div class="scenario-title">${fav.title || 'Favori Kazanırsa'}</div>
+            <div class="scenario-story">${fav.story || '—'}</div>
+            <div class="scenario-keyfactor">⚡ ${fav.key_factor || '—'}</div>
+        </div>
+    </div>
+</div>`;
+    }
+
+    function switchTab(cardId, type, btn) {
+        const card = document.getElementById(cardId);
+        if (!card) return;
+
+        // Tüm panel ve butonları sıfırla
+        card.querySelectorAll('.scenario-panel').forEach(p => p.classList.remove('active'));
+        card.querySelectorAll('.scenario-tab-btn').forEach(b => b.classList.remove('active'));
+
+        // Aktif panel
+        const panel = document.getElementById(`${cardId}_${type}`);
+        if (panel) panel.classList.add('active');
+
+        // Aktif buton
+        btn.classList.add('active');
+    }
+
+    function setProgress(done, total, currentMatch) {
+        const pct = total > 0 ? Math.round(done / total * 100) : 0;
+        document.getElementById('progressFill').style.width = pct + '%';
+        document.getElementById('progressCount').textContent = `${done} / ${total}`;
+        document.getElementById('progressText').textContent = done === total ? 'Tamamlandı!' : 'Senaryolar hazırlanıyor...';
+        if (currentMatch) {
+            document.getElementById('progressCurrent').textContent = `İşleniyor: ${currentMatch}`;
+        } else {
+            document.getElementById('progressCurrent').textContent = '';
+        }
+    }
+
+    async function loadExisting() {
+        try {
+            const res = await fetch('/api/scenarios/today');
+            if (!res.ok) return false;
+            const body = await res.json();
+            if (!body.data || !body.data.length) return false;
+
+            hasExisting = true;
+            document.getElementById('btnRegen').style.display = 'inline-flex';
+            document.getElementById('btnGenerate').style.display = 'none';
+
+            const notice = `<div class="existing-notice">✅ Bugün için senaryolar zaten oluşturulmuş. Yenilemek için "Yeniden Oluştur" butonuna tıklayın.</div>`;
+            const cards  = body.data.map((d, i) => renderCard(d, i)).join('');
+            document.getElementById('scenarioContent').innerHTML = notice + cards;
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    async function startGeneration(regenerate) {
+        document.getElementById('btnGenerate').disabled = true;
+        document.getElementById('btnRegen').disabled = true;
+        document.getElementById('progressWrap').classList.add('visible');
+        document.getElementById('scenarioContent').innerHTML = '';
+        totalMatches = 0;
+        doneMatches = 0;
+        setProgress(0, 0, '');
+
+        try {
+            const resp = await fetch('/api/scenarios/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ regenerate })
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                document.getElementById('scenarioContent').innerHTML =
+                    `<div class="empty-state"><div class="empty-icon">⚠️</div><p>${err.message || 'Senaryo oluşturulamadı.'}</p></div>`;
+                document.getElementById('btnGenerate').disabled = false;
+                document.getElementById('btnGenerate').style.display = 'inline-flex';
+                document.getElementById('btnRegen').style.display = 'none';
+                document.getElementById('btnRegen').disabled = false;
+                document.getElementById('progressWrap').classList.remove('visible');
+                return;
+            }
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let cardIndex = 0;
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    let event;
+                    try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+                    if (event.type === 'start') {
+                        totalMatches = event.total;
+                        setProgress(0, totalMatches, '');
+
+                        // Placeholder kartlar
+                        const ph = Array.from({ length: totalMatches }, (_, i) =>
+                            `<div class="loading-card" id="placeholder_${i}">
+                                <div class="spinner-sm"></div>
+                                <span>Senaryo hazırlanıyor...</span>
+                             </div>`
+                        ).join('');
+                        document.getElementById('scenarioContent').innerHTML = ph;
+
+                    } else if (event.type === 'match') {
+                        // Placeholder'ı gerçek kartla değiştir
+                        const ph = document.getElementById(`placeholder_${cardIndex}`);
+                        const cardHtml = renderCard(event, cardIndex);
+                        if (ph) {
+                            ph.outerHTML = cardHtml;
+                        } else {
+                            document.getElementById('scenarioContent').insertAdjacentHTML('beforeend', cardHtml);
+                        }
+                        cardIndex++;
+
+                    } else if (event.type === 'skip' || event.type === 'error') {
+                        const ph = document.getElementById(`placeholder_${cardIndex}`);
+                        const errHtml = `<div class="loading-card" style="color:#666;">
+                            ⚠️ ${event.home_team} vs ${event.away_team} — senaryo oluşturulamadı
+                        </div>`;
+                        if (ph) ph.outerHTML = errHtml;
+                        cardIndex++;
+
+                    } else if (event.type === 'progress') {
+                        doneMatches = event.done;
+                        const cur = event.done < totalMatches ? '' : '';
+                        setProgress(event.done, event.total, cur);
+
+                    } else if (event.type === 'done') {
+                        setProgress(event.total, event.total, '');
+                        document.getElementById('progressCurrent').textContent = `${event.total} maç tamamlandı.`;
+                        document.getElementById('btnRegen').style.display = 'inline-flex';
+                        document.getElementById('btnGenerate').style.display = 'none';
+                        hasExisting = true;
+                    }
+                }
+            }
+        } catch (e) {
+            document.getElementById('scenarioContent').innerHTML =
+                `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Bağlantı hatası: ${e.message}</p></div>`;
+        }
+
+        document.getElementById('btnGenerate').disabled = false;
+        document.getElementById('btnRegen').disabled = false;
+    }
+
+    // Sayfa yüklenince mevcut senaryoları kontrol et
+    window.addEventListener('DOMContentLoaded', async () => {
+        const d = today();
+        document.getElementById('headerDate').textContent = fmtDate(d);
+
+        const found = await loadExisting();
+        if (!found) {
+            document.getElementById('scenarioContent').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">🎭</div>
+                    <p>Henüz senaryo oluşturulmadı.<br>
+                    "Senaryo Oluştur" butonuna tıklayarak bugünün analiz edilmiş maçları için senaryolar üretin.</p>
+                </div>`;
+        }
+    });
+</script>
+</body>
+</html>

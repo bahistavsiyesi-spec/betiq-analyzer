@@ -139,6 +139,19 @@ def init_db():
             created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
         )
     ''')
+    # ── Maç Senaryoları tablosu ───────────────────────────────────────────────
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS match_scenarios (
+            id SERIAL PRIMARY KEY,
+            analysis_id INTEGER,
+            scenario_date TEXT NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            scenarios TEXT NOT NULL,
+            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+            FOREIGN KEY (analysis_id) REFERENCES analyses(id)
+        )
+    ''')
     # ─────────────────────────────────────────────────────────────────────────
     for sql in [
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER',
@@ -866,3 +879,64 @@ def get_iy_stats(date=None):
         'none': none_,
         'none_pct': round(none_ / total * 100) if total else 0,
     }
+
+
+# ── Maç Senaryoları ───────────────────────────────────────────────────────────
+
+def save_scenarios(scenario_date, analysis_id, home_team, away_team, scenarios):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        'SELECT id FROM match_scenarios WHERE scenario_date = %s AND analysis_id = %s',
+        (scenario_date, analysis_id)
+    )
+    existing = cur.fetchone()
+    scenarios_json = json.dumps(scenarios, ensure_ascii=False)
+    if existing:
+        cur.execute(
+            'UPDATE match_scenarios SET scenarios=%s, created_at=to_char(now(),\'YYYY-MM-DD HH24:MI:SS\') WHERE id=%s',
+            (scenarios_json, existing[0])
+        )
+    else:
+        cur.execute('''
+            INSERT INTO match_scenarios (analysis_id, scenario_date, home_team, away_team, scenarios)
+            VALUES (%s, %s, %s, %s, %s)
+        ''', (analysis_id, scenario_date, home_team, away_team, scenarios_json))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_scenarios_by_date(date_str):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('''
+        SELECT ms.*, a.league, a.match_time, a.prediction_1x2, a.confidence,
+               a.predicted_score, a.over25_pct, a.btts_pct
+        FROM match_scenarios ms
+        LEFT JOIN analyses a ON a.id = ms.analysis_id
+        WHERE ms.scenario_date = %s
+        ORDER BY ms.id ASC
+    ''', (date_str,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    result = []
+    for r in rows:
+        row = dict(r)
+        if row.get('scenarios'):
+            try:
+                row['scenarios'] = json.loads(row['scenarios']) if isinstance(row['scenarios'], str) else row['scenarios']
+            except Exception:
+                row['scenarios'] = []
+        result.append(row)
+    return result
+
+
+def delete_scenarios_by_date(date_str):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM match_scenarios WHERE scenario_date = %s', (date_str,))
+    conn.commit()
+    cur.close()
+    conn.close()
