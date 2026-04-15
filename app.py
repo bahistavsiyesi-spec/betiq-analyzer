@@ -780,6 +780,48 @@ def api_stats_score_deviation():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/stats/weekday')
+def api_stats_weekday():
+    """Haftanın günü bazında 1X2 başarı oranı. DOW: 0=Pazar, 1=Pzt, ..., 6=Cmt"""
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        month_clause, month_params = _get_month_filter(request)
+        cur.execute(f'''
+            SELECT
+                EXTRACT(DOW FROM a.analysis_date::date)::int AS dow,
+                COUNT(*) AS total,
+                SUM(r.pred_1x2_correct) AS correct
+            FROM analyses a
+            JOIN match_results r ON r.analysis_id = a.id
+            WHERE 1=1 {month_clause}
+            GROUP BY dow
+            ORDER BY dow
+        ''', month_params)
+        rows = {{r['dow']: r for r in cur.fetchall()}}
+        cur.close(); conn.close()
+
+        day_names = ['Pazar', 'Pazartesi', 'Sali', 'Carsamba', 'Persembe', 'Cuma', 'Cumartesi']
+        # Pazartesi'den başlayacak şekilde sırala (DOW 1-6, sonra 0)
+        order = [1, 2, 3, 4, 5, 6, 0]
+        result = []
+        for dow in order:
+            r = rows.get(dow)
+            total = int(r['total']) if r else 0
+            correct = int(r['correct'] or 0) if r else 0
+            result.append({
+                'dow': dow,
+                'day': day_names[dow],
+                'total': total,
+                'correct': correct,
+                'pct': round(correct / total * 100) if total else 0,
+            })
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Stats weekday error: {e}")
+        return jsonify({{"error": str(e)}}), 500
+
+
 @app.route('/api/stats/goal-distribution')
 def api_stats_goal_distribution():
     """Maç başına toplam gol ve IY gol dağılımı (histogram verisi)."""

@@ -250,6 +250,12 @@
                 <div class="tab-content" id="tab-gunler">
                     <div class="section-title">&#127885; En Iyi & En Kotu Gunler</div>
                     <div class="day-cards" id="dayCards"><div class="loading">Yukleniyor...</div></div>
+                    <div class="chart-box" style="margin-top:20px;">
+                        <div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:4px;">&#128197; Haftanin Gunu Bazinda Basari</div>
+                        <div style="font-size:11px;color:#555;margin-bottom:16px;">1X2 tahminlerin haftanin hangi gununde daha basarili oldugu. <span style="color:#22c55e;font-weight:600;">Yesil = en yuksek</span>, <span style="color:#ef4444;font-weight:600;">kirmizi = en dusuk</span>.</div>
+                        <canvas id="weekdayChart" style="max-height:240px;"></canvas>
+                        <div id="weekdayNoData" class="no-data" style="display:none;">Henuz yeterli veri yok</div>
+                    </div>
                 </div>
 
                 <div class="tab-content" id="tab-iy">
@@ -309,7 +315,7 @@
             else if (name === 'kombine') loadComboBets();
             else if (name === 'kalibrasyon') loadCalibration();
             else if (name === 'guven') { loadConfidence(); loadLeagues(); }
-            else if (name === 'gunler') loadBestWorst();
+            else if (name === 'gunler') { loadBestWorst(); loadWeekday(); }
             else if (name === 'iy') loadHtRecovery();
             else if (name === 'korner') loadKornerDetail();
             else if (name === 'kupon') loadCouponTrend();
@@ -768,6 +774,80 @@
             container.innerHTML = `
                 <div class="day-card"><h4 class="best">En Iyi Gunler (1X2)</h4>${bestHtml||'<div class="no-data">Veri yok</div>'}</div>
                 <div class="day-card"><h4 class="worst">En Kotu Gunler (1X2)</h4>${worstHtml||'<div class="no-data">Veri yok</div>'}</div>`;
+        }
+
+        let weekdayChartInstance = null;
+
+        async function loadWeekday() {
+            const noDataEl = document.getElementById('weekdayNoData');
+            const canvasEl = document.getElementById('weekdayChart');
+            try {
+                const resp = await fetch('/api/stats/weekday' + buildMonthParam());
+                const data = await resp.json();
+                if (data.error || !data.length || data.every(d => d.total === 0)) {
+                    noDataEl.style.display = '';
+                    canvasEl.style.display = 'none';
+                    return;
+                }
+
+                const withData = data.filter(d => d.total > 0);
+                const maxPct = Math.max(...withData.map(d => d.pct));
+                const minPct = Math.min(...withData.map(d => d.pct));
+
+                const bgColors = data.map(d => {
+                    if (d.total === 0) return 'rgba(40,40,60,0.4)';
+                    if (d.pct === maxPct) return 'rgba(34,197,94,0.75)';
+                    if (d.pct === minPct) return 'rgba(239,68,68,0.65)';
+                    return 'rgba(124,58,237,0.55)';
+                });
+                const borderColors = data.map(d => {
+                    if (d.total === 0) return '#2a2a3e';
+                    if (d.pct === maxPct) return '#22c55e';
+                    if (d.pct === minPct) return '#ef4444';
+                    return '#7c3aed';
+                });
+
+                if (weekdayChartInstance) weekdayChartInstance.destroy();
+                weekdayChartInstance = new Chart(canvasEl.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.map(d => d.day),
+                        datasets: [{
+                            label: '1X2 Basari %',
+                            data: data.map(d => d.total > 0 ? d.pct : null),
+                            backgroundColor: bgColors,
+                            borderColor: borderColors,
+                            borderWidth: 1,
+                            borderRadius: 5,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx => {
+                                        const d = data[ctx.dataIndex];
+                                        if (!d.total) return ' Veri yok';
+                                        return ` %${d.pct} (${d.correct}/${d.total} maç)`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#111' } },
+                            y: {
+                                min: 0, max: 100,
+                                ticks: { color: '#555', font: { size: 10 }, callback: v => v + '%' },
+                                grid: { color: '#111' }
+                            }
+                        }
+                    }
+                });
+            } catch(e) {
+                console.error('Weekday yuklenemedi:', e);
+            }
         }
 
         async function loadKornerDetail() {
