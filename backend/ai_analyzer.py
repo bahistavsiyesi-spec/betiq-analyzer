@@ -1573,8 +1573,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         venue_soft_aligned   = _side_ok and _venue_soft   and _venue_side == odds_side
 
         # Odds gücü eşikleri
-        strong_odds = _odds_diff_abs is not None and _odds_diff_abs >= 30
-        medium_odds = _odds_diff_abs is not None and 15 <= _odds_diff_abs < 30
+        strong_odds = _odds_diff_abs is not None and _odds_diff_abs >= 20
+        medium_odds = _odds_diff_abs is not None and 15 <= _odds_diff_abs < 20
 
         # Çelişki: odds ve PPG farklı tarafa işaret ediyor (X/None değil)
         conflict = (
@@ -1582,18 +1582,16 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             and _conf_ppg_favors != odds_side
         )
 
-        # ── Yüksek: odds %30+ VE PPG aynı yön VE sıralama GÜÇLÜ aynı yön ──────
-        high = strong_odds and ppg_aligned and venue_strong_aligned
+        # ── Yüksek: odds %20+ VE PPG aynı yön VE (sıralama GÜÇLÜ aynı yön VEYA sıralama verisi yok) ──
+        high = strong_odds and ppg_aligned and (venue_strong_aligned or not venue_data_exists)
 
         # ── Orta: aşağıdaki koşullardan biri ────────────────────────────────────
-        # 1. Odds %15-30 + PPG + sıralama güçlü aynı yönde
-        # 2. Odds %30+ + PPG + sıralama soft (4-9 fark) aynı yönde
-        # 3. Odds %30+ + PPG aynı yönde, sıralama verisi hiç yok
-        # 4. Odds %30 altında + PPG aynı yönde (sıralama ne olursa)
+        # 1. Odds %15-20 + PPG + sıralama güçlü aynı yönde
+        # 2. Odds %20+ + PPG + sıralama soft (4-9 fark) aynı yönde
+        # 3. Odds %20 altında + PPG aynı yönde (sıralama ne olursa)
         medium = (
             (medium_odds and ppg_aligned and venue_strong_aligned)
             or (strong_odds and ppg_aligned and venue_soft_aligned)
-            or (strong_odds and ppg_aligned and not venue_data_exists)
             or (not strong_odds and _side_ok and ppg_aligned)
         )
 
