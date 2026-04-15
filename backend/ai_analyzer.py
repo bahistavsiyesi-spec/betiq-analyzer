@@ -830,6 +830,22 @@ def call_anthropic(prompt):
     return response.json()['content'][0]['text'].strip()
 
 
+def call_anthropic_scenarios(prompt):
+    """Senaryo üretimi için hızlı Haiku çağrısı — ~3-5sn, Render 30s limitinin altında."""
+    response = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+        json={
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': 600,
+            'system': 'Sen yaratıcı bir futbol senaryo yazarısın. TÜRKÇE yaz. SADECE JSON döndür.',
+            'messages': [{'role': 'user', 'content': prompt}]
+        }, timeout=25
+    )
+    response.raise_for_status()
+    return response.json()['content'][0]['text'].strip()
+
+
 def call_gemini(prompt):
     time.sleep(3)
     response = requests.post(
@@ -2010,7 +2026,7 @@ def generate_scenarios(analysis):
 
     if ANTHROPIC_API_KEY:
         try:
-            raw = call_anthropic(prompt)
+            raw = call_anthropic_scenarios(prompt)
             logger.info(f'Scenarios Claude OK: {home} vs {away}')
         except Exception as e:
             logger.error(f'Scenarios Claude failed: {e}')
