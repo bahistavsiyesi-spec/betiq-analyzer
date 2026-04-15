@@ -717,6 +717,69 @@ def api_stats_momentum():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/stats/score-deviation')
+def api_stats_score_deviation():
+    """Tahmin edilen skor ile gerçek skor arasındaki sapma analizi."""
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        month_clause, month_params = _get_month_filter(request)
+
+        # SPLIT_PART ile parse; ?-? ve boş değerler regex filter ile elenir
+        cur.execute(f'''
+            SELECT
+                SPLIT_PART(a.predicted_score, '-', 1)::int  AS pred_home,
+                SPLIT_PART(a.predicted_score, '-', 2)::int  AS pred_away,
+                r.home_score                                  AS actual_home,
+                r.away_score                                  AS actual_away
+            FROM analyses a
+            JOIN match_results r ON r.analysis_id = a.id
+            WHERE a.predicted_score ~ '^[0-9]+-[0-9]+$'
+              AND r.home_score IS NOT NULL
+              {month_clause}
+        ''', month_params)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+
+        if not rows:
+            return jsonify({'total': 0})
+
+        total = len(rows)
+        sum_home = sum_away = sum_total = 0
+        dist = {-3: 0, -2: 0, -1: 0, 0: 0, 1: 0, 2: 0, 3: 0}  # 3 = "3+"
+
+        for r in rows:
+            ph, pa = r['pred_home'], r['pred_away']
+            ah, aa = r['actual_home'], r['actual_away']
+            sum_home  += ph - ah
+            sum_away  += pa - aa
+            sum_total += (ph + pa) - (ah + aa)
+            diff = (ph + pa) - (ah + aa)
+            key = max(-3, min(3, diff))  # -3 = "-3 ve altı", 3 = "3 ve üstü"
+            dist[key] = dist.get(key, 0) + 1
+
+        deviation_dist = [
+            {'label': '-3 ve alti', 'diff': -3, 'count': dist[-3]},
+            {'label': '-2',         'diff': -2, 'count': dist[-2]},
+            {'label': '-1',         'diff': -1, 'count': dist[-1]},
+            {'label': '0 (Tam)',    'diff':  0, 'count': dist[ 0]},
+            {'label': '+1',         'diff':  1, 'count': dist[ 1]},
+            {'label': '+2',         'diff':  2, 'count': dist[ 2]},
+            {'label': '+3 ve ustu', 'diff':  3, 'count': dist[ 3]},
+        ]
+
+        return jsonify({
+            'total': total,
+            'avg_home_dev':  round(sum_home  / total, 2),
+            'avg_away_dev':  round(sum_away  / total, 2),
+            'avg_total_dev': round(sum_total / total, 2),
+            'distribution':  deviation_dist,
+        })
+    except Exception as e:
+        logger.error(f"Stats score-deviation error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/stats/goal-distribution')
 def api_stats_goal_distribution():
     """Maç başına toplam gol ve IY gol dağılımı (histogram verisi)."""
