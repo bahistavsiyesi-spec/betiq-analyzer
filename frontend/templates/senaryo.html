@@ -530,7 +530,16 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ analysis_id: aid })
                 });
-                const body = await resp.json();
+
+                // JSON olmayan response'u (HTML hata sayfası vb.) güvenli yakala
+                const ct = resp.headers.get('content-type') || '';
+                let body;
+                if (ct.includes('application/json')) {
+                    body = await resp.json();
+                } else {
+                    const text = await resp.text();
+                    throw new Error(`HTTP ${resp.status} — sunucu JSON döndürmedi. İlk 120 karakter: ${text.slice(0, 120)}`);
+                }
 
                 if (resp.ok && body.status === 'ok') {
                     const cardHtml = renderCard(body, done);

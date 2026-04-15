@@ -985,30 +985,31 @@ def api_scenarios_today():
 @app.route('/api/scenarios/generate/single', methods=['POST'])
 def api_scenarios_generate_single():
     """Tek bir maç için senaryo üret — frontend sırayla çağırır, timeout sorunu olmaz."""
-    from backend.ai_analyzer import generate_scenarios as _gen
-    from backend.database import get_analysis_by_id as _get_by_id
-
-    data = request.get_json() or {}
-    analysis_id = data.get('analysis_id')
-    if not analysis_id:
-        return jsonify({"status": "error", "message": "analysis_id zorunlu"}), 400
-
-    match = _get_by_id(analysis_id)
-    if not match:
-        return jsonify({"status": "error", "message": "Analiz bulunamadı"}), 404
-
-    date_str = match.get('analysis_date') or datetime.now().strftime('%Y-%m-%d')
-    home = match.get('home_team', '?')
-    away = match.get('away_team', '?')
-
     try:
+        from backend.ai_analyzer import generate_scenarios as _gen
+        from backend.database import get_analysis_by_id as _get_by_id
+
+        data = request.get_json() or {}
+        analysis_id = data.get('analysis_id')
+        if not analysis_id:
+            return jsonify({"status": "error", "message": "analysis_id zorunlu"}), 400
+
+        match = _get_by_id(int(analysis_id))
+        if not match:
+            return jsonify({"status": "error", "message": f"Analiz bulunamadi (id={analysis_id})"}), 404
+
+        date_str = match.get('analysis_date') or datetime.now().strftime('%Y-%m-%d')
+        home = match.get('home_team', '?')
+        away = match.get('away_team', '?')
+
         scenarios = _gen(match)
         if not scenarios:
-            return jsonify({"status": "error", "message": "Senaryo üretilemedi"}), 500
-        save_scenarios(date_str, analysis_id, home, away, scenarios)
+            return jsonify({"status": "error", "message": "AI senaryo üretemedi"}), 500
+
+        save_scenarios(date_str, int(analysis_id), home, away, scenarios)
         return jsonify({
             "status": "ok",
-            "analysis_id": analysis_id,
+            "analysis_id": int(analysis_id),
             "home_team": home,
             "away_team": away,
             "league": match.get('league', ''),
@@ -1021,7 +1022,7 @@ def api_scenarios_generate_single():
             "scenarios": scenarios,
         })
     except Exception as e:
-        logger.error(f'Scenario generation error {home} vs {away}: {e}')
+        logger.error(f'Scenario single endpoint error: {e}', exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
