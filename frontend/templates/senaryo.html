@@ -494,59 +494,87 @@
 
         if (!checked.length) return;
 
+        // Kontrolleri kilitle
         document.getElementById('btnGenerate').disabled = true;
         document.getElementById('btnSelectAll').disabled = true;
         document.querySelectorAll('#matchList input').forEach(c => c.disabled = true);
 
-        const matchCount = checked.length;
-        document.getElementById('loadingText').textContent = `${matchCount} maç için senaryolar oluşturuluyor...`;
-        document.getElementById('loadingSub').textContent =
-            `Tahmini süre: ~${matchCount * 5} saniye. Lütfen sayfayı kapatmayın.`;
+        const total = checked.length;
+        let done = 0;
+
+        // İlerleme göstergesini güncelle
+        function updateProgress() {
+            document.getElementById('loadingText').textContent =
+                done < total
+                    ? `${done} / ${total} maç tamamlandı, devam ediyor...`
+                    : `${total} maç tamamlandı!`;
+            document.getElementById('loadingSub').textContent =
+                done < total
+                    ? `Her maç ayrı ayrı işleniyor — lütfen sayfayı kapatmayın.`
+                    : ``;
+        }
+
         document.getElementById('loadingOverlay').classList.add('visible');
+        updateProgress();
 
-        try {
-            const resp = await fetch('/api/scenarios/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ analysis_ids: checked })
-            });
+        // Seçili ID'leri sırayla tek tek gönder
+        let firstCard = null;
+        for (const aid of checked) {
+            // Bu satırı "işleniyor" olarak işaretle
+            const row = document.getElementById(`row_${aid}`);
+            if (row) row.style.opacity = '0.5';
 
-            const body = await resp.json();
+            try {
+                const resp = await fetch('/api/scenarios/generate/single', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ analysis_id: aid })
+                });
+                const body = await resp.json();
 
-            document.getElementById('loadingOverlay').classList.remove('visible');
+                if (resp.ok && body.status === 'ok') {
+                    const cardHtml = renderCard(body, done);
+                    document.getElementById('scenarioResults').insertAdjacentHTML('beforeend', cardHtml);
+                    existingIds.add(body.analysis_id);
 
-            if (!resp.ok) {
-                document.getElementById('scenarioResults').insertAdjacentHTML('beforeend',
-                    `<div class="error-card">⚠️ ${body.message || 'Senaryo oluşturulamadı.'}</div>`);
-            } else {
-                const results = body.results || [];
-                results.forEach((r, i) => {
-                    if (r.error) {
-                        document.getElementById('scenarioResults').insertAdjacentHTML('beforeend',
-                            `<div class="error-card">⚠️ ${r.home_team} vs ${r.away_team}: ${r.error}</div>`);
-                    } else {
-                        document.getElementById('scenarioResults').insertAdjacentHTML('beforeend', renderCard(r, i));
-                        existingIds.add(r.analysis_id);
-                        // Satırdaki "✓ Üretildi" badge'ini güncelle
-                        const row = document.getElementById(`row_${r.analysis_id}`);
-                        if (row) {
-                            const meta = row.querySelector('.match-row-meta');
-                            if (meta && !meta.querySelector('.rb-done')) {
-                                meta.insertAdjacentHTML('beforeend', `<span class="row-badge rb-done">✓ Üretildi</span>`);
-                            }
+                    // İlk kart için scroll hedefi
+                    if (!firstCard) {
+                        firstCard = document.getElementById(`card_${body.analysis_id}`);
+                    }
+
+                    // Satıra "✓ Üretildi" badge ekle
+                    if (row) {
+                        row.style.opacity = '1';
+                        const meta = row.querySelector('.match-row-meta');
+                        if (meta && !meta.querySelector('.rb-done')) {
+                            meta.insertAdjacentHTML('beforeend', `<span class="row-badge rb-done">✓ Üretildi</span>`);
                         }
                     }
-                });
-
-                // Sayfayı sonuçlara kaydır
-                const first = document.getElementById('scenarioResults').firstElementChild;
-                if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    const msg = body.message || 'Senaryo üretilemedi';
+                    // Maç adını bul
+                    const matchInfo = allMatches.find(m => m.id === aid);
+                    const label = matchInfo ? `${matchInfo.home_team} vs ${matchInfo.away_team}` : `#${aid}`;
+                    document.getElementById('scenarioResults').insertAdjacentHTML('beforeend',
+                        `<div class="error-card">⚠️ ${label}: ${msg}</div>`);
+                    if (row) row.style.opacity = '1';
+                }
+            } catch (e) {
+                const matchInfo = allMatches.find(m => m.id === aid);
+                const label = matchInfo ? `${matchInfo.home_team} vs ${matchInfo.away_team}` : `#${aid}`;
+                document.getElementById('scenarioResults').insertAdjacentHTML('beforeend',
+                    `<div class="error-card">⚠️ ${label}: Bağlantı hatası — ${e.message}</div>`);
+                if (row) row.style.opacity = '1';
             }
-        } catch (e) {
-            document.getElementById('loadingOverlay').classList.remove('visible');
-            document.getElementById('scenarioResults').insertAdjacentHTML('beforeend',
-                `<div class="error-card">⚠️ Bağlantı hatası: ${e.message}</div>`);
+
+            done++;
+            updateProgress();
         }
+
+        document.getElementById('loadingOverlay').classList.remove('visible');
+
+        // İlk karta scroll
+        if (firstCard) firstCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
         // Kontrolleri geri aç
         document.getElementById('btnGenerate').disabled = false;

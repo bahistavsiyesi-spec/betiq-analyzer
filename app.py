@@ -982,60 +982,47 @@ def api_scenarios_today():
     return jsonify({"status": "ok", "data": scenarios})
 
 
-@app.route('/api/scenarios/generate', methods=['POST'])
-def api_scenarios_generate():
+@app.route('/api/scenarios/generate/single', methods=['POST'])
+def api_scenarios_generate_single():
+    """Tek bir maç için senaryo üret — frontend sırayla çağırır, timeout sorunu olmaz."""
     from backend.ai_analyzer import generate_scenarios as _gen
     from backend.database import get_analysis_by_id as _get_by_id
-    from backend.database import get_analyses_by_date as _get_analyses
 
     data = request.get_json() or {}
-    date_str = data.get('date') or datetime.now().strftime('%Y-%m-%d')
-    analysis_ids = data.get('analysis_ids')  # seçili ID listesi; None → tüm gün
+    analysis_id = data.get('analysis_id')
+    if not analysis_id:
+        return jsonify({"status": "error", "message": "analysis_id zorunlu"}), 400
 
-    # Yeni üretimden önce o günün eski senaryolarını temizle
-    delete_scenarios_by_date(date_str)
+    match = _get_by_id(analysis_id)
+    if not match:
+        return jsonify({"status": "error", "message": "Analiz bulunamadı"}), 404
 
-    if analysis_ids is not None:
-        if not analysis_ids:
-            return jsonify({"status": "error", "message": "En az bir maç seçin"}), 400
-        matches = [m for m in (_get_analyses(date_str) or []) if m.get('id') in analysis_ids]
-    else:
-        matches = _get_analyses(date_str) or []
+    date_str = match.get('analysis_date') or datetime.now().strftime('%Y-%m-%d')
+    home = match.get('home_team', '?')
+    away = match.get('away_team', '?')
 
-    if not matches:
-        return jsonify({"status": "error", "message": "Seçili tarihte analiz edilmiş maç yok"}), 404
-
-    results = []
-    for match in matches:
-        home = match.get('home_team', '?')
-        away = match.get('away_team', '?')
-        analysis_id = match.get('id')
-        try:
-            scenarios = _gen(match)
-            if scenarios:
-                save_scenarios(date_str, analysis_id, home, away, scenarios)
-                results.append({
-                    'analysis_id': analysis_id,
-                    'home_team': home,
-                    'away_team': away,
-                    'league': match.get('league', ''),
-                    'match_time': match.get('match_time', ''),
-                    'prediction_1x2': match.get('prediction_1x2', '?'),
-                    'confidence': match.get('confidence', ''),
-                    'predicted_score': match.get('predicted_score', '?-?'),
-                    'over25_pct': match.get('over25_pct'),
-                    'btts_pct': match.get('btts_pct'),
-                    'scenarios': scenarios,
-                })
-            else:
-                results.append({'analysis_id': analysis_id, 'home_team': home,
-                                 'away_team': away, 'error': 'Senaryo üretilemedi'})
-        except Exception as e:
-            logger.error(f'Scenario generation error {home} vs {away}: {e}')
-            results.append({'analysis_id': analysis_id, 'home_team': home,
-                             'away_team': away, 'error': str(e)})
-
-    return jsonify({"status": "ok", "results": results})
+    try:
+        scenarios = _gen(match)
+        if not scenarios:
+            return jsonify({"status": "error", "message": "Senaryo üretilemedi"}), 500
+        save_scenarios(date_str, analysis_id, home, away, scenarios)
+        return jsonify({
+            "status": "ok",
+            "analysis_id": analysis_id,
+            "home_team": home,
+            "away_team": away,
+            "league": match.get('league', ''),
+            "match_time": match.get('match_time', ''),
+            "prediction_1x2": match.get('prediction_1x2', '?'),
+            "confidence": match.get('confidence', ''),
+            "predicted_score": match.get('predicted_score', '?-?'),
+            "over25_pct": match.get('over25_pct'),
+            "btts_pct": match.get('btts_pct'),
+            "scenarios": scenarios,
+        })
+    except Exception as e:
+        logger.error(f'Scenario generation error {home} vs {away}: {e}')
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/telegram/send', methods=['POST'])
