@@ -229,7 +229,10 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     if not _fb_league_id and (is_turkish_superlig_team(home_name) or is_turkish_superlig_team(away_name)):
         _fb_league_id = 203
     if not _fb_league_id:
-        return []
+        if not csv_data:
+            logger.warning(f'League ID bulunamadı, CSV yok, atlanıyor: {league_name}')
+            return None
+        logger.info(f'League ID bulunamadı ama CSV var, devam ediliyor: {league_name}')
 
     if not home_matches:
         home_matches = get_team_last_matches_apifootball(home_name, league_id=_fb_league_id) or []
