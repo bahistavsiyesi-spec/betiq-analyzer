@@ -837,7 +837,7 @@ def call_anthropic_scenarios(prompt):
         headers={'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
         json={
             'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 600,
+            'max_tokens': 1500,
             'system': 'Sen yaratıcı bir futbol senaryo yazarısın. TÜRKÇE yaz. SADECE JSON döndür.',
             'messages': [{'role': 'user', 'content': prompt}]
         }, timeout=25
