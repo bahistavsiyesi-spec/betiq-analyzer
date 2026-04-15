@@ -992,6 +992,9 @@ def api_scenarios_generate():
     date_str = data.get('date') or datetime.now().strftime('%Y-%m-%d')
     analysis_ids = data.get('analysis_ids')  # seçili ID listesi; None → tüm gün
 
+    # Yeni üretimden önce o günün eski senaryolarını temizle
+    delete_scenarios_by_date(date_str)
+
     if analysis_ids is not None:
         if not analysis_ids:
             return jsonify({"status": "error", "message": "En az bir maç seçin"}), 400

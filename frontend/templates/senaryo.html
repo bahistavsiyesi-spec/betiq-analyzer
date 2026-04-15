@@ -223,7 +223,7 @@
         .scenario-tab-btn:hover { color: #888; }
         .scenario-tab-btn.active.tab-en-olasi { color: #10b981; border-bottom-color: #10b981; background: rgba(16,185,129,0.04); }
         .scenario-tab-btn.active.tab-surpriz  { color: #f59e0b; border-bottom-color: #f59e0b; background: rgba(245,158,11,0.04); }
-        .scenario-tab-btn.active.tab-favori   { color: #a78bfa; border-bottom-color: #7c3aed; background: rgba(124,58,237,0.04); }
+        .scenario-tab-btn.active.tab-dramatik  { color: #a78bfa; border-bottom-color: #7c3aed; background: rgba(124,58,237,0.04); }
 
         .scenario-panel { display: none; padding: 18px 20px; animation: fadeIn 0.2s ease; }
         .scenario-panel.active { display: block; }
@@ -240,8 +240,8 @@
         .panel-en-olasi .scenario-keyfactor { background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
         .panel-surpriz  .scenario-title { color: #f59e0b; }
         .panel-surpriz  .scenario-keyfactor { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
-        .panel-favori   .scenario-title { color: #a78bfa; }
-        .panel-favori   .scenario-keyfactor { background: rgba(124,58,237,0.1); color: #a78bfa; border: 1px solid rgba(124,58,237,0.2); }
+        .panel-dramatik .scenario-title { color: #a78bfa; }
+        .panel-dramatik .scenario-keyfactor { background: rgba(124,58,237,0.1); color: #a78bfa; border: 1px solid rgba(124,58,237,0.2); }
 
         .error-card {
             background: rgba(239,68,68,0.05);
@@ -435,7 +435,7 @@
         scenarios.forEach(s => { scenMap[s.type] = s; });
         const en  = scenMap['en_olasi']     || {};
         const sur = scenMap['surpriz']      || {};
-        const fav = scenMap['favori_nasil'] || {};
+        const fav = scenMap['dramatik'] || {};
 
         const cardId = `card_${data.analysis_id || index}`;
 
@@ -455,7 +455,7 @@
     <div class="scenario-tabs">
         <button class="scenario-tab-btn tab-en-olasi active" onclick="switchTab('${cardId}','en_olasi',this)">🎯 En Olası</button>
         <button class="scenario-tab-btn tab-surpriz"         onclick="switchTab('${cardId}','surpriz',this)">⚡ Sürpriz</button>
-        <button class="scenario-tab-btn tab-favori"          onclick="switchTab('${cardId}','favori_nasil',this)">🏆 Favori Nasıl?</button>
+        <button class="scenario-tab-btn tab-dramatik"         onclick="switchTab('${cardId}','dramatik',this)">🎬 Dramatik</button>
     </div>
     <div class="scenario-panels">
         <div class="scenario-panel panel-en-olasi active" id="${cardId}_en_olasi">
@@ -468,8 +468,8 @@
             <div class="scenario-story">${sur.story || '—'}</div>
             <div class="scenario-keyfactor">⚡ ${sur.key_factor || '—'}</div>
         </div>
-        <div class="scenario-panel panel-favori" id="${cardId}_favori_nasil">
-            <div class="scenario-title">${fav.title || 'Favori Kazanırsa'}</div>
+        <div class="scenario-panel panel-dramatik" id="${cardId}_dramatik">
+            <div class="scenario-title">${fav.title || 'Son Dakika Gerilimi'}</div>
             <div class="scenario-story">${fav.story || '—'}</div>
             <div class="scenario-keyfactor">⚡ ${fav.key_factor || '—'}</div>
         </div>

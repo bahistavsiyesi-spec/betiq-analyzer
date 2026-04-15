@@ -1946,38 +1946,34 @@ def build_scenario_prompt(analysis):
     odds_line = f'Bahis oranları: {home} {odds_home} | {away} {odds_away}' if odds_home and odds_away else ''
     over35_line = f'Over 3.5 ihtimali: %{over35}' if over35 else ''
 
-    prompt = f"""Sen profesyonel bir futbol analistisin. Aşağıdaki maç analizini kullanarak 3 farklı senaryo üret.
+    prompt = f"""Sen yaratıcı bir futbol senaryo yazarısın. Aşağıdaki maç verilerini SADECE arka plan bağlamı olarak kullan — bu verileri tekrar etme, sayıları sıralama. Amacın üç farklı maç hikayesi yazmak: akıcı, sinematik, dakika detayları olan anlatılar.
 
-MAÇIN ANALİZ VERİSİ:
-Maç: {home} vs {away}
-Lig: {league}
-Tahmin: {pred_label} ({conf} güven)
-Beklenen skor: {score} (İY: {ht_score})
-Over 2.5 ihtimali: %{over25}
-KG VAR ihtimali: %{btts}
-İlk yarı gol ihtimali: %{ht2g}
-{home} formu: {home_form}
-{away} formu: {away_form}
-{home} gol ortalaması: {home_avg} | {away} gol ortalaması: {away_avg}
+MAÇIN BAĞLAM VERİSİ (tekrar etme, sadece ilham al):
+{home} vs {away} | {league}
+Beklenen sonuç: {pred_label} | Skor tahmini: {score}
+{home} formu: {home_form} | {away} formu: {away_form}
+Gol ortalamaları: {home} {home_avg} / {away} {away_avg}
 {xg_line}
 {odds_line}
-{over35_line}
-H2H özeti: {h2h}
-Analist değerlendirmesi:
-{reasoning_text}
+H2H: {h2h}
+Analist notu: {reasoning_text}
 
-GÖREV: Yukarıdaki verilerden yola çıkarak aşağıdaki 3 senaryoyu Türkçe yaz:
-1. EN_OLASI: Verilerin işaret ettiği en muhtemel maç akışı. Neden bu skor/sonuç bekleniyor?
-2. SURPRIZ: Piyasanın ve verilerin görmediği ama mümkün olan bir senaryo. Ne olursa şaşırırız?
-3. FAVORİ_NASIL: Favori takım kazanırsa bunu nasıl başarır? Hangi faktörler belirleyici olur?
+GÖREV — 3 farklı senaryo yaz:
 
-KURALLAR:
-- Her senaryo 2-3 cümle — kısa, akıcı, anlatı dili
-- title: 4-6 kelimelik etkileyici başlık
-- story: maç nasıl gelişir — anlatı odaklı, teknik jargon yok
-- key_factor: tek cümlelik kritik faktör (örn: "Ev baskısı + form üstünlüğü")
-- Teknik terim kullanma (xG, PPG, implied vb.) — "gol üretme gücü", "güncel form" gibi ifadeler kullan
-- SADECE JSON döndür, başka hiçbir şey yazma
+1. EN_OLASI — En muhtemel akış, ama canlı ve akıcı anlatımla. Maçın nasıl başladığını, kritik dakikaları, momentumu ve sonucu bir film sahnesi gibi anlat.
+
+2. SURPRIZ — Favorinin kaybettiği veya tamamen beklenmedik bir gelişme: erken kırmızı kart, tartışmalı penaltı, son dakika golü, sakat yıldız, tribün baskısı... Sürprizi dramatik kıl.
+
+3. DRAMATİK — Gerilimli, son dakikaya kadar belli olmayan, duygusal yoğunluğu yüksek senaryo. Beraberlik, uzatma, penaltı beklentisi, tribün anları — okuyucu nefesini tutmalı.
+
+YAZIM KURALLARI:
+- Her senaryo 3-4 cümle — hikaye anlatıcı tarz, veri analizi değil
+- Dakika referansları kullan (12. dakika, 67. dakika gibi)
+- Momentum değişimlerini, oyuncu davranışlarını, saha atmosferini yansıt
+- xG, PPG, istatistik gibi teknik terim YASAK — bunları sahaya yansıt
+- title: 4-6 kelimelik sinematik başlık
+- key_factor: o senaryoyu belirleyen tek cümlelik dramatik faktör
+- SADECE JSON döndür
 
 JSON FORMAT:
 {{
@@ -1995,7 +1991,7 @@ JSON FORMAT:
       "key_factor": "..."
     }},
     {{
-      "type": "favori_nasil",
+      "type": "dramatik",
       "title": "...",
       "story": "...",
       "key_factor": "..."
