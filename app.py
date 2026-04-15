@@ -984,57 +984,55 @@ def api_scenarios_today():
 
 @app.route('/api/scenarios/generate', methods=['POST'])
 def api_scenarios_generate():
+    from backend.ai_analyzer import generate_scenarios as _gen
+    from backend.database import get_analysis_by_id as _get_by_id
+    from backend.database import get_analyses_by_date as _get_analyses
+
     data = request.get_json() or {}
     date_str = data.get('date') or datetime.now().strftime('%Y-%m-%d')
-    regenerate = data.get('regenerate', False)
+    analysis_ids = data.get('analysis_ids')  # seçili ID listesi; None → tüm gün
 
-    from backend.database import get_analyses_by_date as _get_analyses
-    matches = _get_analyses(date_str)
+    if analysis_ids is not None:
+        if not analysis_ids:
+            return jsonify({"status": "error", "message": "En az bir maç seçin"}), 400
+        matches = [m for m in (_get_analyses(date_str) or []) if m.get('id') in analysis_ids]
+    else:
+        matches = _get_analyses(date_str) or []
+
     if not matches:
-        return jsonify({"status": "error", "message": "Bu tarihte analiz edilmiş maç yok"}), 404
+        return jsonify({"status": "error", "message": "Seçili tarihte analiz edilmiş maç yok"}), 404
 
-    if regenerate:
-        delete_scenarios_by_date(date_str)
+    results = []
+    for match in matches:
+        home = match.get('home_team', '?')
+        away = match.get('away_team', '?')
+        analysis_id = match.get('id')
+        try:
+            scenarios = _gen(match)
+            if scenarios:
+                save_scenarios(date_str, analysis_id, home, away, scenarios)
+                results.append({
+                    'analysis_id': analysis_id,
+                    'home_team': home,
+                    'away_team': away,
+                    'league': match.get('league', ''),
+                    'match_time': match.get('match_time', ''),
+                    'prediction_1x2': match.get('prediction_1x2', '?'),
+                    'confidence': match.get('confidence', ''),
+                    'predicted_score': match.get('predicted_score', '?-?'),
+                    'over25_pct': match.get('over25_pct'),
+                    'btts_pct': match.get('btts_pct'),
+                    'scenarios': scenarios,
+                })
+            else:
+                results.append({'analysis_id': analysis_id, 'home_team': home,
+                                 'away_team': away, 'error': 'Senaryo üretilemedi'})
+        except Exception as e:
+            logger.error(f'Scenario generation error {home} vs {away}: {e}')
+            results.append({'analysis_id': analysis_id, 'home_team': home,
+                             'away_team': away, 'error': str(e)})
 
-    def stream_generate():
-        from backend.ai_analyzer import generate_scenarios as _gen
-        yield 'data: {"type":"start","total":' + str(len(matches)) + '}\n\n'
-        done = 0
-        for match in matches:
-            home = match.get('home_team', '?')
-            away = match.get('away_team', '?')
-            analysis_id = match.get('id')
-            try:
-                scenarios = _gen(match)
-                if scenarios:
-                    save_scenarios(date_str, analysis_id, home, away, scenarios)
-                    payload = {
-                        'type': 'match',
-                        'analysis_id': analysis_id,
-                        'home_team': home,
-                        'away_team': away,
-                        'league': match.get('league', ''),
-                        'match_time': match.get('match_time', ''),
-                        'prediction_1x2': match.get('prediction_1x2', '?'),
-                        'confidence': match.get('confidence', ''),
-                        'predicted_score': match.get('predicted_score', '?-?'),
-                        'over25_pct': match.get('over25_pct'),
-                        'btts_pct': match.get('btts_pct'),
-                        'scenarios': scenarios,
-                    }
-                    import json as _json_mod
-                    yield 'data: ' + _json_mod.dumps(payload, ensure_ascii=False) + '\n\n'
-                else:
-                    yield 'data: {"type":"skip","home_team":"' + home + '","away_team":"' + away + '"}\n\n'
-            except Exception as e:
-                logger.error(f'Scenario generation error {home} vs {away}: {e}')
-                yield 'data: {"type":"error","home_team":"' + home + '","away_team":"' + away + '"}\n\n'
-            done += 1
-            yield 'data: {"type":"progress","done":' + str(done) + ',"total":' + str(len(matches)) + '}\n\n'
-        yield 'data: {"type":"done","total":' + str(done) + '}\n\n'
-
-    return Response(stream_generate(), mimetype='text/event-stream',
-                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+    return jsonify({"status": "ok", "results": results})
 
 
 @app.route('/api/telegram/send', methods=['POST'])
