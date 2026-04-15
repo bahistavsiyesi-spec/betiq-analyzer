@@ -717,6 +717,73 @@ def api_stats_momentum():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/stats/goal-distribution')
+def api_stats_goal_distribution():
+    """Maç başına toplam gol ve IY gol dağılımı (histogram verisi)."""
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        month_clause, month_params = _get_month_filter(request)
+
+        # Tam maç gol dağılımı (total_goals)
+        cur.execute(f'''
+            SELECT
+                COUNT(CASE WHEN r.total_goals = 0 THEN 1 END) as g0,
+                COUNT(CASE WHEN r.total_goals = 1 THEN 1 END) as g1,
+                COUNT(CASE WHEN r.total_goals = 2 THEN 1 END) as g2,
+                COUNT(CASE WHEN r.total_goals = 3 THEN 1 END) as g3,
+                COUNT(CASE WHEN r.total_goals = 4 THEN 1 END) as g4,
+                COUNT(CASE WHEN r.total_goals >= 5 THEN 1 END) as g5plus,
+                COUNT(*) as total
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE r.total_goals IS NOT NULL {{month_clause}}
+        '''.format(month_clause=month_clause), month_params)
+        row = dict(cur.fetchone())
+        total = row['total'] or 1
+
+        ft_dist = [
+            {'label': '0 Gol',  'count': row['g0'] or 0,     'pct': round((row['g0'] or 0) / total * 100)},
+            {'label': '1 Gol',  'count': row['g1'] or 0,     'pct': round((row['g1'] or 0) / total * 100)},
+            {'label': '2 Gol',  'count': row['g2'] or 0,     'pct': round((row['g2'] or 0) / total * 100)},
+            {'label': '3 Gol',  'count': row['g3'] or 0,     'pct': round((row['g3'] or 0) / total * 100)},
+            {'label': '4 Gol',  'count': row['g4'] or 0,     'pct': round((row['g4'] or 0) / total * 100)},
+            {'label': '5+ Gol', 'count': row['g5plus'] or 0, 'pct': round((row['g5plus'] or 0) / total * 100)},
+        ]
+
+        # İY gol dağılımı (ht_home_score + ht_away_score)
+        cur.execute(f'''
+            SELECT
+                COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) = 0 THEN 1 END) as g0,
+                COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) = 1 THEN 1 END) as g1,
+                COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) = 2 THEN 1 END) as g2,
+                COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) >= 3 THEN 1 END) as g3plus,
+                COUNT(*) as total
+            FROM match_results r
+            JOIN analyses a ON a.id = r.analysis_id
+            WHERE r.ht_home_score IS NOT NULL AND r.ht_away_score IS NOT NULL
+              {{month_clause}}
+        '''.format(month_clause=month_clause), month_params)
+        ht_row = dict(cur.fetchone())
+        ht_total = ht_row['total'] or 1
+
+        ht_dist = [
+            {'label': '0 Gol',  'count': ht_row['g0'] or 0,     'pct': round((ht_row['g0'] or 0) / ht_total * 100)},
+            {'label': '1 Gol',  'count': ht_row['g1'] or 0,     'pct': round((ht_row['g1'] or 0) / ht_total * 100)},
+            {'label': '2 Gol',  'count': ht_row['g2'] or 0,     'pct': round((ht_row['g2'] or 0) / ht_total * 100)},
+            {'label': '3+ Gol', 'count': ht_row['g3plus'] or 0, 'pct': round((ht_row['g3plus'] or 0) / ht_total * 100)},
+        ]
+
+        cur.close(); conn.close()
+        return jsonify({
+            'ft': ft_dist, 'ft_total': row['total'] or 0,
+            'ht': ht_dist, 'ht_total': ht_row['total'] or 0,
+        })
+    except Exception as e:
+        logger.error(f"Stats goal-distribution error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # Analiz
 @app.route('/api/analyze/selected', methods=['POST'])
 def api_analyze_selected():

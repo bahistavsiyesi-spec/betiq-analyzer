@@ -185,6 +185,21 @@
                             <tbody id="categoryBody"><tr><td colspan="4" class="loading">Yukleniyor...</td></tr></tbody>
                         </table>
                     </div>
+                    <div class="chart-box" style="margin-top:16px;">
+                        <div style="font-size:12px;font-weight:700;color:#22c55e;margin-bottom:4px;">&#9917; Gol Dagilimi</div>
+                        <div style="font-size:11px;color:#555;margin-bottom:16px;">Analiz edilen maclarda mac basi gol sayisi dagilimi. <span style="color:#22c55e;font-weight:600;">Yesil = 3+ gol (Over 2.5 bolgesi)</span></div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;" id="goalDistWrap">
+                            <div>
+                                <div style="font-size:11px;font-weight:700;color:#a78bfa;margin-bottom:10px;">Tam Mac (FT)</div>
+                                <canvas id="goalDistChart" style="max-height:220px;"></canvas>
+                            </div>
+                            <div>
+                                <div style="font-size:11px;font-weight:700;color:#ec4899;margin-bottom:10px;">Ilk Yari (IY)</div>
+                                <canvas id="goalDistHtChart" style="max-height:220px;"></canvas>
+                            </div>
+                        </div>
+                        <div id="goalDistNoData" class="no-data" style="display:none;">Henuz yeterli veri yok</div>
+                    </div>
                 </div>
 
                 <div class="tab-content" id="tab-valuebet">
@@ -265,7 +280,7 @@
 
         function loadTab(name) {
             if (name === 'trend') loadDailyChart();
-            else if (name === 'tahmin') loadCategories();
+            else if (name === 'tahmin') { loadCategories(); loadGoalDist(); }
             else if (name === 'valuebet') loadValueBets();
             else if (name === 'kombine') loadComboBets();
             else if (name === 'kalibrasyon') loadCalibration();
@@ -425,6 +440,110 @@
                     <td class="cat-pct ${pctColor(c.pct)}">%${c.pct}</td>
                     <td><div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${c.pct}%;background:${c.pct>=60?'#22c55e':c.pct>=40?'#f59e0b':'#ef4444'};"></div></div></td>
                 </tr>`).join('');
+        }
+
+        let goalDistChartFt = null;
+        let goalDistChartHt = null;
+
+        async function loadGoalDist() {
+            try {
+                const resp = await fetch('/api/stats/goal-distribution' + buildMonthParam());
+                const data = await resp.json();
+                if (data.error || (!data.ft_total && !data.ht_total)) {
+                    document.getElementById('goalDistNoData').style.display = '';
+                    document.getElementById('goalDistWrap').style.display = 'none';
+                    return;
+                }
+
+                const ftColors = data.ft.map(b => {
+                    const n = parseInt(b.label);
+                    return n >= 3 || b.label === '5+ Gol' ? 'rgba(34,197,94,0.75)' : 'rgba(124,58,237,0.6)';
+                });
+                const ftBorders = data.ft.map(b => {
+                    const n = parseInt(b.label);
+                    return n >= 3 || b.label === '5+ Gol' ? '#22c55e' : '#7c3aed';
+                });
+
+                if (goalDistChartFt) goalDistChartFt.destroy();
+                goalDistChartFt = new Chart(document.getElementById('goalDistChart').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.ft.map(b => b.label),
+                        datasets: [{
+                            label: 'Maç Sayısı',
+                            data: data.ft.map(b => b.count),
+                            backgroundColor: ftColors,
+                            borderColor: ftBorders,
+                            borderWidth: 1,
+                            borderRadius: 4,
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx => {
+                                        const d = data.ft[ctx.dataIndex];
+                                        return ` ${d.count} maç (%${d.pct})`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#555', font: { size: 10 } }, grid: { color: '#111' } },
+                            y: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#0d0d1a' } }
+                        }
+                    }
+                });
+
+                const htColors = ['rgba(124,58,237,0.6)', 'rgba(124,58,237,0.6)', 'rgba(34,197,94,0.75)', 'rgba(34,197,94,0.75)'];
+                const htBorders = ['#7c3aed', '#7c3aed', '#22c55e', '#22c55e'];
+
+                if (goalDistChartHt) goalDistChartHt.destroy();
+                if (data.ht_total > 0) {
+                    goalDistChartHt = new Chart(document.getElementById('goalDistHtChart').getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: data.ht.map(b => b.label),
+                            datasets: [{
+                                label: 'Maç Sayısı',
+                                data: data.ht.map(b => b.count),
+                                backgroundColor: htColors,
+                                borderColor: htBorders,
+                                borderWidth: 1,
+                                borderRadius: 4,
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: ctx => {
+                                            const d = data.ht[ctx.dataIndex];
+                                            return ` ${d.count} maç (%${d.pct})`;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: { ticks: { color: '#555', font: { size: 10 } }, grid: { color: '#111' } },
+                                y: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#0d0d1a' } }
+                            }
+                        }
+                    });
+                } else {
+                    document.getElementById('goalDistHtChart').parentElement.innerHTML +=
+                        '<div style="font-size:11px;color:#333;margin-top:8px;">IY skoru girilmis mac yok</div>';
+                }
+            } catch(e) {
+                console.error('Goal dist yüklenemedi:', e);
+            }
         }
 
         async function loadValueBets() {
