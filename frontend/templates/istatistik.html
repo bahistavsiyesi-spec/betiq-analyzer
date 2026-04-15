@@ -169,6 +169,7 @@
                     <button class="tab-btn" onclick="switchTab('gunler')">🏆 En Iyi/Kotu</button>
                     <button class="tab-btn" onclick="switchTab('iy')">🔄 IY Analizi</button>
                     <button class="tab-btn" onclick="switchTab('korner')">🚩 Korner</button>
+                    <button class="tab-btn" onclick="switchTab('kupon')">📋 Kupon</button>
                 </div>
 
                 <!-- Sekmeler -->
@@ -256,6 +257,22 @@
                     <div class="section-title">🚩 Korner Kalibrasyon & Lig Bazli</div>
                     <div id="kornerContent"><div class="loading">Yukleniyor...</div></div>
                 </div>
+
+                <div class="tab-content" id="tab-kupon">
+                    <div class="section-title">📋 Aylik Kupon Performansi</div>
+                    <div id="couponStatsCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;"></div>
+                    <div class="chart-box">
+                        <div style="font-size:11px;color:#555;margin-bottom:16px;">
+                            Aylik kupon kazanma orani (%) ve toplam kupon sayisi. <span style="color:#22c55e;font-weight:600;">Yesil cizgi = win rate</span>, <span style="color:#7c3aed;font-weight:600;">Mor bar = kupon adedi</span>.
+                        </div>
+                        <canvas id="couponTrendChart" style="max-height:280px;"></canvas>
+                        <div id="couponNoData" class="no-data" style="display:none;">Henuz tamamlanmis kupon yok</div>
+                    </div>
+                    <div class="chart-box" style="margin-top:16px;">
+                        <div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:12px;">Tip Bazinda Basari</div>
+                        <div id="couponByTypeGrid"><div class="loading">Yukleniyor...</div></div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -288,6 +305,7 @@
             else if (name === 'gunler') loadBestWorst();
             else if (name === 'iy') loadHtRecovery();
             else if (name === 'korner') loadKornerDetail();
+            else if (name === 'kupon') loadCouponTrend();
         }
 
         function reloadAll() {
@@ -788,6 +806,134 @@
                 }
                 container.innerHTML = html;
             } catch(e) { container.innerHTML = '<div class="no-data">Yuklenemedi</div>'; }
+        }
+
+        let couponTrendChartInstance = null;
+
+        async function loadCouponTrend() {
+            const cardsEl   = document.getElementById('couponStatsCards');
+            const noDataEl  = document.getElementById('couponNoData');
+            const typeGridEl = document.getElementById('couponByTypeGrid');
+            try {
+                const resp = await fetch('/api/coupon/stats');
+                const d = await resp.json();
+                if (d.error) { noDataEl.style.display = ''; return; }
+
+                // Genel özet kartları
+                const streakLabel = d.cur_streak_type === 'win'
+                    ? `<span style="color:#22c55e;">🔥 ${d.cur_streak} galibiyet serisi</span>`
+                    : d.cur_streak_type === 'loss'
+                    ? `<span style="color:#ef4444;">📉 ${d.cur_streak} kayip serisi</span>`
+                    : '<span style="color:#555;">—</span>';
+                const roiColor = d.roi === null ? '#555' : d.roi >= 0 ? '#22c55e' : '#ef4444';
+                cardsEl.innerHTML = `
+                    <div class="overview-card green"><div class="ov-value">%${d.win_rate}</div><div class="ov-label">Kazanma Orani</div></div>
+                    <div class="overview-card"><div class="ov-value">${d.wins}/${d.completed}</div><div class="ov-label">Kazanan / Toplam</div></div>
+                    <div class="overview-card" style="border-color:rgba(124,58,237,0.4)"><div class="ov-value" style="color:${roiColor};">${d.roi !== null ? (d.roi >= 0 ? '+' : '') + d.roi + '%' : '—'}</div><div class="ov-label">Genel ROI</div></div>
+                    <div class="overview-card"><div class="ov-value" style="color:#22c55e;">${d.max_win_streak}</div><div class="ov-label">En Uzun Galibiyet</div></div>
+                    <div class="overview-card"><div class="ov-value" style="color:#ef4444;">${d.max_loss_streak}</div><div class="ov-label">En Uzun Kayip</div></div>
+                    <div class="overview-card" style="border-color:#2a2a3e;"><div class="ov-value" style="font-size:13px;">${streakLabel}</div><div class="ov-label">Mevcut Seri</div></div>`;
+
+                // Aylık trend chart
+                const monthly = (d.monthly || []).slice().reverse(); // eskiden yeniye
+                if (!monthly.length) { noDataEl.style.display = ''; return; }
+
+                const labels    = monthly.map(m => {
+                    const [y, mo] = m.month.split('-');
+                    return new Date(y, mo - 1).toLocaleDateString('tr-TR', {month:'short', year:'2-digit'});
+                });
+                const winRates  = monthly.map(m => m.win_rate);
+                const totals    = monthly.map(m => m.total);
+
+                if (couponTrendChartInstance) couponTrendChartInstance.destroy();
+                const ctx = document.getElementById('couponTrendChart').getContext('2d');
+                couponTrendChartInstance = new Chart(ctx, {
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                type: 'bar',
+                                label: 'Kupon Adedi',
+                                data: totals,
+                                backgroundColor: 'rgba(124,58,237,0.35)',
+                                borderColor: '#7c3aed',
+                                borderWidth: 1,
+                                borderRadius: 4,
+                                yAxisID: 'yCount',
+                                order: 2,
+                            },
+                            {
+                                type: 'line',
+                                label: 'Win Rate %',
+                                data: winRates,
+                                borderColor: '#22c55e',
+                                backgroundColor: 'rgba(34,197,94,0.08)',
+                                borderWidth: 2.5,
+                                tension: 0.35,
+                                fill: true,
+                                pointRadius: 5,
+                                pointBackgroundColor: winRates.map(v => v >= 60 ? '#22c55e' : v >= 40 ? '#f59e0b' : '#ef4444'),
+                                pointBorderColor: '#0d0d1a',
+                                pointBorderWidth: 2,
+                                yAxisID: 'yRate',
+                                order: 1,
+                            },
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { labels: { color: '#888', font: { size: 11 } } },
+                            tooltip: {
+                                callbacks: {
+                                    afterBody: (items) => {
+                                        const idx = items[0]?.dataIndex;
+                                        if (idx === undefined) return '';
+                                        const m = monthly[idx];
+                                        const roiStr = m.roi !== null ? `ROI: ${m.roi >= 0 ? '+' : ''}${m.roi}%` : '';
+                                        return roiStr ? [roiStr] : [];
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            yRate: {
+                                type: 'linear', position: 'left',
+                                min: 0, max: 100,
+                                ticks: { color: '#22c55e', font: { size: 10 }, callback: v => v + '%' },
+                                grid: { color: '#111' },
+                            },
+                            yCount: {
+                                type: 'linear', position: 'right',
+                                min: 0,
+                                ticks: { color: '#7c3aed', font: { size: 10 } },
+                                grid: { drawOnChartArea: false },
+                            },
+                            x: { ticks: { color: '#888', font: { size: 11 } }, grid: { color: '#111' } },
+                        }
+                    }
+                });
+
+                // Tip bazlı tablo
+                if (d.by_type && d.by_type.length) {
+                    typeGridEl.innerHTML = d.by_type.map(t => {
+                        const barColor = t.win_rate >= 60 ? '#22c55e' : t.win_rate >= 40 ? '#f59e0b' : '#ef4444';
+                        return `<div class="vb-row">
+                            <div class="vb-label">${t.label}</div>
+                            <div class="vb-stat"><div class="vb-val" style="color:#666;">${t.won}/${t.total}</div><div class="vb-lbl">K/T</div></div>
+                            <div class="vb-stat"><div class="vb-val ${pctColor(t.win_rate)}">%${t.win_rate}</div><div class="vb-lbl">Win Rate</div></div>
+                            <div class="vb-bar-wrap"><div class="vb-bar-fill" style="width:${t.win_rate}%;background:${barColor};"></div></div>
+                        </div>`;
+                    }).join('');
+                } else {
+                    typeGridEl.innerHTML = '<div class="no-data">Veri yok</div>';
+                }
+
+            } catch(e) {
+                console.error('Coupon trend yuklenemedi:', e);
+                noDataEl.style.display = '';
+            }
         }
 
         populateMonths().then(() => {
