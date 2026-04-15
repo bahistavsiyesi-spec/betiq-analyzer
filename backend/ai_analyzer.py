@@ -1521,16 +1521,24 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             logger.debug(f'Confidence PPG favors calc skipped: {e}')
 
     # ── Ev/dep sırası yeniden hesapla (post-process için) ────────────────────
+    # '1_strong'/'2_strong': fark >= 10  →  Yüksek kararına katkı verir
+    # '1_soft'/'2_soft'    : fark  4-9   →  Orta kararına katkı verir
+    # 'X'                  : fark  < 4   →  nötr
+    # None                 : veri yok
     _conf_venue_rank_favors = None
     try:
         h_hp = home_standing.get('home_position') if home_standing else None
         a_ap = away_standing.get('away_position') if away_standing else None
         if h_hp is not None and a_ap is not None:
             diff = a_ap - h_hp
-            if diff >= 4:
-                _conf_venue_rank_favors = '1'
+            if diff >= 10:
+                _conf_venue_rank_favors = '1_strong'
+            elif diff >= 4:
+                _conf_venue_rank_favors = '1_soft'
+            elif diff <= -10:
+                _conf_venue_rank_favors = '2_strong'
             elif diff <= -4:
-                _conf_venue_rank_favors = '2'
+                _conf_venue_rank_favors = '2_soft'
             else:
                 _conf_venue_rank_favors = 'X'
     except (TypeError, ValueError):
@@ -1550,13 +1558,19 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         odds_side = _conf_odds_favors.replace('_soft', '') if _conf_odds_favors else None
 
         # Sinyal yön uyumu yardımcıları
-        _side_ok   = odds_side and odds_side not in ('X', None)
-        _ppg_ok    = _conf_ppg_favors and _conf_ppg_favors not in ('X', None)
-        _venue_ok  = _conf_venue_rank_favors and _conf_venue_rank_favors not in ('X', None)
+        _side_ok  = odds_side and odds_side not in ('X', None)
+        _ppg_ok   = _conf_ppg_favors and _conf_ppg_favors not in ('X', None)
 
-        ppg_aligned   = _side_ok and _ppg_ok   and _conf_ppg_favors        == odds_side
-        venue_aligned = _side_ok and _venue_ok  and _conf_venue_rank_favors == odds_side
-        venue_data_exists = _conf_venue_rank_favors is not None  # None = veri yok, 'X' = veri var ama dengeli
+        # venue_rank: _strong ve _soft ayrımı
+        _venue_raw   = _conf_venue_rank_favors or ''
+        _venue_side  = _venue_raw.replace('_strong', '').replace('_soft', '') or None
+        _venue_strong = _venue_raw.endswith('_strong')
+        _venue_soft   = _venue_raw.endswith('_soft')
+        venue_data_exists = _conf_venue_rank_favors is not None  # None = veri yok
+
+        ppg_aligned          = _side_ok and _ppg_ok and _conf_ppg_favors == odds_side
+        venue_strong_aligned = _side_ok and _venue_strong and _venue_side == odds_side
+        venue_soft_aligned   = _side_ok and _venue_soft   and _venue_side == odds_side
 
         # Odds gücü eşikleri
         strong_odds = _odds_diff_abs is not None and _odds_diff_abs >= 30
@@ -1568,15 +1582,17 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             and _conf_ppg_favors != odds_side
         )
 
-        # ── Yüksek: odds %30+ VE PPG aynı yön VE sıralama aynı yön ────────────
-        high = strong_odds and ppg_aligned and venue_aligned
+        # ── Yüksek: odds %30+ VE PPG aynı yön VE sıralama GÜÇLÜ aynı yön ──────
+        high = strong_odds and ppg_aligned and venue_strong_aligned
 
-        # ── Orta: üç alt koşuldan biri ──────────────────────────────────────────
-        # 1. Odds %15-30 VE PPG + sıralama aynı yönde
-        # 2. Odds %30+ ama sıralama verisi yok (None), PPG aynı yönde
-        # 3. Odds %30 altında ama odds + PPG aynı yönde (sıralama ne olursa)
+        # ── Orta: aşağıdaki koşullardan biri ────────────────────────────────────
+        # 1. Odds %15-30 + PPG + sıralama güçlü aynı yönde
+        # 2. Odds %30+ + PPG + sıralama soft (4-9 fark) aynı yönde
+        # 3. Odds %30+ + PPG aynı yönde, sıralama verisi hiç yok
+        # 4. Odds %30 altında + PPG aynı yönde (sıralama ne olursa)
         medium = (
-            (medium_odds and ppg_aligned and venue_aligned)
+            (medium_odds and ppg_aligned and venue_strong_aligned)
+            or (strong_odds and ppg_aligned and venue_soft_aligned)
             or (strong_odds and ppg_aligned and not venue_data_exists)
             or (not strong_odds and _side_ok and ppg_aligned)
         )
