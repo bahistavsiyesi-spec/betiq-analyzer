@@ -1638,8 +1638,12 @@ def api_clear_matches():
 @app.route('/api/admin/clear-before/<date_str>', methods=['DELETE'])
 def api_clear_before_date(date_str):
     try:
+        from backend.database import _orphan_coupon_items
         conn = get_conn()
         cur = conn.cursor()
+        cur.execute('SELECT id FROM analyses WHERE analysis_date < %s', (date_str,))
+        analysis_ids = [r[0] for r in cur.fetchall()]
+        _orphan_coupon_items(cur, analysis_ids)
         cur.execute('''
             DELETE FROM match_results WHERE analysis_id IN (
                 SELECT id FROM analyses WHERE analysis_date < %s

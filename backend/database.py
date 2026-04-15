@@ -697,11 +697,38 @@ def log_run(run_date, status, matches_found=0, matches_analyzed=0, error=None):
     conn.close()
 
 
+def _orphan_coupon_items(cur, analysis_ids: list):
+    """Silinecek analysis_id'leri coupons.items JSON'unda tarayıp
+    eşleşen kalemlerin analysis_id'sini None yapar."""
+    if not analysis_ids:
+        return
+    id_set = set(analysis_ids)
+    cur.execute("SELECT id, items FROM coupons WHERE status != 'completed'")
+    for row in cur.fetchall():
+        try:
+            items = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+        except Exception:
+            continue
+        changed = False
+        for item in items:
+            if item.get('analysis_id') in id_set:
+                item['analysis_id'] = None
+                changed = True
+        if changed:
+            cur.execute(
+                'UPDATE coupons SET items=%s WHERE id=%s',
+                (json.dumps(items, ensure_ascii=False), row[0])
+            )
+
+
 def delete_analyses_by_fixture_ids(fixture_ids: list):
     if not fixture_ids:
         return
     conn = get_conn()
     cur = conn.cursor()
+    cur.execute('SELECT id FROM analyses WHERE fixture_id = ANY(%s)', (fixture_ids,))
+    analysis_ids = [r[0] for r in cur.fetchall()]
+    _orphan_coupon_items(cur, analysis_ids)
     cur.execute('''
         DELETE FROM match_results WHERE analysis_id IN (
             SELECT id FROM analyses WHERE fixture_id = ANY(%s)
@@ -716,6 +743,7 @@ def delete_analyses_by_fixture_ids(fixture_ids: list):
 def delete_analysis(analysis_id):
     conn = get_conn()
     cur = conn.cursor()
+    _orphan_coupon_items(cur, [analysis_id])
     cur.execute('DELETE FROM match_results WHERE analysis_id = %s', (analysis_id,))
     cur.execute('DELETE FROM analyses WHERE id = %s', (analysis_id,))
     conn.commit()
@@ -727,6 +755,9 @@ def delete_today_analyses():
     today = datetime.now().strftime('%Y-%m-%d')
     conn = get_conn()
     cur = conn.cursor()
+    cur.execute('SELECT id FROM analyses WHERE analysis_date = %s', (today,))
+    analysis_ids = [r[0] for r in cur.fetchall()]
+    _orphan_coupon_items(cur, analysis_ids)
     cur.execute('''
         DELETE FROM match_results WHERE analysis_id IN (
             SELECT id FROM analyses WHERE analysis_date = %s
