@@ -798,7 +798,7 @@ def api_stats_weekday():
             GROUP BY dow
             ORDER BY dow
         ''', month_params)
-        rows = {{r['dow']: r for r in cur.fetchall()}}
+        rows = {r['dow']: r for r in cur.fetchall()}
         cur.close(); conn.close()
 
         day_names = ['Pazar', 'Pazartesi', 'Sali', 'Carsamba', 'Persembe', 'Cuma', 'Cumartesi']
@@ -819,7 +819,7 @@ def api_stats_weekday():
         return jsonify(result)
     except Exception as e:
         logger.error(f"Stats weekday error: {e}")
-        return jsonify({{"error": str(e)}}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/stats/goal-distribution')
