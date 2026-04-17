@@ -152,6 +152,18 @@ def init_db():
             FOREIGN KEY (analysis_id) REFERENCES analyses(id)
         )
     ''')
+    # ── Özel Puan Tablosu (görsel yükleme) ───────────────────────────────────
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS custom_standings (
+            id SERIAL PRIMARY KEY,
+            league TEXT NOT NULL,
+            season TEXT NOT NULL,
+            data TEXT NOT NULL,
+            uploaded_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+            UNIQUE (league, season)
+        )
+    ''')
     # ─────────────────────────────────────────────────────────────────────────
     for sql in [
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER',
@@ -940,3 +952,45 @@ def delete_scenarios_by_date(date_str):
     conn.commit()
     cur.close()
     conn.close()
+
+
+# ── Özel Puan Tablosu ────────────────────────────────────────────────────────
+
+def save_custom_standings(league, season, data):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('''
+        INSERT INTO custom_standings (league, season, data, uploaded_at)
+        VALUES (%s, %s, %s, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'))
+        ON CONFLICT (league, season) DO UPDATE
+        SET data = EXCLUDED.data,
+            uploaded_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+    ''', (league, season, json.dumps(data, ensure_ascii=False)))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_custom_standings(league, season=None):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    if season:
+        cur.execute(
+            'SELECT * FROM custom_standings WHERE league = %s AND season = %s ORDER BY uploaded_at DESC LIMIT 1',
+            (league, season)
+        )
+    else:
+        cur.execute(
+            'SELECT * FROM custom_standings WHERE league = %s ORDER BY uploaded_at DESC LIMIT 1',
+            (league,)
+        )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if row:
+        try:
+            row = dict(row)
+            row['data'] = json.loads(row['data'])
+        except Exception:
+            pass
+    return row

@@ -2043,3 +2043,56 @@ def generate_scenarios(analysis):
     except Exception as e:
         logger.error(f'Scenarios parse error: {e} | raw: {raw[:200]}')
         return None
+
+
+# ── Puan Tablosu Görsel Çıkarma ───────────────────────────────────────────────
+
+def extract_standings_from_image(image_b64, league=''):
+    """Claude Haiku vision ile puan tablosu görselinden takım sıralamalarını çıkarır.
+
+    Returns list of dicts: [{position, team, played, won, draw, lost, gf, ga, gd, points}, ...]
+    """
+    prompt = (
+        f'Bu görüntü bir futbol ligi puan tablosudur. Lig: {league or "bilinmiyor"}.\n'
+        'Her satır için şu alanları JSON dizisi olarak çıkar:\n'
+        'position (int), team (string), played (int), won (int), draw (int), lost (int), '
+        'gf (int, atılan gol), ga (int, yenilen gol), gd (int, averaj), points (int).\n'
+        'Sadece JSON döndür, başka hiçbir şey yazma. Örnek:\n'
+        '[{"position":1,"team":"Galatasaray","played":30,"won":22,"draw":5,"lost":3,'
+        '"gf":70,"ga":25,"gd":45,"points":71}]'
+    )
+    response = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        },
+        json={
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': 2000,
+            'messages': [{
+                'role': 'user',
+                'content': [
+                    {
+                        'type': 'image',
+                        'source': {
+                            'type': 'base64',
+                            'media_type': 'image/png',
+                            'data': image_b64,
+                        },
+                    },
+                    {'type': 'text', 'text': prompt},
+                ],
+            }],
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    raw = response.json()['content'][0]['text'].strip()
+    # Strip markdown code fences if present
+    if raw.startswith('```'):
+        raw = raw.split('```')[1]
+        if raw.startswith('json'):
+            raw = raw[4:]
+    return json.loads(raw.strip())

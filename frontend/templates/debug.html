@@ -176,6 +176,53 @@
             .selector-row { flex-direction: column; }
             .match-select { min-width: 100%; }
         }
+
+        /* ── Puan Tablosu Yükleme ── */
+        .standings-section {
+            background: #0d0d1a; border: 1px solid #1e1e3a;
+            border-radius: 14px; padding: 22px; margin-top: 32px;
+        }
+        .standings-section-title {
+            font-size: 13px; font-weight: 800; color: #a78bfa;
+            letter-spacing: 0.5px; margin-bottom: 16px;
+        }
+        .standings-form-row {
+            display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px;
+        }
+        .standings-field { display: flex; flex-direction: column; gap: 5px; }
+        .standings-field label { font-size: 10px; color: #555; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+        .standings-input {
+            padding: 9px 13px; background: #12121f; border: 1px solid #2a2a3e;
+            border-radius: 9px; color: #fff; font-size: 13px; font-family: inherit;
+            outline: none; transition: border-color 0.2s; min-width: 160px;
+        }
+        .standings-input:focus { border-color: #7c3aed; }
+        .standings-file-label {
+            padding: 9px 16px; background: #12121f; border: 1px dashed #2a2a3e;
+            border-radius: 9px; color: #666; font-size: 12px; cursor: pointer;
+            transition: border-color 0.2s; white-space: nowrap;
+        }
+        .standings-file-label:hover { border-color: #7c3aed; color: #a78bfa; }
+        #standingsFile { display: none; }
+        .standings-preview {
+            margin-top: 16px; overflow-x: auto;
+        }
+        .standings-table {
+            width: 100%; border-collapse: collapse; font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .standings-table th {
+            text-align: left; padding: 7px 10px; background: #12121f;
+            color: #555; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+            border-bottom: 1px solid #1e1e3a;
+        }
+        .standings-table td {
+            padding: 6px 10px; border-bottom: 1px solid #111; color: #ddd;
+        }
+        .standings-table tr:last-child td { border-bottom: none; }
+        .standings-table td:first-child { color: #7c3aed; font-weight: 700; }
+        .standings-table td:nth-child(2) { color: #fff; font-weight: 600; }
+        .standings-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -228,6 +275,46 @@
                 <div class="debug-empty">
                     <div class="empty-icon">🔬</div>
                     <div>Yukarıdan bir maç seçip <strong>İncele</strong>'ye tıklayın</div>
+                </div>
+            </div>
+
+            <!-- Puan Tablosu Yükleme -->
+            <div class="standings-section">
+                <div class="standings-section-title">📊 PUAN TABLOSU GÖRSEL YÜKLEME</div>
+                <div class="standings-form-row">
+                    <div class="standings-field">
+                        <label>LİG ADI</label>
+                        <input class="standings-input" id="standingsLeague" placeholder="ör. Süper Lig" />
+                    </div>
+                    <div class="standings-field">
+                        <label>SEZON</label>
+                        <input class="standings-input" id="standingsSeason" placeholder="ör. 2024-25" style="min-width:110px;" />
+                    </div>
+                    <div class="standings-field">
+                        <label>GÖRSEL</label>
+                        <label class="standings-file-label" for="standingsFile" id="standingsFileLabel">📁 Dosya seç</label>
+                        <input type="file" id="standingsFile" accept="image/*" onchange="onStandingsFileChange(this)" />
+                    </div>
+                    <div class="standings-field" style="justify-content:flex-end;">
+                        <button class="btn-debug" id="standingsUploadBtn" onclick="uploadStandings()" disabled>🔍 Oku</button>
+                    </div>
+                </div>
+                <div id="standingsStatus" style="font-size:12px;color:#555;font-family:'JetBrains Mono',monospace;min-height:18px;"></div>
+                <div class="standings-preview" id="standingsPreview" style="display:none;">
+                    <table class="standings-table" id="standingsTable">
+                        <thead>
+                            <tr>
+                                <th>#</th><th>Takım</th><th>O</th><th>G</th>
+                                <th>B</th><th>M</th><th>AG</th><th>YG</th>
+                                <th>AV</th><th>P</th>
+                            </tr>
+                        </thead>
+                        <tbody id="standingsTbody"></tbody>
+                    </table>
+                    <div class="standings-actions">
+                        <button class="btn-debug" onclick="saveStandings()">💾 Kaydet</button>
+                        <button class="btn-refresh" onclick="clearStandings()">✕ Temizle</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -688,6 +775,105 @@ function renderDebug(data, match) {
 
 // İlk yükleme
 loadMatchList();
+
+// ── Puan Tablosu ─────────────────────────────────────────────────────────────
+let standingsRows = [];
+
+function onStandingsFileChange(input) {
+    const label = document.getElementById('standingsFileLabel');
+    label.textContent = input.files[0] ? '✅ ' + input.files[0].name : '📁 Dosya seç';
+    document.getElementById('standingsUploadBtn').disabled = !input.files[0];
+}
+
+async function uploadStandings() {
+    const file = document.getElementById('standingsFile').files[0];
+    const league = document.getElementById('standingsLeague').value.trim();
+    if (!file) return;
+    const status = document.getElementById('standingsStatus');
+    status.textContent = '⏳ Görsel okunuyor…';
+    document.getElementById('standingsUploadBtn').disabled = true;
+    try {
+        const b64 = await fileToBase64(file);
+        const resp = await fetch('/api/standings/upload', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({image_b64: b64, league})
+        });
+        const data = await resp.json();
+        if (data.status !== 'success') throw new Error(data.message || 'Hata');
+        standingsRows = data.rows;
+        renderStandingsTable(standingsRows);
+        status.textContent = `✅ ${standingsRows.length} takım okundu — kontrol edip kaydedin`;
+    } catch(e) {
+        status.textContent = '❌ Hata: ' + e.message;
+    } finally {
+        document.getElementById('standingsUploadBtn').disabled = false;
+    }
+}
+
+function renderStandingsTable(rows) {
+    const tbody = document.getElementById('standingsTbody');
+    tbody.innerHTML = '';
+    rows.forEach((r, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${r.position ?? i+1}</td>
+            <td>${r.team ?? ''}</td>
+            <td>${r.played ?? ''}</td>
+            <td>${r.won ?? ''}</td>
+            <td>${r.draw ?? ''}</td>
+            <td>${r.lost ?? ''}</td>
+            <td>${r.gf ?? ''}</td>
+            <td>${r.ga ?? ''}</td>
+            <td>${r.gd ?? ''}</td>
+            <td><strong>${r.points ?? ''}</strong></td>
+        `;
+        tbody.appendChild(tr);
+    });
+    document.getElementById('standingsPreview').style.display = 'block';
+}
+
+async function saveStandings() {
+    const league = document.getElementById('standingsLeague').value.trim();
+    const season = document.getElementById('standingsSeason').value.trim();
+    const status = document.getElementById('standingsStatus');
+    if (!league || !season) { status.textContent = '⚠️ Lig adı ve sezon zorunlu'; return; }
+    if (!standingsRows.length) { status.textContent = '⚠️ Önce görsel yükleyin'; return; }
+    try {
+        const resp = await fetch('/api/standings/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({league, season, rows: standingsRows})
+        });
+        const data = await resp.json();
+        if (data.status !== 'success') throw new Error(data.message || 'Hata');
+        status.textContent = `✅ ${data.saved} takım kaydedildi (${league} · ${season})`;
+    } catch(e) {
+        status.textContent = '❌ Kayıt hatası: ' + e.message;
+    }
+}
+
+function clearStandings() {
+    standingsRows = [];
+    document.getElementById('standingsTbody').innerHTML = '';
+    document.getElementById('standingsPreview').style.display = 'none';
+    document.getElementById('standingsStatus').textContent = '';
+    document.getElementById('standingsFile').value = '';
+    document.getElementById('standingsFileLabel').textContent = '📁 Dosya seç';
+    document.getElementById('standingsUploadBtn').disabled = true;
+}
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const b64 = reader.result.split(',')[1];
+            resolve(b64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
 </script>
 </body>
 </html>

@@ -19,6 +19,7 @@ from backend.database import (
     save_summary, get_summary_by_date, get_summary_list,
     save_iy_match, get_iy_matches_by_date, update_iy_result, get_iy_stats,
     save_scenarios, get_scenarios_by_date, delete_scenarios_by_date,
+    save_custom_standings, get_custom_standings,
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static', static_url_path='/static')
@@ -1841,6 +1842,48 @@ def api_parse_image():
     except Exception as e:
         logger.error(f"Image parse error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/standings/upload', methods=['POST'])
+def api_standings_upload():
+    try:
+        from backend.ai_analyzer import extract_standings_from_image
+        data = request.get_json()
+        image_b64 = data.get('image_b64', '')
+        league = data.get('league', '')
+        if not image_b64:
+            return jsonify({'status': 'error', 'message': 'Görsel eksik'}), 400
+        rows = extract_standings_from_image(image_b64, league)
+        return jsonify({'status': 'success', 'rows': rows})
+    except Exception as e:
+        logger.error(f'standings upload error: {e}')
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/standings/save', methods=['POST'])
+def api_standings_save():
+    try:
+        data = request.get_json()
+        league = data.get('league', '').strip()
+        season = data.get('season', '').strip()
+        rows = data.get('rows', [])
+        if not league or not season or not rows:
+            return jsonify({'status': 'error', 'message': 'league, season ve rows zorunlu'}), 400
+        save_custom_standings(league, season, rows)
+        return jsonify({'status': 'success', 'saved': len(rows)})
+    except Exception as e:
+        logger.error(f'standings save error: {e}')
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/standings/get')
+def api_standings_get():
+    league = request.args.get('league', '')
+    season = request.args.get('season')
+    row = get_custom_standings(league, season)
+    if not row:
+        return jsonify({'status': 'not_found'}), 404
+    return jsonify({'status': 'success', 'data': row})
+
 
 @app.route('/api/matches/delete/<int:analysis_id>', methods=['DELETE'])
 def api_delete_match(analysis_id):

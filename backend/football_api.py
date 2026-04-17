@@ -854,18 +854,52 @@ def get_team_standing(team_name, country_code, league_name=None):
                 )
                 return result
     if not COLLECT_API_KEY:
+        # Try custom standings as last resort
+        try:
+            from backend.database import get_custom_standings
+            custom = get_custom_standings(league_name or country_code or '')
+            if custom and custom.get('data'):
+                result = _find_team_in_standings(team_name, custom['data'])
+                if result:
+                    logger.info(f'Standing {team_name}: TOTAL {result["position"]}. sira {result["points"]}p (custom)')
+                    return result
+        except Exception as _e:
+            logger.debug(f'custom standings lookup failed: {_e}')
         return None
     search_league = league_name or ''
     collect_key = _get_collectapi_league_key(search_league)
     if not collect_key and country_code:
         collect_key = {'TUR': 'super-lig'}.get(country_code)
     if not collect_key:
+        # Try custom standings
+        try:
+            from backend.database import get_custom_standings
+            custom = get_custom_standings(league_name or country_code or '')
+            if custom and custom.get('data'):
+                result = _find_team_in_standings(team_name, custom['data'])
+                if result:
+                    logger.info(f'Standing {team_name}: TOTAL {result["position"]}. sira {result["points"]}p (custom)')
+                    return result
+        except Exception as _e:
+            logger.debug(f'custom standings lookup failed: {_e}')
         return None
     standings = _get_collectapi_standings(collect_key)
     result = _find_team_in_standings(team_name, standings)
     if result:
         logger.info(f'Standing {team_name}: TOTAL {result["position"]}. sira {result["points"]}p (CollectAPI)')
-    return result
+        return result
+    # Try custom standings as final fallback
+    try:
+        from backend.database import get_custom_standings
+        custom = get_custom_standings(search_league or country_code or '')
+        if custom and custom.get('data'):
+            result = _find_team_in_standings(team_name, custom['data'])
+            if result:
+                logger.info(f'Standing {team_name}: TOTAL {result["position"]}. sira {result["points"]}p (custom)')
+                return result
+    except Exception as _e:
+        logger.debug(f'custom standings lookup failed: {_e}')
+    return None
 
 
 # ─── Ev/Deplasman Ayrımlı İstatistik ─────────────────────────────────────────
