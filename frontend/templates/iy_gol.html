@@ -8,6 +8,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body { background:#080810; color:#ccc; font-family:'Syne',sans-serif; min-height:100vh; margin:0; }
+        .nav-links { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .nav-link { padding:7px 14px; border-radius:8px; border:1px solid #2a1a4e; background:transparent; color:#a78bfa; font-size:12px; font-weight:600; cursor:pointer; text-decoration:none; font-family:inherit; transition:all 0.2s; }
+        .nav-link:hover { background:#2a1a4e; color:#fff; }
+        .nav-link.active { background:#7c3aed; border-color:#7c3aed; color:#fff; }
 
         .page-header { padding:20px 20px 0; display:flex; align-items:center; gap:16px; max-width:700px; margin:0 auto; }
         .back-btn { color:#a78bfa; text-decoration:none; font-size:13px; font-weight:600; }
@@ -98,6 +102,26 @@
     </style>
 </head>
 <body>
+    <div class="app-container">
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">BetIQ</span>
+                <span class="logo-sub">ANALYZER</span>
+            </div>
+            <nav class="nav-links">
+                <a href="/" class="nav-link">🏠 Ana Sayfa</a>
+                <a href="/gecmis" class="nav-link">📅 Geçmiş</a>
+                <a href="/istatistik" class="nav-link">📊 İstatistik</a>
+                <a href="/kuponlar" class="nav-link">🎫 Kuponlar</a>
+                <a href="/iy-gol" class="nav-link active">⏱️ İY Gol</a>
+                <a href="/gunun-ozeti" class="nav-link">📰 Günün Özeti</a>
+                <a href="/senaryo" class="nav-link">🎭 Senaryo</a>
+                <a href="/debug" class="nav-link">🔬 Debug</a>
+            </nav>
+        </div>
+    </header>
     <div class="page-header">
         <a href="/" class="back-btn">← Ana Sayfa</a>
         <h1 class="page-title">⏱️ İY Gol Olur</h1>
