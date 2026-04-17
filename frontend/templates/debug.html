@@ -248,6 +248,32 @@
         .form-badge-W { background: #166534; color: #86efac; }
         .form-badge-D { background: #713f12; color: #fde68a; }
         .form-badge-L { background: #7f1d1d; color: #fca5a5; }
+
+        /* ── Manuel Form Girişi ── */
+        .manual-form-section {
+            margin-top: 24px; padding-top: 20px;
+            border-top: 1px solid #1e1e3a;
+        }
+        .manual-form-title {
+            font-size: 11px; font-weight: 800; color: #6b7280;
+            letter-spacing: 0.5px; margin-bottom: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .manual-textarea {
+            width: 100%; box-sizing: border-box;
+            padding: 10px 13px; background: #12121f;
+            border: 1px solid #2a2a3e; border-radius: 9px;
+            color: #d1d5db; font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            resize: vertical; min-height: 120px; outline: none;
+            transition: border-color 0.2s;
+        }
+        .manual-textarea:focus { border-color: #7c3aed; }
+        .manual-hint {
+            font-size: 10px; color: #3f3f5a;
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -324,7 +350,7 @@
                         <button class="btn-debug" id="formUploadBtn" onclick="uploadForm()" disabled>🔍 Oku</button>
                     </div>
                 </div>
-                <div id="formStatus" style="font-size:12px;color:#555;font-family:'JetBrains Mono',monospace;min-height:18px;"></div>
+                <div id="formStatus" style="font-size:12px;color:#555;font-family:'JetBrains Mono',monospace;min-height:18px;margin-bottom:4px;"></div>
                 <div class="standings-preview" id="formPreview" style="display:none;">
                     <table class="form-table" id="formTable">
                         <thead>
@@ -335,6 +361,18 @@
                     <div class="standings-actions">
                         <button class="btn-debug" onclick="saveForm()">💾 Kaydet</button>
                         <button class="btn-refresh" onclick="clearForm()">✕ Temizle</button>
+                    </div>
+                </div>
+
+                <!-- Manuel Form Girişi -->
+                <div class="manual-form-section">
+                    <div class="manual-form-title">⌨️ MANUEL FORM GİRİŞİ</div>
+                    <textarea class="manual-textarea" id="manualFormText" placeholder="Galatasaray: WWWDW&#10;Fenerbahçe: WDWLW&#10;Beşiktaş: DLWWL"></textarea>
+                    <div class="manual-hint">Her satır: TakımAdı: WWDLW — W=Galibiyet, D=Beraberlik, L=Mağlubiyet</div>
+                    <div id="manualFormStatus" style="font-size:12px;color:#555;font-family:'JetBrains Mono',monospace;min-height:18px;margin-top:8px;"></div>
+                    <div class="standings-actions" style="margin-top:10px;">
+                        <button class="btn-debug" onclick="saveManualForm()">💾 Kaydet</button>
+                        <button class="btn-refresh" onclick="clearManualForm()">✕ Temizle</button>
                     </div>
                 </div>
             </div>
@@ -915,6 +953,32 @@ function clearForm() {
     document.getElementById('formFile').value = '';
     document.getElementById('formFileLabel').textContent = '📁 Dosya seç';
     document.getElementById('formUploadBtn').disabled = true;
+}
+
+async function saveManualForm() {
+    const league = document.getElementById('formLeague').value.trim();
+    const season = document.getElementById('formSeason').value.trim();
+    const text = document.getElementById('manualFormText').value.trim();
+    const status = document.getElementById('manualFormStatus');
+    if (!league || !season) { status.textContent = '⚠️ Lig adı ve sezon zorunlu (yukarıdaki alanları doldurun)'; return; }
+    if (!text) { status.textContent = '⚠️ Form verisi boş'; return; }
+    try {
+        const resp = await fetch('/api/form/save-manual', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({league, season, text})
+        });
+        const data = await resp.json();
+        if (data.status !== 'success') throw new Error(data.message || 'Hata');
+        status.textContent = `✅ ${data.saved} takım kaydedildi (${league} · ${season})`;
+    } catch(e) {
+        status.textContent = '❌ Kayıt hatası: ' + e.message;
+    }
+}
+
+function clearManualForm() {
+    document.getElementById('manualFormText').value = '';
+    document.getElementById('manualFormStatus').textContent = '';
 }
 
 // ── Puan Tablosu ─────────────────────────────────────────────────────────────

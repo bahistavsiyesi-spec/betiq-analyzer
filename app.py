@@ -1918,6 +1918,34 @@ def api_form_save():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/form/save-manual', methods=['POST'])
+def api_form_save_manual():
+    try:
+        data = request.get_json()
+        league = data.get('league', '').strip()
+        season = data.get('season', '').strip()
+        text = data.get('text', '').strip()
+        if not league or not season or not text:
+            return jsonify({'status': 'error', 'message': 'league, season ve text zorunlu'}), 400
+        form_data = {}
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or ':' not in line:
+                continue
+            team, _, form = line.partition(':')
+            team = team.strip()
+            form = form.strip().upper()
+            if team and form:
+                form_data[team] = form
+        if not form_data:
+            return jsonify({'status': 'error', 'message': 'Geçerli satır bulunamadı'}), 400
+        save_custom_form(league, season, form_data)
+        return jsonify({'status': 'success', 'saved': len(form_data)})
+    except Exception as e:
+        logger.error(f'form save-manual error: {e}')
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @app.route('/api/form/get')
 def api_form_get():
     league = request.args.get('league', '')
