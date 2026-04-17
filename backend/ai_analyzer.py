@@ -815,13 +815,13 @@ def call_groq(prompt):
     return response.json()['choices'][0]['message']['content'].strip()
 
 
-def call_anthropic(prompt):
+def call_anthropic(prompt, max_tokens=4000):
     response = requests.post(
         'https://api.anthropic.com/v1/messages',
         headers={'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
         json={
             'model': 'claude-sonnet-4-6',
-            'max_tokens': 4000,
+            'max_tokens': max_tokens,
             'system': 'Sen profesyonel bir futbol bahis analistisin. Tüm yanıtlar TÜRKÇE olacak. Elo kelimesini kullanma.',
             'messages': [{'role': 'user', 'content': prompt}]
         }, timeout=60
@@ -1837,16 +1837,14 @@ def build_summary_prompt(matches):
             lines.append(f"  2Y 0.5 üst: %{ht2_05 or '—'} | 2Y 1.5 üst: %{ht2_15 or '—'}")
 
     lines.append("\n── TALİMATLAR ──")
-    lines.append("Aşağıdaki başlıklar altında madde madde özet yaz:")
-    lines.append("1. En güvenilir maçlar - Taraf (1X2) tahmini Yüksek veya Çok Yüksek güven seviyesinde olanlar")
-    lines.append("2. En golcü beklenen maçlar (%75 ve üzeri 2.5 üst yüzdesi olanlar)")
-    lines.append("3. Karşılıklı gol beklentisi yüksek maçlar (%70 ve üzeri KG Var yüzdesi olanlar)")
-    lines.append("4. Korner açısından hareketli maçlar (ortalama korner 10+ olanlar)")
-    lines.append("5. İlk yarı gol beklentisi yüksek maçlar (İY 0.5 üst %65 ve üzeri olanlar)")
-    lines.append("6. Genel risk değerlendirmesi ve günün kısa özeti")
-    lines.append("")
-    lines.append("Eğer bir kategoride öne çıkan maç yoksa 'Bu kategoride belirgin bir maç yok' de.")
-    lines.append("Yanıtın sadece madde madde metin olsun, JSON değil.")
+    lines.append("Madde madde kısa özet yaz (JSON değil, düz metin):")
+    lines.append("1. En güvenilir maçlar (Yüksek/Çok Yüksek güven)")
+    lines.append("2. En golcü maçlar (%75+ 2.5 üst)")
+    lines.append("3. KG Var yüksek maçlar (%70+)")
+    lines.append("4. Hareketli korner maçları (ort 10+)")
+    lines.append("5. İY gol beklentisi yüksek maçlar (İY 0.5 üst %65+)")
+    lines.append("6. Günün kısa genel özeti")
+    lines.append("Kategori boşsa tek satır 'Belirgin maç yok' yaz.")
 
     return "\n".join(lines)
 
@@ -1868,7 +1866,7 @@ def generate_daily_summary(matches, ai_provider='claude'):
                 logger.error(f'Grok summary failed: {e}')
         if not raw and ANTHROPIC_API_KEY:
             try:
-                raw = call_anthropic(prompt)
+                raw = call_anthropic(prompt, max_tokens=1500)
                 logger.info('Claude summary (Grok fallback) OK')
             except Exception as e:
                 logger.error(f'Claude summary fallback failed: {e}')
@@ -1891,7 +1889,7 @@ def generate_daily_summary(matches, ai_provider='claude'):
                 logger.error(f'Gemini summary failed: {e}')
         if not raw and ANTHROPIC_API_KEY:
             try:
-                raw = call_anthropic(prompt)
+                raw = call_anthropic(prompt, max_tokens=1500)
                 logger.info('Claude summary (Gemini fallback) OK')
             except Exception as e:
                 logger.error(f'Claude summary fallback failed: {e}')
@@ -1899,7 +1897,7 @@ def generate_daily_summary(matches, ai_provider='claude'):
     else:  # claude (varsayılan)
         if ANTHROPIC_API_KEY:
             try:
-                raw = call_anthropic(prompt)
+                raw = call_anthropic(prompt, max_tokens=1500)
                 logger.info('Claude summary OK')
             except Exception as e:
                 logger.error(f'Claude summary failed: {e}')
