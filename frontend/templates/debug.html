@@ -461,13 +461,21 @@ async function runDebug() {
     document.getElementById('debugBtn').disabled = true;
 
     try {
-        const resp = await fetch('/api/debug/analysis-data/' + currentMatch.id);
+        const league = currentMatch.league || '';
+        const [resp, formResp] = await Promise.all([
+            fetch('/api/debug/analysis-data/' + currentMatch.id),
+            fetch('/api/form/get?league=' + encodeURIComponent(league)).catch(() => null),
+        ]);
         const data = await resp.json();
         if (data.error) {
             content.innerHTML = `<div class="debug-empty"><div class="empty-icon">❌</div><div>${data.error}</div></div>`;
             return;
         }
-        renderDebug(data, currentMatch);
+        let customForm = {};
+        if (formResp && formResp.ok) {
+            try { const fd = await formResp.json(); customForm = fd.data?.data || {}; } catch(_) {}
+        }
+        renderDebug(data, currentMatch, customForm);
     } catch(e) {
         content.innerHTML = `<div class="debug-empty"><div class="empty-icon">❌</div><div>Hata: ${e.message}</div></div>`;
     }
@@ -499,7 +507,8 @@ function valColor(val, thresholds) {
     return 'blue';
 }
 
-function renderDebug(data, match) {
+function renderDebug(data, match, customForm) {
+    customForm = customForm || {};
     const content = document.getElementById('debugContent');
 
     // ── CSV Kartı ──
@@ -542,11 +551,11 @@ function renderDebug(data, match) {
     let lmRows = '';
     ['home', 'away'].forEach(side => {
         const info = lm[side] || {};
-        const label = side === 'home' ? match.home_team : match.away_team;
+        const teamName = side === 'home' ? match.home_team : match.away_team;
         const count = info.count || 0;
         const cls = count >= 5 ? 'green' : count > 0 ? 'yellow' : 'red';
         lmRows += `<div class="data-row">
-            <span class="data-key">${label}</span>
+            <span class="data-key">${teamName}</span>
             <span class="data-val ${cls}">${count > 0 ? count + ' maç' : 'Veri yok'}</span>
         </div>`;
         if (info.form) {
@@ -560,6 +569,18 @@ function renderDebug(data, match) {
                 <span class="data-key">  gol ort.</span>
                 <span class="data-val blue">${info.goals_avg} atar / ${info.conceded_avg} yer</span>
             </div>`;
+        }
+        if (!info.form && Object.keys(customForm).length > 0) {
+            const cfKey = Object.keys(customForm).find(k =>
+                k.toLowerCase().includes(teamName.toLowerCase()) ||
+                teamName.toLowerCase().includes(k.toLowerCase())
+            );
+            if (cfKey) {
+                lmRows += `<div class="data-row">
+                    <span class="data-key">  custom form</span>
+                    <span class="data-val yellow">📋 ${customForm[cfKey]}</span>
+                </div>`;
+            }
         }
     });
 
