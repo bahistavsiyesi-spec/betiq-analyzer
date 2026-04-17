@@ -2233,10 +2233,21 @@ def api_debug_analysis_data(analysis_id):
         flags = []
         if csv_data and csv_data.get('over25_avg'):  score_pts += 2
         else: flags.append('CSV eksik')
-        if last_matches['home']['count'] >= 5: score_pts += 2
-        else: flags.append('Son maç az')
+        if last_matches['home']['count'] >= 5:
+            score_pts += 2
+        else:
+            cf = get_custom_form(league)
+            if cf and cf.get('data'):
+                score_pts += 2
+                flags.append('Custom form')
+            else:
+                flags.append('Son maç az')
         if shots_supported and shot_stats.get('home', {}).get('available'): score_pts += 1
-        if home_standing:  score_pts += 1
+        if home_standing:
+            score_pts += 1
+        elif get_custom_standings(league) is not None:
+            score_pts += 1
+            flags.append('Custom standings')
         if h2h['count'] >= 3: score_pts += 1
         if csv_data and csv_data.get('odds_home'): score_pts += 1
         if csv_data and csv_data.get('home_xg'):   score_pts += 1
