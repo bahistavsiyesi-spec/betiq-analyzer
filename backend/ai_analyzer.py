@@ -1825,12 +1825,6 @@ def build_summary_prompt(matches):
         lines.append(f"  Tahmin: {m.get('prediction_1x2','?')} | Güven: {m.get('confidence','?')}")
         lines.append(f"  2.5 Üst: %{m.get('over25_pct',0)} | KG Var: %{m.get('btts_pct',0)} | İY 0.5: %{m.get('ht2g_pct',0)}")
 
-        avg_corners = csv.get('avg_corners')
-        if avg_corners:
-            over85 = csv.get('avg_corners_85', '—')
-            over95 = csv.get('avg_corners_95', '—')
-            lines.append(f"  Korner ort: {avg_corners} | 8.5 üst: %{over85} | 9.5 üst: %{over95}")
-
         ht2_05 = csv.get('ht2_over05_avg')
         ht2_15 = csv.get('ht2_over15_avg')
         if ht2_05 or ht2_15:
@@ -1841,9 +1835,8 @@ def build_summary_prompt(matches):
     lines.append("1. En güvenilir maçlar (Yüksek/Çok Yüksek güven)")
     lines.append("2. En golcü maçlar (%75+ 2.5 üst)")
     lines.append("3. KG Var yüksek maçlar (%70+)")
-    lines.append("4. Hareketli korner maçları (ort 10+)")
-    lines.append("5. İY gol beklentisi yüksek maçlar (İY 0.5 üst %65+)")
-    lines.append("6. Günün kısa genel özeti")
+    lines.append("4. İY gol beklentisi yüksek maçlar (İY 0.5 üst %65+)")
+    lines.append("5. Günün kısa genel özeti")
     lines.append("Kategori boşsa tek satır 'Belirgin maç yok' yaz.")
 
     return "\n".join(lines)
