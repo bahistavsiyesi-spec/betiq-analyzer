@@ -270,19 +270,19 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     home_form = extract_form_from_fixtures(home_matches or [], home_name)
     away_form = extract_form_from_fixtures(away_matches or [], away_name)
 
-    if not home_form or not away_form:
+    if len(home_matches or []) == 0 or len(away_matches or []) == 0:
         try:
             custom_form_row = get_custom_form(league_name or '')
             if custom_form_row and custom_form_row.get('data'):
                 form_data = custom_form_row['data']
-                if not home_form:
+                if len(home_matches or []) == 0:
                     for key, val in form_data.items():
                         from backend.football_api import teams_match as _tm
                         if _tm(home_name, key):
                             home_form = val
                             logger.info(f'Custom form fallback: {home_name} -> {home_form}')
                             break
-                if not away_form:
+                if len(away_matches or []) == 0:
                     for key, val in form_data.items():
                         from backend.football_api import teams_match as _tm
                         if _tm(away_name, key):

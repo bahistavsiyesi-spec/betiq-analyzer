@@ -1003,20 +1003,23 @@ def get_custom_form(league, season=None):
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     if season:
         cur.execute(
-            'SELECT * FROM custom_form WHERE league = %s AND season = %s ORDER BY uploaded_at DESC LIMIT 1',
-            (league, season)
+            'SELECT * FROM custom_form WHERE season = %s ORDER BY uploaded_at DESC',
+            (season,)
         )
     else:
-        cur.execute(
-            'SELECT * FROM custom_form WHERE league = %s ORDER BY uploaded_at DESC LIMIT 1',
-            (league,)
-        )
-    row = cur.fetchone()
+        cur.execute('SELECT * FROM custom_form ORDER BY uploaded_at DESC')
+    rows = cur.fetchall()
     cur.close()
     conn.close()
+    league_lower = (league or '').lower().strip()
+    row = None
+    for r in rows:
+        db_league = (r['league'] or '').lower().strip()
+        if db_league == league_lower or db_league in league_lower or league_lower in db_league:
+            row = dict(r)
+            break
     if row:
         try:
-            row = dict(row)
             row['data'] = json.loads(row['data'])
         except Exception:
             pass
