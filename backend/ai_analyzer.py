@@ -2059,7 +2059,7 @@ def extract_form_from_image(image_b64, league=''):
         '- Yeşil kutu = W (galibiyet)\n'
         '- Sarı kutu = D (beraberlik)\n'
         '- Kırmızı kutu = L (mağlubiyet)\n'
-        'Her takım için soldan sağa (eskiden yeniye) son 5 maçı oku.\n'
+        'Her takım için en sağdaki 5 renk kutusunu al — bunlar en son oynanan 5 maçı temsil eder. Soldan sağa sıralama: en eski → en yeni.\n'
         'Şu formatta JSON objesi döndür:\n'
         '{"TakımAdı": "WWDLW", "DiğerTakım": "DLWWW"}\n'
         'Sadece JSON döndür, başka hiçbir şey yazma. Örnek:\n'
