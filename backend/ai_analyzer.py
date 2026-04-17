@@ -2045,6 +2045,62 @@ def generate_scenarios(analysis):
         return None
 
 
+# ── Form Tablosu Görsel Çıkarma ───────────────────────────────────────────────
+
+def extract_form_from_image(image_b64, league=''):
+    """Claude Haiku vision ile form tablosu görselinden takım formlarını çıkarır.
+
+    Görseldeki renkli kutucukları okur: yeşil=W (galibiyet), sarı=D (beraberlik), kırmızı=L (mağlubiyet).
+    Returns dict: {"Galatasaray": "WWDLW", "Fenerbahçe": "DLWWW", ...}
+    """
+    prompt = (
+        f'Bu görüntü bir futbol ligi form tablosudur. Lig: {league or "bilinmiyor"}.\n'
+        'Her takımın yanındaki renkli kutucuklar son maç sonuçlarını gösterir:\n'
+        '- Yeşil kutu = W (galibiyet)\n'
+        '- Sarı kutu = D (beraberlik)\n'
+        '- Kırmızı kutu = L (mağlubiyet)\n'
+        'Her takım için soldan sağa (eskiden yeniye) son 5 maçı oku.\n'
+        'Şu formatta JSON objesi döndür:\n'
+        '{"TakımAdı": "WWDLW", "DiğerTakım": "DLWWW"}\n'
+        'Sadece JSON döndür, başka hiçbir şey yazma. Örnek:\n'
+        '{"Galatasaray": "WWWDW", "Fenerbahçe": "WDWLW", "Beşiktaş": "DLWWL"}'
+    )
+    response = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        },
+        json={
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': 2000,
+            'messages': [{
+                'role': 'user',
+                'content': [
+                    {
+                        'type': 'image',
+                        'source': {
+                            'type': 'base64',
+                            'media_type': 'image/png',
+                            'data': image_b64,
+                        },
+                    },
+                    {'type': 'text', 'text': prompt},
+                ],
+            }],
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    raw = response.json()['content'][0]['text'].strip()
+    if raw.startswith('```'):
+        raw = raw.split('```')[1]
+        if raw.startswith('json'):
+            raw = raw[4:]
+    return json.loads(raw.strip())
+
+
 # ── Puan Tablosu Görsel Çıkarma ───────────────────────────────────────────────
 
 def extract_standings_from_image(image_b64, league=''):

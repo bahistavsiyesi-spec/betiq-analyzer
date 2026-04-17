@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from typing import Any, Optional
 
-from backend.database import delete_analyses_by_fixture_ids, log_run, save_analysis
+from backend.database import delete_analyses_by_fixture_ids, log_run, save_analysis, get_custom_form
 from backend.football_api import (
     get_h2h_footballdata,
     get_team_home_away_stats,
@@ -269,6 +269,28 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
 
     home_form = extract_form_from_fixtures(home_matches or [], home_name)
     away_form = extract_form_from_fixtures(away_matches or [], away_name)
+
+    if not home_form or not away_form:
+        try:
+            custom_form_row = get_custom_form(league_name or '')
+            if custom_form_row and custom_form_row.get('data'):
+                form_data = custom_form_row['data']
+                if not home_form:
+                    for key, val in form_data.items():
+                        from backend.football_api import teams_match as _tm
+                        if _tm(home_name, key):
+                            home_form = val
+                            logger.info(f'Custom form fallback: {home_name} -> {home_form}')
+                            break
+                if not away_form:
+                    for key, val in form_data.items():
+                        from backend.football_api import teams_match as _tm
+                        if _tm(away_name, key):
+                            away_form = val
+                            logger.info(f'Custom form fallback: {away_name} -> {away_form}')
+                            break
+        except Exception as _e:
+            logger.debug(f'Custom form lookup failed: {_e}')
     home_goals_avg, home_conceded_avg = extract_goals_avg(home_matches, home_name)
     away_goals_avg, away_conceded_avg = extract_goals_avg(away_matches, away_name)
     h2h_summary = extract_h2h_summary(h2h, home_name, away_name)

@@ -20,6 +20,7 @@ from backend.database import (
     save_iy_match, get_iy_matches_by_date, update_iy_result, get_iy_stats,
     save_scenarios, get_scenarios_by_date, delete_scenarios_by_date,
     save_custom_standings, get_custom_standings,
+    save_custom_form, get_custom_form,
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static', static_url_path='/static')
@@ -1880,6 +1881,48 @@ def api_standings_get():
     league = request.args.get('league', '')
     season = request.args.get('season')
     row = get_custom_standings(league, season)
+    if not row:
+        return jsonify({'status': 'not_found'}), 404
+    return jsonify({'status': 'success', 'data': row})
+
+
+@app.route('/api/form/upload', methods=['POST'])
+def api_form_upload():
+    try:
+        from backend.ai_analyzer import extract_form_from_image
+        data = request.get_json()
+        image_b64 = data.get('image_b64', '')
+        league = data.get('league', '')
+        if not image_b64:
+            return jsonify({'status': 'error', 'message': 'Görsel eksik'}), 400
+        form_data = extract_form_from_image(image_b64, league)
+        return jsonify({'status': 'success', 'form_data': form_data})
+    except Exception as e:
+        logger.error(f'form upload error: {e}')
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/form/save', methods=['POST'])
+def api_form_save():
+    try:
+        data = request.get_json()
+        league = data.get('league', '').strip()
+        season = data.get('season', '').strip()
+        form_data = data.get('form_data', {})
+        if not league or not season or not form_data:
+            return jsonify({'status': 'error', 'message': 'league, season ve form_data zorunlu'}), 400
+        save_custom_form(league, season, form_data)
+        return jsonify({'status': 'success', 'saved': len(form_data)})
+    except Exception as e:
+        logger.error(f'form save error: {e}')
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/form/get')
+def api_form_get():
+    league = request.args.get('league', '')
+    season = request.args.get('season')
+    row = get_custom_form(league, season)
     if not row:
         return jsonify({'status': 'not_found'}), 404
     return jsonify({'status': 'success', 'data': row})
