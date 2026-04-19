@@ -2588,11 +2588,32 @@ def gunun_degerlendirmesi():
     return render_template('gunun_degerlendirmesi.html')
 
 
-@app.route('/api/gunun-degerlendirmesi', methods=['POST'])
+@app.route('/api/gunun-degerlendirmesi', methods=['GET', 'POST'])
 def api_gunun_degerlendirmesi():
+    # GET — kayıtlı değerlendirmeyi döndür
+    if request.method == 'GET':
+        try:
+            from backend.database import get_daily_evaluation
+            date = request.args.get('date', _today_istanbul())
+            row = get_daily_evaluation(date)
+            if not row:
+                return jsonify({"status": "not_found"}), 200
+            return jsonify({
+                "status":     "success",
+                "date":       row['summary_date'],
+                "stats":      row.get('stats_json'),
+                "ai_comment": row['ai_text'],
+                "created_at": row['created_at'],
+                "updated_at": row['updated_at'],
+            })
+        except Exception as e:
+            logger.error(f"Gunun degerlendirmesi GET error: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    # POST — yeni değerlendirme üret ve kaydet
     try:
         from backend.ai_analyzer import analyze_daily_results
-        from backend.database import get_analyses_by_date_with_results
+        from backend.database import get_analyses_by_date_with_results, save_daily_evaluation
 
         data = request.get_json() or {}
         date = data.get('date', _today_istanbul())
@@ -2603,14 +2624,14 @@ def api_gunun_degerlendirmesi():
         if not with_results:
             return jsonify({"status": "error", "message": "Bu tarihte sonuç girilmiş maç bulunamadı"}), 404
 
-        total    = len(all_matches)
-        played   = len(with_results)
+        total      = len(all_matches)
+        played     = len(with_results)
         not_played = total - played
 
         HIGH = ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
         LOW  = ('Düşük', 'Dusuk')
 
-        high_pool = [m for m in with_results if m.get('confidence') in HIGH]
+        high_pool    = [m for m in with_results if m.get('confidence') in HIGH]
         c1x2_total   = len(high_pool)
         c1x2_correct = sum(1 for m in high_pool if m.get('pred_1x2_correct'))
 
@@ -2625,6 +2646,12 @@ def api_gunun_degerlendirmesi():
         ht_pool    = [m for m in with_results if (m.get('ht2g_pct') or 0) >= 65 and m.get('ht_home_score') is not None]
         ht_total   = len(ht_pool)
         ht_correct = sum(1 for m in ht_pool if m.get('ht_correct'))
+
+        # İY yanlış ama 1X2 doğru çıkan maçlar
+        ht2g_wrong_but_1x2_ok = sum(
+            1 for m in ht_pool
+            if not m.get('ht_correct') and m.get('pred_1x2_correct')
+        )
 
         surprises = [
             {
@@ -2649,6 +2676,7 @@ def api_gunun_degerlendirmesi():
             'over25': {'total': over25_total,  'correct': over25_correct, 'rate': round(over25_correct / over25_total  * 100) if over25_total  else 0},
             'btts':   {'total': btts_total,    'correct': btts_correct,   'rate': round(btts_correct   / btts_total   * 100) if btts_total   else 0},
             'ht':     {'total': ht_total,      'correct': ht_correct,     'rate': round(ht_correct     / ht_total     * 100) if ht_total     else 0},
+            'ht2g_wrong_but_1x2_ok': ht2g_wrong_but_1x2_ok,
             'surprise_count': len(surprises),
             'surprises': surprises[:5],
             'confidence_breakdown': {
@@ -2660,7 +2688,9 @@ def api_gunun_degerlendirmesi():
 
         ai_comment = analyze_daily_results(date, with_results, stats)
 
-        logger.info(f"Gunun degerlendirmesi generated: {date}")
+        save_daily_evaluation(date, ai_comment, stats)
+        logger.info(f"Gunun degerlendirmesi generated & saved: {date}")
+
         return jsonify({
             "status":     "success",
             "date":       date,

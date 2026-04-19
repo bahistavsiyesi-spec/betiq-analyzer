@@ -235,9 +235,13 @@
             <!-- Tarih seçici + buton -->
             <div class="dv-controls">
                 <label>📅 TARİH</label>
-                <input type="date" class="dv-date-input" id="dvDateInput">
-                <button class="btn-generate-dv" id="generateDvBtn" onclick="generateEvaluation()">
+                <input type="date" class="dv-date-input" id="dvDateInput" onchange="onDateChange()">
+                <button class="btn-generate-dv" id="generateDvBtn" onclick="generateEvaluation(false)">
                     🤖 Değerlendirmeyi Oluştur
+                </button>
+                <button class="btn-generate-dv" id="regenDvBtn" onclick="generateEvaluation(true)"
+                    style="display:none;background:linear-gradient(135deg,#374151,#6b7280);">
+                    🔄 Yeniden Oluştur
                 </button>
             </div>
 
@@ -273,7 +277,7 @@
                 <div class="section-label">🤖 AI DEĞERLENDİRME</div>
                 <div class="dv-ai-box" id="dvAiBox">
                     <div class="dv-ai-meta">
-                        <span class="ai-tag">🤖 Claude</span>
+                        <span class="ai-tag" id="dvAiTag">🤖 Claude</span>
                         <span class="dv-ai-date" id="dvAiDate"></span>
                     </div>
                     <div class="dv-ai-content" id="dvAiContent"></div>
@@ -297,15 +301,12 @@
 </div>
 
 <script>
-// Tarih picker'ı bugüne ayarla
-(function() {
-    const n = new Date();
-    const today = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
-    document.getElementById('dvDateInput').value = today;
-    document.getElementById('dvDateInput').max = today;
-})();
-
 let currentDate = null;
+
+function _localToday() {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
 
 function formatDateTR(dateStr) {
     if (!dateStr) return '—';
@@ -349,11 +350,48 @@ function renderMarkdown(text) {
     return html;
 }
 
-async function generateEvaluation() {
+// ── Kayıtlı değerlendirmeyi yükle (GET) ─────────────────────────────────────
+async function loadSavedEvaluation(date) {
+    document.getElementById('dvEmpty').style.display = 'none';
+    document.getElementById('dvResults').style.display = 'none';
+    document.getElementById('dvLoading').style.display = '';
+
+    try {
+        const resp = await fetch(`/api/gunun-degerlendirmesi?date=${date}`);
+        const data = await resp.json();
+        document.getElementById('dvLoading').style.display = 'none';
+
+        if (data.status === 'success' && data.stats && data.ai_comment) {
+            currentDate = data.date;
+            renderStats(data.stats);
+            renderTable(data.stats);
+            renderAiComment(data.ai_comment, data.date, data.updated_at, true);
+            document.getElementById('dvResults').style.display = '';
+            document.getElementById('regenDvBtn').style.display = '';
+            document.getElementById('generateDvBtn').style.display = 'none';
+        } else {
+            document.getElementById('dvEmpty').style.display = '';
+            document.getElementById('regenDvBtn').style.display = 'none';
+            document.getElementById('generateDvBtn').style.display = '';
+        }
+    } catch(e) {
+        document.getElementById('dvLoading').style.display = 'none';
+        document.getElementById('dvEmpty').style.display = '';
+    }
+}
+
+function onDateChange() {
+    const date = document.getElementById('dvDateInput').value;
+    if (!date) return;
+    loadSavedEvaluation(date);
+}
+
+// ── Yeni oluştur / Yeniden oluştur (POST) ─────────────────────────────────────
+async function generateEvaluation(isRegen = false) {
     const date = document.getElementById('dvDateInput').value;
     if (!date) { alert('Tarih seçin.'); return; }
 
-    const btn = document.getElementById('generateDvBtn');
+    const btn = isRegen ? document.getElementById('regenDvBtn') : document.getElementById('generateDvBtn');
     btn.disabled = true;
     btn.textContent = '⏳ Analiz yapılıyor...';
 
@@ -376,15 +414,17 @@ async function generateEvaluation() {
                 `<div class="dv-empty">❌ ${data.message || 'Bir hata oluştu.'}</div>`;
             document.getElementById('dvEmpty').style.display = '';
             btn.disabled = false;
-            btn.textContent = '🤖 Değerlendirmeyi Oluştur';
+            btn.textContent = isRegen ? '🔄 Yeniden Oluştur' : '🤖 Değerlendirmeyi Oluştur';
             return;
         }
 
         currentDate = data.date;
         renderStats(data.stats);
         renderTable(data.stats);
-        renderAiComment(data.ai_comment, data.date);
+        renderAiComment(data.ai_comment, data.date, null, false);
         document.getElementById('dvResults').style.display = '';
+        document.getElementById('regenDvBtn').style.display = '';
+        document.getElementById('generateDvBtn').style.display = 'none';
     } catch(e) {
         document.getElementById('dvLoading').style.display = 'none';
         document.getElementById('dvEmpty').innerHTML =
@@ -393,7 +433,7 @@ async function generateEvaluation() {
     }
 
     btn.disabled = false;
-    btn.textContent = '🤖 Değerlendirmeyi Oluştur';
+    btn.textContent = isRegen ? '🔄 Yeniden Oluştur' : '🤖 Değerlendirmeyi Oluştur';
 }
 
 function renderStats(s) {
@@ -452,8 +492,18 @@ function renderTable(s) {
     }).join('');
 }
 
-function renderAiComment(text, date) {
-    document.getElementById('dvAiDate').textContent = formatDateTR(date);
+function renderAiComment(text, date, updatedAt, fromCache) {
+    const tag = document.getElementById('dvAiTag');
+    if (fromCache && updatedAt) {
+        const t = updatedAt.split('T')[1] || updatedAt.split(' ')[1] || '';
+        const timeStr = t.substring(0, 5);
+        tag.textContent = '🤖 Claude';
+        document.getElementById('dvAiDate').textContent =
+            formatDateTR(date) + (timeStr ? ` · ${timeStr}` : '') + ' · kayıtlı';
+    } else {
+        tag.textContent = '🤖 Claude';
+        document.getElementById('dvAiDate').textContent = formatDateTR(date) + ' · yeni oluşturuldu';
+    }
     document.getElementById('dvAiContent').innerHTML =
         renderMarkdown(text || '(AI yorumu üretilemedi.)');
 }
@@ -530,6 +580,15 @@ async function downloadPng() {
     btn.disabled = false;
     btn.textContent = '📸 PNG İndir';
 }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    const today = _localToday();
+    const picker = document.getElementById('dvDateInput');
+    picker.value = today;
+    picker.max   = today;
+    loadSavedEvaluation(today);
+});
 </script>
 </body>
 </html>

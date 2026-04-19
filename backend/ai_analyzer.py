@@ -1962,6 +1962,13 @@ def _build_daily_results_prompt(date, matches, stats):
         icon  = ('✅' if m.get('pred_1x2_correct') else '❌') if is_high else '—'
         lines.append(f"  {icon} {m['home_team']} vs {m['away_team']} → {score}  (Tahmin:{pred}, Güven:{conf_})")
 
+    ht2g_rescue = stats.get('ht2g_wrong_but_1x2_ok', 0)
+    if ht2g_rescue > 0:
+        lines.append(f"── İY TUTMADI AMA 2. YARI KURTARDI ──")
+        lines.append(f"  {ht2g_rescue} maçta İY 0.5 Üst tahmini tutmadı ama maçın 1X2 sonucu doğru çıktı.")
+        lines.append(f"  Bu maçlarda ilk yarı golsüz geçti ya da az gol düştü; 2. yarı durumu kurtardı.")
+        lines.append("")
+
     lines.extend([
         "",
         "── TALİMATLAR ──",
@@ -1969,9 +1976,10 @@ def _build_daily_results_prompt(date, matches, stats):
         "1. Kuru istatistik listesi yapma. Akıcı paragraflarla, sohbet havasında gerçek yorum yaz.",
         "2. Hangi stratejinin iyi gittiğini, hangisinin neden tutmadığını somut örneklerle anlat.",
         "3. Sürpriz sonuçları (yüksek güvenli ama yanlış tahminler) özellikle vurgula ve yorumla.",
-        "4. En son paragraf: yarın veya önümüzdeki analizler için somut bir öneri ya da uyarı ile bitir.",
-        "5. Maksimum 400 kelime. Teknik jargon kullanma, herkesin anlayacağı Türkçe yaz.",
-        "6. Yalnızca Türkçe yaz.",
+        "4. Eğer 'İY tutmadı ama 2. yarı kurtardı' verisi varsa, bu maçları ayrıca yorumla: 'ilk yarı neden tutmadı, ama maçı kurtardık' şeklinde.",
+        "5. En son paragraf: yarın veya önümüzdeki analizler için somut bir öneri ya da uyarı ile bitir.",
+        "6. Maksimum 400 kelime. Teknik jargon kullanma, herkesin anlayacağı Türkçe yaz.",
+        "7. Yalnızca Türkçe yaz.",
     ])
 
     return "\n".join(lines)

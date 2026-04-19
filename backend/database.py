@@ -181,6 +181,17 @@ def init_db():
             UNIQUE (league, season)
         )
     ''')
+    # ── Günlük Değerlendirme tablosu ─────────────────────────────────────────────
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS daily_evaluations (
+            id SERIAL PRIMARY KEY,
+            summary_date DATE UNIQUE NOT NULL,
+            ai_text TEXT NOT NULL,
+            stats_json JSONB,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    ''')
     # ─────────────────────────────────────────────────────────────────────────
     for sql in [
         'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER',
@@ -260,6 +271,42 @@ def get_summary_list(limit=30):
     cur.close()
     conn.close()
     return [dict(r) for r in rows]
+
+# ── Günlük Değerlendirme ─────────────────────────────────────────────────────
+
+def save_daily_evaluation(date_str, ai_text, stats_json=None):
+    import json as _json
+    conn = get_conn()
+    cur = conn.cursor()
+    stats_raw = _json.dumps(stats_json) if stats_json is not None else None
+    cur.execute('''
+        INSERT INTO daily_evaluations (summary_date, ai_text, stats_json, updated_at)
+        VALUES (%s, %s, %s::jsonb, NOW())
+        ON CONFLICT (summary_date) DO UPDATE
+        SET ai_text     = EXCLUDED.ai_text,
+            stats_json  = EXCLUDED.stats_json,
+            updated_at  = NOW()
+    ''', (date_str, ai_text, stats_raw))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_daily_evaluation(date_str):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT * FROM daily_evaluations WHERE summary_date = %s', (date_str,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not row:
+        return None
+    result = dict(row)
+    result['summary_date'] = str(result['summary_date'])
+    result['created_at']   = str(result['created_at'])
+    result['updated_at']   = str(result['updated_at'])
+    return result
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 
