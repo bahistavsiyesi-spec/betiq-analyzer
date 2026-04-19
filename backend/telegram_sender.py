@@ -12,7 +12,7 @@ TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 TR_TZ = timezone(timedelta(hours=3))
 
 
-def send_message(text, parse_mode='HTML', max_retries=3, retry_delay=5):
+def send_message(text, parse_mode='HTML', max_retries=3, retry_delay=2):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         logger.warning("Telegram credentials not set")
         return False
@@ -20,7 +20,7 @@ def send_message(text, parse_mode='HTML', max_retries=3, retry_delay=5):
     payload = {'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': parse_mode}
     for attempt in range(1, max_retries + 1):
         try:
-            resp = requests.post(url, json=payload, timeout=30)
+            resp = requests.post(url, json=payload, timeout=(10, 30))
             resp.raise_for_status()
             return True
         except Exception as e:

@@ -965,14 +965,22 @@ def api_telegram_send_card():
                 if len(img_bytes) <= 1 * 1024 * 1024 or quality <= 40:
                     break
                 quality -= 15
-        resp = req.post(
-            f'https://api.telegram.org/bot{token}/sendPhoto',
-            data={'chat_id': chat_id, 'caption': caption, 'parse_mode': 'HTML'},
-            files={'photo': ('card.jpg', img_bytes, 'image/jpeg')},
-            timeout=25
-        )
-        resp.raise_for_status()
-        return jsonify({"status": "success"})
+        last_err = None
+        for attempt in range(1, 4):
+            try:
+                resp = req.post(
+                    f'https://api.telegram.org/bot{token}/sendPhoto',
+                    data={'chat_id': chat_id, 'caption': caption, 'parse_mode': 'HTML'},
+                    files={'photo': ('card.jpg', img_bytes, 'image/jpeg')},
+                    timeout=(10, 30)
+                )
+                resp.raise_for_status()
+                return jsonify({"status": "success"})
+            except Exception as e:
+                last_err = e
+                if attempt < 3:
+                    import time as _time; _time.sleep(2)
+        raise last_err
     except Exception as e:
         logger.error(f"Telegram send card error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
