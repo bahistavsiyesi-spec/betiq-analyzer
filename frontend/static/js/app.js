@@ -1097,7 +1097,6 @@ function createMatchCard(match){
     const timeStr=formatTime(match.match_time);
     const homeLogo=teamLogoHtml(match.home_team);
     const awayLogo=teamLogoHtml(match.away_team);
-    const winner=getWinnerLabel(prediction,match.home_team,match.away_team);
     const over25=match.over25_pct||0,ht2g=match.ht2g_pct||0,btts=match.btts_pct||0;
     const trendHtml=buildTrendHtml(match);
     const valueBetsHtml=buildValueBetsHtml(match);
