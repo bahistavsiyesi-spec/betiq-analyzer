@@ -2,7 +2,12 @@ import psycopg2
 import psycopg2.extras
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+_TZ_IST = timezone(timedelta(hours=3))
+
+def _today_istanbul():
+    return datetime.now(tz=_TZ_IST).strftime('%Y-%m-%d')
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
@@ -38,7 +43,7 @@ def init_db():
             away_goals_trend TEXT,
             value_bets TEXT,
             csv_data TEXT,
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+            created_at TEXT DEFAULT NOW()
         )
     ''')
     cur.execute('''
@@ -49,13 +54,13 @@ def init_db():
             matches_found INTEGER,
             matches_analyzed INTEGER,
             error_message TEXT,
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+            created_at TEXT DEFAULT NOW()
         )
     ''')
     cur.execute('''
         CREATE TABLE IF NOT EXISTS match_results (
             id SERIAL PRIMARY KEY,
-            analysis_id INTEGER NOT NULL,
+            analysis_id INTEGER NOT NULL UNIQUE,
             fixture_id INTEGER,
             home_score INTEGER NOT NULL,
             away_score INTEGER NOT NULL,
@@ -73,8 +78,8 @@ def init_db():
             source TEXT DEFAULT 'auto',
             telegram_sent INTEGER DEFAULT 0,
             value_bet_results TEXT,
-            updated_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+            updated_at TEXT DEFAULT NOW(),
+            created_at TEXT DEFAULT NOW(),
             FOREIGN KEY (analysis_id) REFERENCES analyses(id)
         )
     ''')
@@ -87,7 +92,7 @@ def init_db():
             match_date TEXT,
             csv_data TEXT,
             added_date TEXT NOT NULL,
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+            created_at TEXT DEFAULT NOW()
         )
     ''')
     cur.execute('''
@@ -99,7 +104,7 @@ def init_db():
             won INTEGER DEFAULT 0,
             total_items INTEGER DEFAULT 0,
             correct_items INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+            created_at TEXT DEFAULT NOW()
         )
     ''')
     # ── İY Gol Takip tablosu ─────────────────────────────────────────────────
@@ -117,7 +122,7 @@ def init_db():
             iy2_result INTEGER,
             iy_score TEXT,
             ft_score TEXT,
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+            created_at TEXT DEFAULT NOW()
         )
     ''')
     for sql in [
@@ -136,7 +141,7 @@ def init_db():
             summary_date TEXT NOT NULL UNIQUE,
             ai_provider TEXT DEFAULT 'claude',
             content TEXT NOT NULL,
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+            created_at TEXT DEFAULT NOW()
         )
     ''')
     # ── Maç Senaryoları tablosu ───────────────────────────────────────────────
@@ -148,7 +153,7 @@ def init_db():
             home_team TEXT NOT NULL,
             away_team TEXT NOT NULL,
             scenarios TEXT NOT NULL,
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+            created_at TEXT DEFAULT NOW(),
             FOREIGN KEY (analysis_id) REFERENCES analyses(id)
         )
     ''')
@@ -159,8 +164,8 @@ def init_db():
             league TEXT NOT NULL,
             season TEXT NOT NULL,
             data TEXT NOT NULL,
-            uploaded_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+            uploaded_at TEXT DEFAULT NOW(),
+            created_at TEXT DEFAULT NOW(),
             UNIQUE (league, season)
         )
     ''')
@@ -171,8 +176,8 @@ def init_db():
             league TEXT NOT NULL,
             season TEXT NOT NULL,
             data TEXT NOT NULL,
-            uploaded_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
-            created_at TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+            uploaded_at TEXT DEFAULT NOW(),
+            created_at TEXT DEFAULT NOW(),
             UNIQUE (league, season)
         )
     ''')
@@ -227,7 +232,7 @@ def save_summary(date_str, content, ai_provider='claude'):
         ON CONFLICT (summary_date) DO UPDATE
         SET content = EXCLUDED.content,
             ai_provider = EXCLUDED.ai_provider,
-            created_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+            created_at = NOW()
     ''', (date_str, content, ai_provider))
     conn.commit()
     cur.close()
@@ -260,7 +265,7 @@ def get_summary_list(limit=30):
 
 
 def save_pending_matches(matches: list):
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = _today_istanbul()
     conn = get_conn()
     cur = conn.cursor()
     for m in matches:
@@ -279,7 +284,7 @@ def save_pending_matches(matches: list):
 
 
 def get_pending_matches():
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = _today_istanbul()
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute('SELECT * FROM pending_matches WHERE added_date = %s ORDER BY id ASC', (today,))
@@ -308,7 +313,7 @@ def clear_pending_matches():
 
 
 def clear_old_pending_matches():
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = _today_istanbul()
     conn = get_conn()
     cur = conn.cursor()
     cur.execute('DELETE FROM pending_matches WHERE added_date < %s', (today,))
@@ -318,7 +323,7 @@ def clear_old_pending_matches():
 
 
 def save_coupon(items: list, coupon_type: str = 'dengeli'):
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = _today_istanbul()
     conn = get_conn()
     cur = conn.cursor()
     cur.execute('SELECT id FROM coupons WHERE coupon_date = %s AND coupon_type = %s', (today, coupon_type))
@@ -503,7 +508,7 @@ def save_analysis(data: dict):
             value_bets, csv_data
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
-        data.get('analysis_date', datetime.now().strftime('%Y-%m-%d')),
+        data.get('analysis_date', _today_istanbul()),
         data.get('fixture_id'),
         data['home_team'], data['away_team'],
         data.get('league', ''), data.get('match_time', ''),
@@ -538,7 +543,7 @@ def _decode_csv_data_in_rows(rows):
 
 
 def get_today_matches():
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = _today_istanbul()
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute(
@@ -660,54 +665,52 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                       value_bet_results=None,
                       home_corners=None, away_corners=None,
                       korner_85_correct=None, korner_95_correct=None):
+    vbr = json.dumps(value_bet_results, ensure_ascii=False) if value_bet_results else None
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute('SELECT id FROM match_results WHERE analysis_id = %s', (analysis_id,))
-    existing = cur.fetchone()
-    if existing:
-        cur.execute('''
-            UPDATE match_results SET
-                home_score=%s, away_score=%s,
-                ht_home_score=%s, ht_away_score=%s,
-                actual_1x2=%s, pred_1x2_correct=%s,
-                actual_over25=%s, over25_correct=%s,
-                actual_btts=%s, btts_correct=%s,
-                score_correct=%s, ht_correct=%s,
-                total_goals=%s, source=%s,
-                value_bet_results=%s,
-                home_corners=%s, away_corners=%s,
-                korner_85_correct=%s, korner_95_correct=%s
-            WHERE analysis_id=%s
-        ''', (home_score, away_score, ht_home_score, ht_away_score,
-              actual_1x2, pred_1x2_correct, actual_over25, over25_correct,
-              actual_btts, btts_correct, score_correct, ht_correct,
-              total_goals, source,
-              json.dumps(value_bet_results, ensure_ascii=False) if value_bet_results else None,
-              home_corners, away_corners, korner_85_correct, korner_95_correct,
-              analysis_id))
-    else:
-        cur.execute('''
-            INSERT INTO match_results (
-                analysis_id, fixture_id, home_score, away_score,
-                ht_home_score, ht_away_score,
-                actual_1x2, pred_1x2_correct,
-                actual_over25, over25_correct,
-                actual_btts, btts_correct,
-                score_correct, ht_correct,
-                total_goals, source, value_bet_results,
-                home_corners, away_corners,
-                korner_85_correct, korner_95_correct
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ''', (analysis_id, fixture_id, home_score, away_score,
-              ht_home_score, ht_away_score,
-              actual_1x2, pred_1x2_correct,
-              actual_over25, over25_correct,
-              actual_btts, btts_correct,
-              score_correct, ht_correct,
-              total_goals, source,
-              json.dumps(value_bet_results, ensure_ascii=False) if value_bet_results else None,
-              home_corners, away_corners,
-              korner_85_correct, korner_95_correct))
+    cur.execute('''
+        INSERT INTO match_results (
+            analysis_id, fixture_id, home_score, away_score,
+            ht_home_score, ht_away_score,
+            actual_1x2, pred_1x2_correct,
+            actual_over25, over25_correct,
+            actual_btts, btts_correct,
+            score_correct, ht_correct,
+            total_goals, source, value_bet_results,
+            home_corners, away_corners,
+            korner_85_correct, korner_95_correct
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (analysis_id) DO UPDATE SET
+            fixture_id          = EXCLUDED.fixture_id,
+            home_score          = EXCLUDED.home_score,
+            away_score          = EXCLUDED.away_score,
+            ht_home_score       = EXCLUDED.ht_home_score,
+            ht_away_score       = EXCLUDED.ht_away_score,
+            actual_1x2          = EXCLUDED.actual_1x2,
+            pred_1x2_correct    = EXCLUDED.pred_1x2_correct,
+            actual_over25       = EXCLUDED.actual_over25,
+            over25_correct      = EXCLUDED.over25_correct,
+            actual_btts         = EXCLUDED.actual_btts,
+            btts_correct        = EXCLUDED.btts_correct,
+            score_correct       = EXCLUDED.score_correct,
+            ht_correct          = EXCLUDED.ht_correct,
+            total_goals         = EXCLUDED.total_goals,
+            source              = EXCLUDED.source,
+            value_bet_results   = EXCLUDED.value_bet_results,
+            home_corners        = EXCLUDED.home_corners,
+            away_corners        = EXCLUDED.away_corners,
+            korner_85_correct   = EXCLUDED.korner_85_correct,
+            korner_95_correct   = EXCLUDED.korner_95_correct,
+            updated_at          = NOW()
+    ''', (analysis_id, fixture_id, home_score, away_score,
+          ht_home_score, ht_away_score,
+          actual_1x2, pred_1x2_correct,
+          actual_over25, over25_correct,
+          actual_btts, btts_correct,
+          score_correct, ht_correct,
+          total_goals, source, vbr,
+          home_corners, away_corners,
+          korner_85_correct, korner_95_correct))
     conn.commit()
     cur.close()
     conn.close()
@@ -789,7 +792,7 @@ def delete_analysis(analysis_id):
 
 
 def delete_today_analyses():
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = _today_istanbul()
     conn = get_conn()
     cur = conn.cursor()
     cur.execute('SELECT id FROM analyses WHERE analysis_date = %s', (today,))
@@ -918,7 +921,7 @@ def save_scenarios(scenario_date, analysis_id, home_team, away_team, scenarios):
     scenarios_json = json.dumps(scenarios, ensure_ascii=False)
     if existing:
         cur.execute(
-            'UPDATE match_scenarios SET scenarios=%s, created_at=to_char(now(),\'YYYY-MM-DD HH24:MI:SS\') WHERE id=%s',
+            'UPDATE match_scenarios SET scenarios=%s, created_at=NOW() WHERE id=%s',
             (scenarios_json, existing[0])
         )
     else:
@@ -973,10 +976,10 @@ def save_custom_standings(league, season, data):
     cur = conn.cursor()
     cur.execute('''
         INSERT INTO custom_standings (league, season, data, uploaded_at)
-        VALUES (%s, %s, %s, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'))
+        VALUES (%s, %s, %s, NOW())
         ON CONFLICT (league, season) DO UPDATE
         SET data = EXCLUDED.data,
-            uploaded_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+            uploaded_at = NOW()
     ''', (league, season, json.dumps(data, ensure_ascii=False)))
     conn.commit()
     cur.close()
@@ -988,10 +991,10 @@ def save_custom_form(league, season, data):
     cur = conn.cursor()
     cur.execute('''
         INSERT INTO custom_form (league, season, data, uploaded_at)
-        VALUES (%s, %s, %s, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'))
+        VALUES (%s, %s, %s, NOW())
         ON CONFLICT (league, season) DO UPDATE
         SET data = EXCLUDED.data,
-            uploaded_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+            uploaded_at = NOW()
     ''', (league, season, json.dumps(data, ensure_ascii=False)))
     conn.commit()
     cur.close()

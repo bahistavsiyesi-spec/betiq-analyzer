@@ -7,7 +7,12 @@ import math
 import os
 import re as _re
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+_TZ_IST = timezone(timedelta(hours=3))
+
+def _today_istanbul():
+    return datetime.now(tz=_TZ_IST).strftime('%Y-%m-%d')
 import psycopg2
 import psycopg2.extras
 from backend.database import (
@@ -974,7 +979,7 @@ def api_telegram_send_card():
 
 @app.route('/api/scenarios/today')
 def api_scenarios_today():
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = _today_istanbul()
     scenarios = get_scenarios_by_date(today)
     if not scenarios:
         return jsonify({"status": "empty", "data": []}), 404
@@ -997,7 +1002,7 @@ def api_scenarios_generate_single():
         if not match:
             return jsonify({"status": "error", "message": f"Analiz bulunamadi (id={analysis_id})"}), 404
 
-        date_str = match.get('analysis_date') or datetime.now().strftime('%Y-%m-%d')
+        date_str = match.get('analysis_date') or _today_istanbul()
         home = match.get('home_team', '?')
         away = match.get('away_team', '?')
 
@@ -1096,9 +1101,9 @@ def api_manual_result():
             t.daemon = True
             t.start()
         try:
-            analysis_date = analysis.get('analysis_date', datetime.now().strftime('%Y-%m-%d'))
+            analysis_date = analysis.get('analysis_date', _today_istanbul())
             update_coupon_results(analysis_date)
-            today = datetime.now().strftime('%Y-%m-%d')
+            today = _today_istanbul()
             if analysis_date != today:
                 update_coupon_results(today)
         except Exception as e:
@@ -1657,7 +1662,7 @@ def api_summary_highlights_telegram():
     try:
         from backend.telegram_sender import send_message
         data = request.get_json()
-        date_str = data.get('date', datetime.now().strftime('%Y-%m-%d'))
+        date_str = data.get('date', _today_istanbul())
         highlights = data.get('highlights', {})
 
         lines = [f"📊 <b>Günün Öne Çıkanları — {date_str}</b>"]
@@ -1819,7 +1824,7 @@ def api_parse_image():
         if not image_data:
             return jsonify({"status": "error", "message": "Gorsel eksik"}), 400
         client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = _today_istanbul()
         message = client.messages.create(
             model="claude-haiku-4-5-20251001", max_tokens=1024,
             messages=[{"role": "user", "content": [
@@ -2294,7 +2299,7 @@ def api_summary_generate():
         content = generate_daily_summary(matches, ai_provider=ai_provider)
         if not content:
             return jsonify({"status": "error", "message": "Özet üretilemedi"}), 500
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = _today_istanbul()
         save_summary(today, content, ai_provider=ai_provider)
         summary = get_summary_by_date(today)
         logger.info(f"Daily summary generated: {today} ({ai_provider})")
@@ -2339,7 +2344,7 @@ def api_summary_telegram():
         content = data.get('content', '')
         if not content:
             return jsonify({"status": "error", "message": "İçerik boş"}), 400
-        today = datetime.now().strftime('%d.%m.%Y')
+        today = datetime.now(tz=_TZ_IST).strftime('%d.%m.%Y')
         msg = f"📋 GÜNÜN ÖZETİ — {today}\n\n{content}"
         send_message(msg)
         return jsonify({"status": "success"})
@@ -2368,7 +2373,7 @@ def api_iy_gol_matches(date):
 @app.route('/api/iy-gol/scan', methods=['POST'])
 def api_iy_gol_scan():
     try:
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = _today_istanbul()
         pending = get_pending_matches()
         if not pending:
             return jsonify({"status": "error", "message": "Yüklenmiş CSV verisi bulunamadı"}), 404
