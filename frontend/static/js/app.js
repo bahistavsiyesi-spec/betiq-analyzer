@@ -1,3 +1,13 @@
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+}
+
 // ===== CSV UPLOAD =====
 function initCsvUpload() {
     const btn = document.getElementById('csvUploadBtn');
@@ -812,20 +822,30 @@ async function loadFixtures() {
         fixtures.forEach(f=>{const l=f.league||'Diger';if(!grouped[l])grouped[l]=[];grouped[l].push(f);});
         let html='';
         for(const[league,matches]of Object.entries(grouped)){
-            html+=`<div class="league-group"><div class="league-title">🏆 ${league}</div>`;
+            html+=`<div class="league-group"><div class="league-title">🏆 ${escapeHtml(league)}</div>`;
             matches.forEach(f=>{
                 const time=formatTime(f.date);
-                html+=`<div class="fixture-item" data-id="${f.id}" onclick="toggleFixture(${f.id}, '${f.home_team.replace(/'/g,"\\'")}', '${f.away_team.replace(/'/g,"\\'")}', '${(f.league||'').replace(/'/g,"\\'")}', '${f.date||''}')">
+                html+=`<div class="fixture-item"
+                    data-id="${f.id}"
+                    data-home="${escapeHtml(f.home_team)}"
+                    data-away="${escapeHtml(f.away_team)}"
+                    data-league="${escapeHtml(f.league||'')}"
+                    data-date="${escapeHtml(f.date||'')}">
                     <div class="fixture-check" id="check-${f.id}">☐</div>
                     <div class="fixture-info">
-                        <span class="fixture-teams">${f.home_team} vs ${f.away_team}</span>
-                        ${time?`<span class="fixture-time">${time}</span>`:''}
+                        <span class="fixture-teams">${escapeHtml(f.home_team)} vs ${escapeHtml(f.away_team)}</span>
+                        ${time?`<span class="fixture-time">${escapeHtml(time)}</span>`:''}
                     </div>
                 </div>`;
             });
             html+=`</div>`;
         }
         container.innerHTML=html;
+        container.querySelectorAll('.fixture-item').forEach(el=>{
+            el.addEventListener('click',()=>{
+                toggleFixture(Number(el.dataset.id),el.dataset.home,el.dataset.away,el.dataset.league,el.dataset.date);
+            });
+        });
         updateSelectedCount();
     } catch(e){
         container.innerHTML=`<div class="no-matches"><p>📂 CSV yukle ve maclari sec.</p></div>`;
@@ -1054,6 +1074,19 @@ function renderMatches(matches){
             <button onclick="clearAllMatches()" style="padding:6px 14px;border-radius:8px;border:1px solid #ef4444;background:transparent;color:#ef4444;font-size:12px;cursor:pointer;font-family:inherit;">🗑️ Tumunu Sil</button>
         </div>
         <div id="matchCardsList">${matches.map(m=>createMatchCard(m)).join('')}</div>`;
+    document.getElementById('matchCardsList').addEventListener('click',function(e){
+        const btn=e.target.closest('[data-action]');
+        if(!btn) return;
+        const action=btn.dataset.action;
+        const id=Number(btn.dataset.id);
+        const card=btn.closest('.match-card');
+        const home=card?card.dataset.home:'';
+        const away=card?card.dataset.away:'';
+        if(action==='telegram') sendCardToTelegram(id,home,away);
+        else if(action==='download-square') downloadCard(id,home,away,'square');
+        else if(action==='download-story') downloadCard(id,home,away,'story');
+        else if(action==='delete') deleteMatch(id);
+    });
 }
 
 function createMatchCard(match){
@@ -1071,43 +1104,46 @@ function createMatchCard(match){
     const cornerInfoHtml=buildCornerInfoHtml(match);
     const secondHalfHtml=build2ndHalfHtml(match);
     const reasoningHtml=buildReasoningHtml(match);
-    const ht=match.home_team.replace(/'/g,"\\'");
-    const at=match.away_team.replace(/'/g,"\\'");
-    return `<div class="match-card ${cardClass}" id="matchcard-${match.id}">
+    const eHome=escapeHtml(match.home_team);
+    const eAway=escapeHtml(match.away_team);
+    const winner=getWinnerLabel(prediction,eHome,eAway);
+    const safePred=/^[12X?]$/.test(prediction)?prediction:'?';
+    const id=match.id;
+    return `<div class="match-card ${cardClass}" id="matchcard-${id}" data-id="${id}" data-home="${eHome}" data-away="${eAway}">
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px;">
-            <button id="tgbtn-${match.id}" onclick="sendCardToTelegram(${match.id},'${ht}','${at}')"
+            <button id="tgbtn-${id}" data-action="telegram" data-id="${id}"
                 style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
                 onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#555'" title="Telegram'a Gonder">📨</button>
-            <button id="dlbtn-${match.id}" onclick="downloadCard(${match.id},'${ht}','${at}','square')"
+            <button id="dlbtn-${id}" data-action="download-square" data-id="${id}"
                 style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
                 onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#555'" title="Kare Indir">📸</button>
-            <button id="storybtn-${match.id}" onclick="downloadCard(${match.id},'${ht}','${at}','story')"
+            <button id="storybtn-${id}" data-action="download-story" data-id="${id}"
                 style="background:transparent;border:none;color:#555;font-size:15px;cursor:pointer;padding:0;line-height:1;"
                 onmouseover="this.style.color='#a78bfa'" onmouseout="this.style.color='#555'" title="Hikaye Indir">📱</button>
-            <button onclick="deleteMatch(${match.id})"
+            <button data-action="delete" data-id="${id}"
                 style="background:transparent;border:none;color:#444;font-size:15px;cursor:pointer;padding:0;line-height:1;"
                 onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#444'" title="Sil">🗑️</button>
         </div>
         <div class="match-header">
-            <span class="league-badge">⚽ ${match.league||'Bilinmeyen Lig'}</span>
-            ${timeStr?`<span class="match-time">${timeStr}</span>`:''}
+            <span class="league-badge">⚽ ${escapeHtml(match.league||'Bilinmeyen Lig')}</span>
+            ${timeStr?`<span class="match-time">${escapeHtml(timeStr)}</span>`:''}
         </div>
         <div class="teams">
-            <div class="team home-team">${homeLogo}<span class="team-name">${match.home_team}</span><span class="team-form">${match.home_form||''}</span></div>
-            <div class="vs-badge prediction-${prediction.toLowerCase()}">
-                <img src="/static/img/logo.png" alt="GL" onerror="this.parentElement.innerHTML='${prediction}'">
+            <div class="team home-team">${homeLogo}<span class="team-name">${eHome}</span><span class="team-form">${escapeHtml(match.home_form||'')}</span></div>
+            <div class="vs-badge prediction-${safePred.toLowerCase()}">
+                <img src="/static/img/logo.png" alt="GL" onerror="this.style.display='none';this.parentElement.insertAdjacentText('beforeend','${safePred}')">
             </div>
-            <div class="team away-team">${awayLogo}<span class="team-name">${match.away_team}</span><span class="team-form">${match.away_form||''}</span></div>
+            <div class="team away-team">${awayLogo}<span class="team-name">${eAway}</span><span class="team-form">${escapeHtml(match.away_form||'')}</span></div>
         </div>
         <div class="stats-grid">
             <div class="stat-box"><span class="stat-label">🎯 2.5 GOL USTU</span><span class="stat-value ${pctClass(over25)}">${over25}%</span><div class="stat-bar"><div class="stat-fill ${barClass(over25)}" style="width:${over25}%"></div></div></div>
             <div class="stat-box"><span class="stat-label">⚽ IY 0.5 UST</span><span class="stat-value ${pctClass(ht2g)}">${ht2g}%</span><div class="stat-bar"><div class="stat-fill ${barClass(ht2g)}" style="width:${ht2g}%"></div></div></div>
             <div class="stat-box"><span class="stat-label">🔁 KG VAR (BTTS)</span><span class="stat-value ${pctClass(btts)}">${btts}%</span><div class="stat-bar"><div class="stat-fill ${barClass(btts)}" style="width:${btts}%"></div></div></div>
-            <div class="stat-box"><span class="stat-label">📊 GOL ORT.</span><span class="stat-value">${match.home_goals_avg||0} / ${match.away_goals_avg||0}</span></div>
+            <div class="stat-box"><span class="stat-label">📊 GOL ORT.</span><span class="stat-value">${escapeHtml(String(match.home_goals_avg||0))} / ${escapeHtml(String(match.away_goals_avg||0))}</span></div>
         </div>
         <div class="prediction-row">
             <div class="predicted-score"><span class="score-label">${winner.icon} KAZANAN TAHMINI</span><span class="score-value">${winner.label}</span></div>
-            <span class="confidence-badge ${badgeClass}">Taraf Guveni: ${confidence}</span>
+            <span class="confidence-badge ${badgeClass}">Taraf Guveni: ${escapeHtml(confidence)}</span>
         </div>
         ${valueBetsHtml}
         ${trendHtml}
