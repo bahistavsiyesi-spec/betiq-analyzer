@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Günün Değerlendirmesi — BetIQ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        .dv-container { max-width: 860px; margin: 0 auto; padding: 24px; }
+
+        .dv-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #1e1e3a;
+        }
+        .dv-header h1 { font-size: 20px; font-weight: 800; color: #fff; margin: 0; }
+
+        .dv-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 24px;
+            padding: 14px 18px;
+            background: #0d0d1a;
+            border: 1px solid #1e1e3a;
+            border-radius: 12px;
+            flex-wrap: wrap;
+        }
+        .dv-controls label { font-size: 11px; color: #555; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
+        .dv-date-input {
+            padding: 8px 14px;
+            background: #12121f;
+            border: 1px solid #1e1e3a;
+            border-radius: 8px;
+            color: #ddd;
+            font-size: 13px;
+            font-family: inherit;
+            cursor: pointer;
+            color-scheme: dark;
+        }
+        .dv-date-input:focus { outline: none; border-color: #7c3aed; }
+        .btn-generate-dv {
+            padding: 9px 22px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            transition: opacity 0.2s;
+        }
+        .btn-generate-dv:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .dv-loading {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 32px 20px;
+            color: #555;
+            font-size: 13px;
+        }
+        .spinner-sm {
+            width: 18px; height: 18px;
+            border: 2px solid #1e1e3a;
+            border-top-color: #7c3aed;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .section-label {
+            font-size: 10px; font-weight: 700; color: #555;
+            letter-spacing: 0.5px; margin-bottom: 10px;
+        }
+
+        /* Stat kartları */
+        .dv-stat-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 600px) { .dv-stat-row { grid-template-columns: repeat(2, 1fr); } }
+        .dv-stat-card {
+            background: #0d0d1a;
+            border: 1px solid #1e1e3a;
+            border-radius: 12px;
+            padding: 14px 16px;
+            text-align: center;
+        }
+        .dv-stat-val { font-size: 28px; font-weight: 800; color: #7c3aed; margin-bottom: 4px; }
+        .dv-stat-val.green  { color: #22c55e; }
+        .dv-stat-val.red    { color: #ef4444; }
+        .dv-stat-val.yellow { color: #f59e0b; }
+        .dv-stat-lbl { font-size: 10px; color: #555; font-weight: 700; letter-spacing: 0.4px; }
+        .dv-stat-sub { font-size: 10px; color: #333; margin-top: 3px; }
+
+        /* Strateji tablosu */
+        .dv-table-wrap {
+            background: #0d0d1a;
+            border: 1px solid #1e1e3a;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .dv-table-title {
+            font-size: 10px; font-weight: 700; color: #555;
+            letter-spacing: 0.5px;
+            padding: 10px 16px;
+            border-bottom: 1px solid #1e1e3a;
+        }
+        .dv-table { width: 100%; border-collapse: collapse; }
+        .dv-table th {
+            font-size: 10px; font-weight: 700; color: #444;
+            letter-spacing: 0.4px; text-align: left;
+            padding: 8px 16px; background: #080810;
+            border-bottom: 1px solid #1e1e3a;
+        }
+        .dv-table th:not(:first-child) { text-align: center; }
+        .dv-table td {
+            font-size: 12px; color: #bbb;
+            padding: 10px 16px;
+            border-bottom: 1px solid #111;
+        }
+        .dv-table td:not(:first-child) { text-align: center; }
+        .dv-table tr:last-child td { border-bottom: none; }
+        .dv-table tr:hover td { background: #0a0a14; }
+        .rate-badge {
+            display: inline-block;
+            padding: 2px 10px; border-radius: 20px;
+            font-size: 11px; font-weight: 700;
+        }
+        .rate-green  { background: rgba(34,197,94,0.12);  color: #22c55e; border: 1px solid rgba(34,197,94,0.25); }
+        .rate-yellow { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+        .rate-red    { background: rgba(239,68,68,0.12);  color: #ef4444; border: 1px solid rgba(239,68,68,0.25); }
+        .rate-neutral{ background: rgba(80,80,80,0.1);    color: #444;    border: 1px solid #222; }
+
+        /* AI yorum kutusu */
+        .dv-ai-box {
+            background: #0d0d1a;
+            border: 1px solid #1e1e3a;
+            border-radius: 14px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+        }
+        .dv-ai-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #1e1e3a;
+        }
+        .ai-tag {
+            font-size: 10px; font-weight: 700; color: #a78bfa;
+            background: rgba(124,58,237,0.12);
+            border: 1px solid rgba(124,58,237,0.25);
+            padding: 3px 10px; border-radius: 20px;
+            letter-spacing: 0.5px;
+        }
+        .dv-ai-date { font-size: 10px; color: #444; }
+
+        /* Markdown */
+        .dv-ai-content { font-size: 13px; color: #bbb; line-height: 1.85; }
+        .md-h1  { font-size: 15px; font-weight: 800; color: #fff; margin: 4px 0 16px; padding-bottom: 8px; border-bottom: 1px solid #1e1e3a; }
+        .md-h2  { font-size: 13px; font-weight: 700; color: #a78bfa; margin: 20px 0 8px; letter-spacing: 0.3px; }
+        .md-bullet { display: flex; gap: 8px; margin-bottom: 6px; align-items: flex-start; padding-left: 4px; }
+        .md-bullet .dot { color: #7c3aed; flex-shrink: 0; margin-top: 2px; }
+        .md-bold { color: #fff; font-weight: 700; }
+        .md-p   { margin-bottom: 8px; }
+        .md-space { height: 6px; }
+
+        /* Aksiyon butonları */
+        .dv-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn-tg-dv {
+            padding: 10px 22px; border-radius: 10px; border: none;
+            background: #2563eb; color: #fff;
+            font-size: 13px; font-weight: 700; cursor: pointer;
+            font-family: inherit; transition: opacity 0.2s;
+        }
+        .btn-tg-dv:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-png-dv {
+            padding: 10px 22px; border-radius: 10px; border: none;
+            background: #7c3aed; color: #fff;
+            font-size: 13px; font-weight: 700; cursor: pointer;
+            font-family: inherit; transition: opacity 0.2s;
+        }
+        .btn-png-dv:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .dv-empty {
+            text-align: center;
+            padding: 48px 20px;
+            color: #333;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">BetIQ</span>
+                <span class="logo-sub">ANALYZER</span>
+            </div>
+            <nav style="display:flex;gap:8px;align-items:center;">
+                <a href="/" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🏠 Ana Sayfa</a>
+                <a href="/gecmis" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">📅 Geçmiş</a>
+                <a href="/istatistik" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">📊 İstatistik</a>
+                <a href="/kuponlar" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🎫 Kuponlar</a>
+                <a href="/senaryo" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🎭 Senaryo</a>
+                <a href="/gunun-degerlendirmesi" style="padding:7px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;text-decoration:none;">📊 Değerlendirme</a>
+                <a href="/debug" style="padding:7px 14px;border-radius:8px;border:1px solid #2a1a4e;background:transparent;color:#a78bfa;font-size:12px;font-weight:600;text-decoration:none;">🔬 Debug</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="dv-container">
+            <div class="dv-header">
+                <h1>📊 Günün Değerlendirmesi</h1>
+            </div>
+
+            <!-- Tarih seçici + buton -->
+            <div class="dv-controls">
+                <label>📅 TARİH</label>
+                <input type="date" class="dv-date-input" id="dvDateInput">
+                <button class="btn-generate-dv" id="generateDvBtn" onclick="generateEvaluation()">
+                    🤖 Değerlendirmeyi Oluştur
+                </button>
+            </div>
+
+            <!-- Loading -->
+            <div id="dvLoading" style="display:none;">
+                <div class="dv-loading">
+                    <div class="spinner-sm"></div>
+                    <span>AI değerlendirme yapıyor, lütfen bekle...</span>
+                </div>
+            </div>
+
+            <!-- Sonuçlar -->
+            <div id="dvResults" style="display:none;">
+
+                <div class="section-label">📈 ÖZET İSTATİSTİKLER</div>
+                <div class="dv-stat-row" id="dvStatRow"></div>
+
+                <div class="dv-table-wrap">
+                    <div class="dv-table-title">🎯 STRATEJİ PERFORMANSI</div>
+                    <table class="dv-table">
+                        <thead>
+                            <tr>
+                                <th>Strateji</th>
+                                <th>Toplam</th>
+                                <th>Tutulan</th>
+                                <th>Başarı</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dvTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="section-label">🤖 AI DEĞERLENDİRME</div>
+                <div class="dv-ai-box" id="dvAiBox">
+                    <div class="dv-ai-meta">
+                        <span class="ai-tag">🤖 Claude</span>
+                        <span class="dv-ai-date" id="dvAiDate"></span>
+                    </div>
+                    <div class="dv-ai-content" id="dvAiContent"></div>
+                </div>
+
+                <div class="dv-actions">
+                    <button class="btn-tg-dv" id="dvTgBtn" onclick="sendToTelegram()">📨 Telegram'a Gönder</button>
+                    <button class="btn-png-dv" id="dvPngBtn" onclick="downloadPng()">📸 PNG İndir</button>
+                </div>
+            </div>
+
+            <!-- Boş durum -->
+            <div id="dvEmpty">
+                <div class="dv-empty">
+                    📭 Bir tarih seçip <strong style="color:#a78bfa;">Değerlendirmeyi Oluştur</strong> butonuna bas.<br>
+                    <small style="color:#2a2a3a;">Sadece sonuç girilmiş maçlar değerlendirilir.</small>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// Tarih picker'ı bugüne ayarla
+(function() {
+    const n = new Date();
+    const today = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+    document.getElementById('dvDateInput').value = today;
+    document.getElementById('dvDateInput').max = today;
+})();
+
+let currentDate = null;
+
+function formatDateTR(dateStr) {
+    if (!dateStr) return '—';
+    try {
+        const [y, m, d] = dateStr.split('-');
+        const months = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+        return `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
+    } catch { return dateStr; }
+}
+
+function rateBadge(rate, total) {
+    if (!total) return '<span class="rate-badge rate-neutral">—</span>';
+    const cls = rate >= 65 ? 'rate-green' : rate >= 45 ? 'rate-yellow' : 'rate-red';
+    return `<span class="rate-badge ${cls}">%${rate}</span>`;
+}
+
+function statValClass(rate) {
+    return rate >= 65 ? 'green' : rate >= 45 ? 'yellow' : 'red';
+}
+
+function renderMarkdown(text) {
+    function parseBold(s) {
+        return s.replace(/\*\*(.+?)\*\*/g, '<span class="md-bold">$1</span>');
+    }
+    let html = '';
+    for (let line of text.split('\n')) {
+        line = line.trim();
+        if (!line) { html += '<div class="md-space"></div>'; continue; }
+        if (/^#{1,2}\s/.test(line)) {
+            html += `<div class="md-h1">${parseBold(line.replace(/^#+\s/, ''))}</div>`;
+        } else if (/^###\s/.test(line)) {
+            html += `<div class="md-h2">${parseBold(line.replace(/^###\s/, ''))}</div>`;
+        } else if (/^\d+\.\s/.test(line)) {
+            html += `<div class="md-h2">${parseBold(line.replace(/^\d+\.\s/, ''))}</div>`;
+        } else if (/^[-•*]\s/.test(line)) {
+            html += `<div class="md-bullet"><span class="dot">▸</span><span>${parseBold(line.replace(/^[-•*]\s/, ''))}</span></div>`;
+        } else {
+            html += `<div class="md-p">${parseBold(line)}</div>`;
+        }
+    }
+    return html;
+}
+
+async function generateEvaluation() {
+    const date = document.getElementById('dvDateInput').value;
+    if (!date) { alert('Tarih seçin.'); return; }
+
+    const btn = document.getElementById('generateDvBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Analiz yapılıyor...';
+
+    document.getElementById('dvEmpty').style.display = 'none';
+    document.getElementById('dvResults').style.display = 'none';
+    document.getElementById('dvLoading').style.display = '';
+
+    try {
+        const resp = await fetch('/api/gunun-degerlendirmesi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date })
+        });
+        const data = await resp.json();
+
+        document.getElementById('dvLoading').style.display = 'none';
+
+        if (data.status !== 'success') {
+            document.getElementById('dvEmpty').innerHTML =
+                `<div class="dv-empty">❌ ${data.message || 'Bir hata oluştu.'}</div>`;
+            document.getElementById('dvEmpty').style.display = '';
+            btn.disabled = false;
+            btn.textContent = '🤖 Değerlendirmeyi Oluştur';
+            return;
+        }
+
+        currentDate = data.date;
+        renderStats(data.stats);
+        renderTable(data.stats);
+        renderAiComment(data.ai_comment, data.date);
+        document.getElementById('dvResults').style.display = '';
+    } catch(e) {
+        document.getElementById('dvLoading').style.display = 'none';
+        document.getElementById('dvEmpty').innerHTML =
+            `<div class="dv-empty">❌ Bağlantı hatası: ${e.message}</div>`;
+        document.getElementById('dvEmpty').style.display = '';
+    }
+
+    btn.disabled = false;
+    btn.textContent = '🤖 Değerlendirmeyi Oluştur';
+}
+
+function renderStats(s) {
+    const d1x2  = s['1x2']  || {};
+    const total = s.total   || 0;
+    const played= s.played  || 0;
+    const cor   = d1x2.correct || 0;
+    const tried = d1x2.total  || 0;
+    const rate  = s.overall_rate || 0;
+    const notP  = s.not_played || 0;
+
+    document.getElementById('dvStatRow').innerHTML = `
+        <div class="dv-stat-card">
+            <div class="dv-stat-val">${total}</div>
+            <div class="dv-stat-lbl">TOPLAM MAÇ</div>
+            <div class="dv-stat-sub">${played} sonuçlandı</div>
+        </div>
+        <div class="dv-stat-card">
+            <div class="dv-stat-val green">${cor}</div>
+            <div class="dv-stat-lbl">TUTULAN TAHMİN</div>
+            <div class="dv-stat-sub">yüksek güven 1X2</div>
+        </div>
+        <div class="dv-stat-card">
+            <div class="dv-stat-val red">${tried - cor}</div>
+            <div class="dv-stat-lbl">TUTULMAYAN</div>
+            <div class="dv-stat-sub">${notP} oynanmadı</div>
+        </div>
+        <div class="dv-stat-card">
+            <div class="dv-stat-val ${statValClass(rate)}">%${rate}</div>
+            <div class="dv-stat-lbl">BAŞARI ORANI</div>
+            <div class="dv-stat-sub">${tried} tahminden</div>
+        </div>
+    `;
+}
+
+function renderTable(s) {
+    const rows = [
+        { label: '1X2 — Yüksek güven',    key: '1x2'    },
+        { label: 'Over 2.5 — eşik ≥%75',  key: 'over25' },
+        { label: 'KG Var — eşik ≥%70',    key: 'btts'   },
+        { label: 'İY 0.5 Üst — eşik ≥%65',key: 'ht'     },
+    ];
+
+    document.getElementById('dvTableBody').innerHTML = rows.map(r => {
+        const d = s[r.key] || {};
+        const total   = d.total   || 0;
+        const correct = d.correct || 0;
+        const rate    = d.rate    || 0;
+        const dash    = '<span style="color:#333;">—</span>';
+        return `<tr>
+            <td style="font-weight:600;color:#ddd;">${r.label}</td>
+            <td>${total || dash}</td>
+            <td>${total ? correct : dash}</td>
+            <td>${rateBadge(rate, total)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderAiComment(text, date) {
+    document.getElementById('dvAiDate').textContent = formatDateTR(date);
+    document.getElementById('dvAiContent').innerHTML =
+        renderMarkdown(text || '(AI yorumu üretilemedi.)');
+}
+
+// ── Telegram ──────────────────────────────────────────────────────────────────
+async function sendToTelegram() {
+    const btn = document.getElementById('dvTgBtn');
+    const box = document.getElementById('dvAiBox');
+    btn.disabled = true;
+    btn.textContent = '⏳ Gönderiliyor...';
+
+    const meta = box.querySelector('.dv-ai-meta');
+    if (meta) meta.style.display = 'none';
+
+    try {
+        const canvas = await html2canvas(box, {
+            scale: 2, backgroundColor: '#0d0d1a', useCORS: true, logging: false
+        });
+        const base64  = canvas.toDataURL('image/png').split(',')[1];
+        const caption = `📊 <b>Günün Değerlendirmesi — ${formatDateTR(currentDate)}</b>\n🤖 BetIQ AI Analiz`;
+
+        const resp = await fetch('/api/telegram/send-card', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64, caption })
+        });
+        const data = await resp.json();
+
+        if (data.status === 'success') {
+            btn.textContent = '✅ Gönderildi!';
+            btn.style.background = '#22c55e';
+            setTimeout(() => {
+                btn.textContent = "📨 Telegram'a Gönder";
+                btn.style.background = '';
+                btn.disabled = false;
+            }, 3000);
+        } else {
+            alert('Hata: ' + data.message);
+            btn.disabled = false;
+            btn.textContent = "📨 Telegram'a Gönder";
+        }
+    } catch(e) {
+        alert('Hata: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = "📨 Telegram'a Gönder";
+    }
+
+    if (meta) meta.style.display = '';
+}
+
+// ── PNG İndir ─────────────────────────────────────────────────────────────────
+async function downloadPng() {
+    const btn = document.getElementById('dvPngBtn');
+    const box = document.getElementById('dvAiBox');
+    btn.disabled = true;
+    btn.textContent = '⏳ Hazırlanıyor...';
+
+    const meta = box.querySelector('.dv-ai-meta');
+    if (meta) meta.style.display = 'none';
+
+    try {
+        const canvas = await html2canvas(box, {
+            scale: 3, backgroundColor: '#0d0d1a', useCORS: true, logging: false
+        });
+        const link = document.createElement('a');
+        link.download = `betiq_degerlendirme_${currentDate || 'tarih'}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    } catch(e) {
+        alert('İndirme hatası: ' + e.message);
+    }
+
+    if (meta) meta.style.display = '';
+    btn.disabled = false;
+    btn.textContent = '📸 PNG İndir';
+}
+</script>
+</body>
+</html>

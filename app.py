@@ -2581,6 +2581,97 @@ def api_iy_gol_stats():
         logger.error(f"IY gol stats error: {e}")
         return jsonify({"error": str(e)}), 500
 
+# ── Günün Değerlendirmesi ─────────────────────────────────────────────────────
+
+@app.route('/gunun-degerlendirmesi')
+def gunun_degerlendirmesi():
+    return render_template('gunun_degerlendirmesi.html')
+
+
+@app.route('/api/gunun-degerlendirmesi', methods=['POST'])
+def api_gunun_degerlendirmesi():
+    try:
+        from backend.ai_analyzer import analyze_daily_results
+        from backend.database import get_analyses_by_date_with_results
+
+        data = request.get_json() or {}
+        date = data.get('date', _today_istanbul())
+
+        all_matches = get_analyses_by_date_with_results(date)
+        with_results = [m for m in all_matches if m.get('home_score') is not None]
+
+        if not with_results:
+            return jsonify({"status": "error", "message": "Bu tarihte sonuç girilmiş maç bulunamadı"}), 404
+
+        total    = len(all_matches)
+        played   = len(with_results)
+        not_played = total - played
+
+        HIGH = ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
+        LOW  = ('Düşük', 'Dusuk')
+
+        high_pool = [m for m in with_results if m.get('confidence') in HIGH]
+        c1x2_total   = len(high_pool)
+        c1x2_correct = sum(1 for m in high_pool if m.get('pred_1x2_correct'))
+
+        over25_pool    = [m for m in with_results if (m.get('over25_pct') or 0) >= 75]
+        over25_total   = len(over25_pool)
+        over25_correct = sum(1 for m in over25_pool if m.get('over25_correct'))
+
+        btts_pool    = [m for m in with_results if (m.get('btts_pct') or 0) >= 70]
+        btts_total   = len(btts_pool)
+        btts_correct = sum(1 for m in btts_pool if m.get('btts_correct'))
+
+        ht_pool    = [m for m in with_results if (m.get('ht2g_pct') or 0) >= 65 and m.get('ht_home_score') is not None]
+        ht_total   = len(ht_pool)
+        ht_correct = sum(1 for m in ht_pool if m.get('ht_correct'))
+
+        surprises = [
+            {
+                'teams':      f"{m['home_team']} vs {m['away_team']}",
+                'confidence': m.get('confidence'),
+                'prediction': m.get('prediction_1x2'),
+                'result':     f"{m.get('home_score')}-{m.get('away_score')}",
+            }
+            for m in high_pool if not m.get('pred_1x2_correct')
+        ]
+
+        med_pool = [m for m in with_results if m.get('confidence') not in HIGH and m.get('confidence') not in LOW]
+        low_pool = [m for m in with_results if m.get('confidence') in LOW]
+
+        stats = {
+            'date':       date,
+            'total':      total,
+            'played':     played,
+            'not_played': not_played,
+            'overall_rate': round(c1x2_correct / c1x2_total * 100) if c1x2_total else 0,
+            '1x2':    {'total': c1x2_total,   'correct': c1x2_correct,   'rate': round(c1x2_correct   / c1x2_total   * 100) if c1x2_total   else 0},
+            'over25': {'total': over25_total,  'correct': over25_correct, 'rate': round(over25_correct / over25_total  * 100) if over25_total  else 0},
+            'btts':   {'total': btts_total,    'correct': btts_correct,   'rate': round(btts_correct   / btts_total   * 100) if btts_total   else 0},
+            'ht':     {'total': ht_total,      'correct': ht_correct,     'rate': round(ht_correct     / ht_total     * 100) if ht_total     else 0},
+            'surprise_count': len(surprises),
+            'surprises': surprises[:5],
+            'confidence_breakdown': {
+                'high':   {'total': len(high_pool), 'correct': c1x2_correct},
+                'medium': {'total': len(med_pool),  'correct': sum(1 for m in med_pool  if m.get('pred_1x2_correct'))},
+                'low':    {'total': len(low_pool),  'correct': sum(1 for m in low_pool  if m.get('pred_1x2_correct'))},
+            },
+        }
+
+        ai_comment = analyze_daily_results(date, with_results, stats)
+
+        logger.info(f"Gunun degerlendirmesi generated: {date}")
+        return jsonify({
+            "status":     "success",
+            "date":       date,
+            "stats":      stats,
+            "ai_comment": ai_comment,
+        })
+    except Exception as e:
+        logger.error(f"Gunun degerlendirmesi error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 

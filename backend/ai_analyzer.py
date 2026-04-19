@@ -1913,6 +1913,109 @@ def generate_daily_summary(matches, ai_provider='claude'):
     return raw
 
 
+# ─── Günün Değerlendirmesi ────────────────────────────────────────────────────
+
+def _build_daily_results_prompt(date, matches, stats):
+    from datetime import datetime as _dt
+    try:
+        date_tr = _dt.strptime(date, '%Y-%m-%d').strftime('%d.%m.%Y')
+    except Exception:
+        date_tr = date
+
+    s1   = stats.get('1x2',    {})
+    so   = stats.get('over25', {})
+    sb   = stats.get('btts',   {})
+    sh   = stats.get('ht',     {})
+    conf = stats.get('confidence_breakdown', {})
+    surprises = stats.get('surprises', [])
+
+    lines = [
+        f"Tarih: {date_tr}",
+        f"Toplam analiz: {stats.get('total', 0)} maç | Sonuçlanan: {stats.get('played', 0)} | Oynanmayan: {stats.get('not_played', 0)}",
+        "",
+        "── STRATEJİ SONUÇLARI ──",
+        f"1X2 (Yüksek güven): {s1.get('correct', 0)}/{s1.get('total', 0)} → %{s1.get('rate', 0)}",
+        f"Over 2.5 (≥%75 eşiği): {so.get('correct', 0)}/{so.get('total', 0)} → %{so.get('rate', 0)}",
+        f"KG Var (≥%70 eşiği): {sb.get('correct', 0)}/{sb.get('total', 0)} → %{sb.get('rate', 0)}",
+        f"İY 0.5 Üst (≥%65 eşiği): {sh.get('correct', 0)}/{sh.get('total', 0)} → %{sh.get('rate', 0)}",
+        "",
+        "── GÜVEN BAZLI PERFORMANS ──",
+        f"Yüksek güven: {conf.get('high', {}).get('correct', 0)}/{conf.get('high', {}).get('total', 0)} 1X2 tuttu",
+        f"Orta güven:   {conf.get('medium', {}).get('correct', 0)}/{conf.get('medium', {}).get('total', 0)} tuttu",
+        f"Düşük güven:  {conf.get('low', {}).get('correct', 0)}/{conf.get('low', {}).get('total', 0)} tuttu",
+        "",
+    ]
+
+    if surprises:
+        lines.append("── SÜRPRİZ SONUÇLAR (yüksek güvenli ama yanlış) ──")
+        for s in surprises:
+            lines.append(f"  • {s['teams']} | Tahmin: {s['prediction']} | Skor: {s['result']} | Güven: {s['confidence']}")
+        lines.append("")
+
+    lines.append("── MAÇLARIN ÖZET LİSTESİ ──")
+    HIGH = ('Yüksek', 'Çok Yüksek', 'Yuksek', 'Cok Yuksek')
+    for m in matches[:20]:
+        pred  = m.get('prediction_1x2', '?')
+        conf_ = m.get('confidence', '?')
+        score = f"{m.get('home_score', '?')}-{m.get('away_score', '?')}"
+        is_high = conf_ in HIGH
+        icon  = ('✅' if m.get('pred_1x2_correct') else '❌') if is_high else '—'
+        lines.append(f"  {icon} {m['home_team']} vs {m['away_team']} → {score}  (Tahmin:{pred}, Güven:{conf_})")
+
+    lines.extend([
+        "",
+        "── TALİMATLAR ──",
+        "Sen deneyimli ve samimi bir futbol yorumcususun. Şu kurallara kesinlikle uy:",
+        "1. Kuru istatistik listesi yapma. Akıcı paragraflarla, sohbet havasında gerçek yorum yaz.",
+        "2. Hangi stratejinin iyi gittiğini, hangisinin neden tutmadığını somut örneklerle anlat.",
+        "3. Sürpriz sonuçları (yüksek güvenli ama yanlış tahminler) özellikle vurgula ve yorumla.",
+        "4. En son paragraf: yarın veya önümüzdeki analizler için somut bir öneri ya da uyarı ile bitir.",
+        "5. Maksimum 400 kelime. Teknik jargon kullanma, herkesin anlayacağı Türkçe yaz.",
+        "6. Yalnızca Türkçe yaz.",
+    ])
+
+    return "\n".join(lines)
+
+
+def analyze_daily_results(date, matches, stats):
+    """Günün sonuçlarını AI ile değerlendir. Claude → Gemini → Grok fallback."""
+    prompt = _build_daily_results_prompt(date, matches, stats)
+    raw = None
+
+    if ANTHROPIC_API_KEY:
+        try:
+            raw = call_anthropic(prompt, max_tokens=2000)
+            logger.info('Daily results analysis (Claude) OK')
+        except Exception as e:
+            logger.error(f'Daily results Claude failed: {e}')
+
+    if not raw and GEMINI_API_KEY:
+        try:
+            response = requests.post(
+                'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY,
+                headers={'Content-Type': 'application/json'},
+                json={
+                    'contents': [{'parts': [{'text': 'Sen samimi bir futbol yorumcususun. TÜRKÇE yaz.\n\n' + prompt}]}],
+                    'generationConfig': {'maxOutputTokens': 2000, 'temperature': 0.8},
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            raw = response.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+            logger.info('Daily results analysis (Gemini) OK')
+        except Exception as e:
+            logger.error(f'Daily results Gemini failed: {e}')
+
+    if not raw and GROQ_API_KEY:
+        try:
+            raw = call_groq(prompt)
+            logger.info('Daily results analysis (Grok) OK')
+        except Exception as e:
+            logger.error(f'Daily results Grok failed: {e}')
+
+    return raw or 'AI değerlendirmesi şu an üretilemedi.'
+
+
 # ─── Maç Senaryoları ──────────────────────────────────────────────────────────
 
 def build_scenario_prompt(analysis):
