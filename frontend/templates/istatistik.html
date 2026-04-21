@@ -153,9 +153,12 @@
 
                 <!-- Momentum Kartı -->
                 <div class="momentum-card" id="momentumCard" style="display:none;">
-                    <div style="font-size:12px;font-weight:700;color:#7c3aed;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+                    <div style="font-size:12px;font-weight:700;color:#7c3aed;margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                         ⚡ SON DÖNEM MOMENTUM
-                        <span style="font-size:10px;font-weight:400;color:#444;">(son 10 sonuç)</span>
+                        <div style="display:flex;gap:4px;margin-left:auto;">
+                            <button id="momBtn10" onclick="setMomentumLimit(10)" style="padding:2px 10px;border-radius:12px;border:1px solid #7c3aed;background:#7c3aed;color:#fff;font-size:10px;font-weight:700;cursor:pointer;">Son 10</button>
+                            <button id="momBtn20" onclick="setMomentumLimit(20)" style="padding:2px 10px;border-radius:12px;border:1px solid #444;background:transparent;color:#888;font-size:10px;font-weight:700;cursor:pointer;">Son 20</button>
+                        </div>
                     </div>
                     <div class="momentum-grid" id="momentumRow"></div>
                 </div>
@@ -369,9 +372,20 @@
         function pctColor(pct) { return pct >= 60 ? 'pct-high' : pct >= 40 ? 'pct-mid' : 'pct-low'; }
         function formatDate(d) { const [y,m,day]=d.split('-'); return day+'/'+m; }
 
+        let _momentumLimit = 10;
+
+        function setMomentumLimit(n) {
+            _momentumLimit = n;
+            const active = 'padding:2px 10px;border-radius:12px;border:1px solid #7c3aed;background:#7c3aed;color:#fff;font-size:10px;font-weight:700;cursor:pointer;';
+            const inactive = 'padding:2px 10px;border-radius:12px;border:1px solid #444;background:transparent;color:#888;font-size:10px;font-weight:700;cursor:pointer;';
+            document.getElementById('momBtn10').style.cssText = n === 10 ? active : inactive;
+            document.getElementById('momBtn20').style.cssText = n === 20 ? active : inactive;
+            loadMomentum();
+        }
+
         async function loadMomentum() {
             try {
-                const resp = await fetch('/api/stats/momentum' + buildMonthParam());
+                const resp = await fetch('/api/stats/momentum' + buildMonthParam() + (buildMonthParam() ? '&' : '?') + 'limit=' + _momentumLimit);
                 const d = await resp.json();
                 if (d.error) return;
 
@@ -400,16 +414,16 @@
                         `<div class="m-dot ${v ? 'win' : 'loss'}">${v ? 'W' : 'L'}</div>`
                     ).join('');
 
-                    const pctColor5  = data.pct5  >= 70 ? 'hi' : data.pct5  >= 50 ? 'mid' : 'lo';
-                    const pctColor10 = data.pct10 >= 60 ? 'hi' : data.pct10 >= 45 ? 'mid' : 'lo';
-                    const badgeClass = { fire: 'badge-fire', down: 'badge-down', stable: 'badge-stable' }[data.badge];
+                    const pctColor5   = data.pct5    >= 70 ? 'hi' : data.pct5    >= 50 ? 'mid' : 'lo';
+                    const pctColorAll = data.pct_all >= 60 ? 'hi' : data.pct_all >= 45 ? 'mid' : 'lo';
+                    const badgeClass  = { fire: 'badge-fire', down: 'badge-down', stable: 'badge-stable' }[data.badge];
 
                     colsHtml += `
                         <div class="momentum-col">
                             <div class="momentum-label" style="color:${m.color};">${m.label}</div>
                             <div class="momentum-dots">${dots}</div>
                             <div class="momentum-pcts">
-                                <div class="momentum-pct">Son 10: <span class="${pctColor10}">%${data.pct10}</span></div>
+                                <div class="momentum-pct">Son ${data.limit}: <span class="${pctColorAll}">%${data.pct_all}</span></div>
                                 <div class="momentum-pct">Son 5: <span class="${pctColor5}">%${data.pct5}</span></div>
                             </div>
                             <span class="momentum-badge ${badgeClass}">${data.badge_label}</span>

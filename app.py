@@ -641,53 +641,56 @@ def api_stats_calibration():
 
 @app.route('/api/stats/momentum')
 def api_stats_momentum():
-    """Son 10 maçın W/L dizisi + 1X2, Over 2.5, İY 0.5 için momentum."""
+    """Son N maçın W/L dizisi + 1X2, Over 2.5, İY 0.5 için momentum."""
     try:
+        limit = int(request.args.get('limit', 10))
+        if limit not in (10, 20):
+            limit = 10
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         month_clause, month_params = _get_month_filter(request)
 
-        # Son 10 sonuç: 1X2 (yalnızca Yüksek/Çok Yüksek güven)
+        # Son N sonuç: 1X2 (yalnızca Yüksek/Çok Yüksek güven)
         cur.execute(f'''
             SELECT r.pred_1x2_correct, a.analysis_date
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
             WHERE a.confidence IN ('Yüksek', 'Çok Yüksek') {month_clause}
             ORDER BY a.analysis_date DESC, a.id DESC
-            LIMIT 10
+            LIMIT {limit}
         ''', month_params)
         rows_1x2 = [dict(r) for r in cur.fetchall()]
 
-        # Son 10 sonuç: Over 2.5 (%75+)
+        # Son N sonuç: Over 2.5 (%75+)
         cur.execute(f'''
             SELECT r.over25_correct, a.analysis_date
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
             WHERE a.over25_pct >= 75 {month_clause}
             ORDER BY a.analysis_date DESC, a.id DESC
-            LIMIT 10
+            LIMIT {limit}
         ''', month_params)
         rows_over25 = [dict(r) for r in cur.fetchall()]
 
-        # Son 10 sonuç: KG Var (%70+)
+        # Son N sonuç: KG Var (%70+)
         cur.execute(f'''
             SELECT r.btts_correct, a.analysis_date
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
             WHERE a.btts_pct >= 70 {month_clause}
             ORDER BY a.analysis_date DESC, a.id DESC
-            LIMIT 10
+            LIMIT {limit}
         ''', month_params)
         rows_btts = [dict(r) for r in cur.fetchall()]
 
-        # Son 10 sonuç: İY 0.5 (%65+, ht skoru girilen)
+        # Son N sonuç: İY 0.5 (%65+, ht skoru girilen)
         cur.execute(f'''
             SELECT r.ht_correct, a.analysis_date
             FROM match_results r
             JOIN analyses a ON a.id = r.analysis_id
             WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL {month_clause}
             ORDER BY a.analysis_date DESC, a.id DESC
-            LIMIT 10
+            LIMIT {limit}
         ''', month_params)
         rows_ht = [dict(r) for r in cur.fetchall()]
 
@@ -700,16 +703,17 @@ def api_stats_momentum():
             series_display = list(reversed(series))       # en eski → en yeni (görsel için)
             n = len(series)
             n5 = min(5, n)
-            pct10 = round(sum(series) / n * 100)
-            pct5  = round(sum(series[:n5]) / n5 * 100)
+            pct_all = round(sum(series) / n * 100)
+            pct5    = round(sum(series[:n5]) / n5 * 100)
             if pct5 >= 70:   badge = ('fire',    '🔥 İyi Form')
             elif pct5 < 50:  badge = ('down',    '📉 Zayıf Form')
             else:             badge = ('stable',  '➡️ Stabil')
             return {
-                'series': series_display,   # 0/1 listesi, kronolojik
-                'pct10': pct10,
+                'series': series_display,
+                'pct_all': pct_all,
                 'pct5': pct5,
                 'count': n,
+                'limit': limit,
                 'badge': badge[0],
                 'badge_label': badge[1],
             }
