@@ -972,7 +972,7 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
             return '3-2' if btts >= 60 else '4-1'
         if pred_1x2 == '2':
             return '2-3' if btts >= 60 else '1-4'
-        return '3-2'
+        return '2-2'
 
     # 3.5 ÜST → 4+ gol
     if o35 is not None and o35 >= 55:
@@ -1072,7 +1072,7 @@ def _is_score_valid(score_text, pred_1x2, btts_pct, over25_pct, over35_avg=None,
         return False
     if o35 is not None and o35 >= 55 and total < 4:
         return False
-    if o45 is not None and o45 >= 35 and total < 5:
+    if o45 is not None and o45 >= 35 and pred_1x2 != 'X' and total < 5:
         return False
 
     if total > 5:
@@ -1744,6 +1744,12 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         if poisson_score:
             logger.info(f'[SKOR TAHMİN] Poisson skoru ({poisson_score}) geçersiz, csv_fallback kullanılıyor: {csv_fallback_score}')
         fallback_score = csv_fallback_score
+
+    _safe_fallbacks = {'X': '1-1', '1': '2-1', '2': '1-2'}
+    if not _is_score_valid(fallback_score, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
+        safe = _safe_fallbacks.get(_pred_1x2, '1-1')
+        logger.info(f'[SKOR TAHMİN] fallback_score ({fallback_score}) geçersiz, güvenli skor kullanılıyor: {safe}')
+        fallback_score = safe
 
     final_score = ai_predicted_score
     if not _is_score_valid(final_score, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
