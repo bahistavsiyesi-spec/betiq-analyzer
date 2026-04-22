@@ -146,6 +146,8 @@ def extract_h2h_summary(h2h_matches, home_team, away_team):
 
 
 def _get_country_code(fixture):
+    if fixture.get('country_code'):
+        return fixture['country_code']
     league = fixture['league']['name'].lower()
     if any(x in league for x in ['germany', 'bundesliga', 'german']):
         return 'GER'
@@ -445,6 +447,7 @@ def run_selected_analysis(fixture_ids=None, manual_matches=None, ai_provider='cl
                         'away': {'id': 0, 'name': away_team},
                     },
                     'goals': {'home': None, 'away': None},
+                    'country_code': m.get('country_code') or None,
                 }
 
                 csv_data = m.get('csv_data') or None

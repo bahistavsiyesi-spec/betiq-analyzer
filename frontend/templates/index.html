@@ -133,7 +133,29 @@
                         <div class="manual-form">
                             <input type="text" id="homeTeam" placeholder="Ev Sahibi Takım" class="input-field">
                             <input type="text" id="awayTeam" placeholder="Deplasman Takımı" class="input-field">
-                            <input type="text" id="leagueName" placeholder="Lig Adı (opsiyonel)" class="input-field">
+                            <select id="leagueName" class="input-field">
+                                <option value="">-- Lig Seç --</option>
+                                <option value="ENG">Premier League</option>
+                                <option value="ENG">Championship</option>
+                                <option value="GER">Bundesliga</option>
+                                <option value="GER">2. Bundesliga</option>
+                                <option value="ESP">La Liga</option>
+                                <option value="ITA">Serie A</option>
+                                <option value="ITA">Serie B</option>
+                                <option value="FRA">Ligue 1</option>
+                                <option value="FRA">Ligue 2</option>
+                                <option value="TUR">Süper Lig</option>
+                                <option value="TUR">1. Lig</option>
+                                <option value="NED">Eredivisie</option>
+                                <option value="POR">Primeira Liga</option>
+                                <option value="BRA">Brasileirao</option>
+                                <option value="CL">UEFA Champions League</option>
+                                <option value="EL">UEFA Europa League</option>
+                                <option value="EC">UEFA Conference League</option>
+                                <option value="SCO">Scottish Premiership</option>
+                                <option value="BEL">Pro League Belçika</option>
+                                <option value="">Diğer</option>
+                            </select>
                             <input type="time" id="matchTime" class="input-field">
                             <button id="addManual" class="btn-add">➕ Listeye Ekle</button>
                         </div>

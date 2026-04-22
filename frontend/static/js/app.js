@@ -934,14 +934,18 @@ function fileToBase64(file){
 function addManualMatch(){
     const home=document.getElementById('homeTeam').value.trim();
     const away=document.getElementById('awayTeam').value.trim();
-    const league=document.getElementById('leagueName').value.trim()||'Manuel Mac';
+    const leagueEl=document.getElementById('leagueName');
+    const countryCode=leagueEl.value||null;
+    const league=leagueEl.selectedOptions[0].text==='-- Lig Seç --'||leagueEl.selectedOptions[0].text==='Diğer'
+        ? 'Manuel Mac'
+        : leagueEl.selectedOptions[0].text;
     const time=document.getElementById('matchTime').value;
     if(!home||!away){alert('Ev sahibi ve deplasman takimi gerekli!');return;}
     let matchDate=null;
     if(time){const t=new Date();const[h,m]=time.split(':');t.setHours(parseInt(h),parseInt(m),0,0);matchDate=t.toISOString();}
-    manualMatches.push({home_team:home,away_team:away,league,date:matchDate});
+    manualMatches.push({home_team:home,away_team:away,league,country_code:countryCode,date:matchDate});
     document.getElementById('homeTeam').value=''; document.getElementById('awayTeam').value='';
-    document.getElementById('leagueName').value=''; document.getElementById('matchTime').value='';
+    leagueEl.value=''; document.getElementById('matchTime').value='';
     renderManualList(); updateSelectedCount();
 }
 
