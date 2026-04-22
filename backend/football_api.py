@@ -104,6 +104,7 @@ def normalize_name(name):
     name = name.lower().strip()
     replacements = {
         'ö': 'o', 'ü': 'u', 'ä': 'a', 'ß': 'ss',
+        'ş': 's', 'ı': 'i', 'ğ': 'g',
         'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
         'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a',
         'í': 'i', 'ì': 'i', 'î': 'i',
@@ -1177,7 +1178,8 @@ def _get_apifootball_team_id(team_name, league_id=203, season=2025):
     cache_key = normalize_name(team_name)
     if cache_key in _apifootball_team_id_cache:
         return _apifootball_team_id_cache[cache_key]
-    result = _get_api_football('teams', {'name': team_name, 'league': league_id, 'season': season})
+    clean_name = normalize_name(team_name)
+    result = _get_api_football('teams', {'name': clean_name, 'league': league_id, 'season': season})
     if result and result.get('response'):
         for entry in result['response']:
             team_id = entry.get('team', {}).get('id')
@@ -1186,8 +1188,8 @@ def _get_apifootball_team_id(team_name, league_id=203, season=2025):
                 _apifootball_team_id_cache[cache_key] = team_id
                 logger.info('API-Football team ID: ' + name + ' -> ' + str(team_id))
                 return team_id
-    short_name = team_name.split()[0]
-    if short_name != team_name:
+    short_name = normalize_name(team_name.split()[0])
+    if short_name != clean_name:
         result2 = _get_api_football('teams', {'name': short_name, 'league': league_id, 'season': season})
         if result2 and result2.get('response'):
             for entry in result2['response']:
@@ -1260,18 +1262,3 @@ def get_h2h_apifootball(team1_name, team2_name, league_id=203, season=2025, last
     return matches
 
 
-def is_turkish_superlig_team(team_name):
-    turkish_teams = [
-        'galatasaray', 'fenerbahce', 'fenerbahçe', 'besiktas', 'beşiktaş',
-        'trabzonspor', 'basaksehir', 'başakşehir', 'sivasspor', 'konyaspor',
-        'alanyaspor', 'antalyaspor', 'kayserispor', 'rizespor', 'gaziantep',
-        'hatayspor', 'kasimpasa', 'kasımpaşa', 'eyupspor', 'eyüpspor',
-        'goztepe', 'göztepe', 'bodrumspor', 'samsunspor', 'ankaragucu', 'ankaragücü',
-        'keciorengucu', 'keçiörengücü', 'adana demirspor', 'istanbulspor',
-        'umraniyespor', 'ümraniyespor', 'giresunspor',
-    ]
-    name_lower = team_name.lower()
-    for t in turkish_teams:
-        if t in name_lower or name_lower in t:
-            return True
-    return False

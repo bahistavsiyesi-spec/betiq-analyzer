@@ -12,7 +12,6 @@ from backend.football_api import (
     get_team_standing,
     get_todays_fixtures,
     teams_match,
-    is_turkish_superlig_team,
     get_team_last_matches_apifootball,
     get_h2h_apifootball,
     LEAGUE_CODES,
@@ -228,7 +227,7 @@ def analyze_fixture(fixture, csv_data=None, ai_provider='claude'):
     # API-Football genel fallback — football-data.org'dan veri gelmeyen tüm takımlar için
     from backend.football_api import _find_league_id
     _fb_league_id = _find_league_id(league_name)
-    if not _fb_league_id and (is_turkish_superlig_team(home_name) or is_turkish_superlig_team(away_name)):
+    if not _fb_league_id and country_code == 'TUR':
         _fb_league_id = 203
     if not _fb_league_id:
         if not csv_data:
