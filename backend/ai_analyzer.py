@@ -685,41 +685,11 @@ def build_prompt(home_team, away_team, league, match_time,
     prediction_rules += '  ❌ YANLIŞ: xG eşit diye otomatik X verme!\n\n'
     prediction_rules += '── Taraf Kuralları Sonu ──\n'
 
-    confidence_rules = '''
-── Güven Seviyesi Belirleme Kuralları (ZORUNLU) ──
-TEMEL PRENSİP: Güven seviyesi KAZANMA ihtimalini gösterir — gol sayısını değil.
-xG yüksek olan takım çok gol atabilir ama kaybedebilir. Bu yüzden güveni xG belirlemez.
-
-KARAR FAKTÖRLERİ (öncelik sırası):
-  1. Piyasa beklentisi (bahisçi oranları) — en güvenilir gösterge
-  2. Güncel form (PPG — son dönem performansı)
-  3. Ev/deplasman sırası (bu sahadaki performans)
-  4. Puan durumu (genel sıra)
-
-⚠️ "Çok Yüksek" artık KULLANILMIYOR. Maksimum güven seviyesi "Yüksek"tir.
-
-KURAL 1 — "Yüksek":
-  Bahisçi (1) + PPG (2) aynı tarafı gösteriyorsa — ev/dep sırası eksik veya farklı olsa bile
-  (Bahisçi + PPG + ev/dep üçü aynı yönde → yine Yüksek)
-
-KURAL 2 — "Orta":
-  Sadece bahisçi net favori, PPG verisi yok
-  VEYA göstergeler dengeli
-
-KURAL 3 — "Düşük":
-  Bahisçi ve PPG çelişiyor
-
-KURAL 4 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
-
-''' + f'''Mevcut veri durumu:
-  - Piyasa analizi: {"VAR ✓" if home_implied else "YOK ✗"}
-  - Güncel form (PPG): {"VAR ✓" if ppg_favors else "YOK ✗"}
-  - Ev/dep sırası: {"VAR ✓" if venue_rank_favors is not None else "YOK ✗"}
-  - H2H geçmiş (resmi): {"VAR ✓ (" + str(h2h_fd["total"]) + " maç)" if h2h_fd else "YOK ✗"}
-  - Ev/dep istatistik: {"VAR ✓" if has_venue_stats else "YOK ✗"}
-  - Puan durumu: {"VAR ✓" if has_standing else "YOK ✗"}
-── Güven Kuralları Sonu ──
-'''
+    confidence_rules = (
+        '── Güven Seviyesi Belirleme Kuralları ──\n'
+        '"confidence" alanına Yüksek / Orta / Düşük yaz ("Çok Yüksek" KULLANMA).\n'
+        '── Güven Kuralları Sonu ──\n'
+    )
 
     prompt = (
         'Aşağıdaki futbol maçını analiz et ve SADECE JSON formatında yanıt ver:\n\n'
@@ -747,7 +717,7 @@ KURAL 4 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
         '5. H2H geçmişi varsa dikkate al\n'
         '6. Tüm yanıtlar TÜRKÇE olacak\n'
         '7. "Elo" kelimesini kullanma, "Güç Puanı" kullan\n'
-        '11. Reasoning yazarken teknik terimler KULLANMA — kullanıcı dostu dil kullan:\n'
+        '8. Reasoning yazarken teknik terimler KULLANMA — kullanıcı dostu dil kullan:\n'
         '    - "xG", "CSV", "PPG", "implied", "btts_avg", "over25_avg" → KULLANMA\n'
         '    - xG yerine: "hücum gücü", "gol üretme kapasitesi", "tehlike yaratma potansiyeli"\n'
         '    - CSV ortalaması yerine: "bu fikstürün gol geçmişi", "maç istatistikleri", "geçmiş veriler"\n'
@@ -756,9 +726,9 @@ KURAL 4 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
         '    - BTTS yerine: "her iki takımın gol bulması", "karşılıklı gol"\n'
         '    - over 2.5 yerine: "maçta 3 veya daha fazla gol", "golcü maç beklentisi"\n'
         '    Kulağa doğal ve anlaşılır gelsin — sanki bir analist yorumluyormuş gibi yaz\n'
-        '8. predicted_ht_score ilk yarı tahmini, predicted_score maç sonu tahmini — ikisi tutarlı olmalı\n'
+        '9. predicted_ht_score ilk yarı tahmini, predicted_score maç sonu tahmini — ikisi tutarlı olmalı\n'
         '   Örnek: İY 1-0 tahmini yapıyorsan maç sonu 1-0, 2-0, 1-1, 2-1 olabilir — 0-1 olamaz\n'
-        '9. Skor tahmini kuralları (ZORUNLU):\n'
+        '10. Skor tahmini kuralları (ZORUNLU):\n'
         '   - btts_pct < %40 → en az bir takım 0 atmalı (1-0, 2-0, 0-1, 0-2 gibi)\n'
         '   - btts_pct > %65 → her iki takım da gol atmalı (1-1, 2-1, 1-2 gibi)\n'
         '   - over25_pct < %40 → toplam gol MAX 2 olmalı (1-0, 0-1, 1-1, 2-0, 0-2)\n'
@@ -768,8 +738,8 @@ KURAL 4 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
         '   - prediction_1x2=1 → ev sahibi skoru deplasmandan yüksek olmalı\n'
         '   - prediction_1x2=2 → deplasman skoru ev sahibinden yüksek olmalı\n'
         '   - prediction_1x2=X → skorlar eşit olmalı (1-1, 2-2, 0-0)\n'
-        '   - Toplam gol MAX 5 olsun, uçuk skorlar verme (5-3, 6-1 gibi)\n'
-        '10. İstatistik tutarlılık kuralları (ZORUNLU):\n'
+        '   - Toplam gol MAX 6 olsun, 7+ uçuk skor verme\n'
+        '11. İstatistik tutarlılık kuralları (ZORUNLU):\n'
         '   - btts_pct > %60 ise over25_pct MINIMUM %45 olmalı\n'
         '     (Her iki takım gol atıyorsa toplam gol az olamaz)\n'
         '   - btts_pct < %35 ise over25_pct MAXIMUM %55 olmalı\n'
@@ -1687,6 +1657,12 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             adj = min(5, btts_pct - 40)
             logger.info(f'Shot both-teams-low SOT: btts_pct {btts_pct}→{btts_pct - adj}')
             btts_pct -= adj
+    # Shot pressure sonrası CSV clamp aralığına geri döndür
+    if csv_data:
+        if over25_base is not None:
+            over25_pct = max(float(over25_base) - 10, min(float(over25_base) + 10, over25_pct))
+        if btts_base is not None:
+            btts_pct = max(float(btts_base) - 8, min(float(btts_base) + 8, btts_pct))
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── xG-BTTS tutarlılık kontrolü ──────────────────────────────────────────
@@ -1701,6 +1677,16 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
                 if (btts_base_val is None or btts_base_val < 50) and btts_pct < 50:
                     logger.info(f'xG-BTTS fix: her iki xG>=1.0 ({hxg_val}/{axg_val}), btts_pct {btts_pct}→50')
                     btts_pct = 50
+        # xG fix sonrası btts_pct CSV clamp max'ını aşmasın (max 5 puan tolerans)
+        if btts_base_val is not None:
+            _btts_cap = btts_base_val + 13  # clamp margin(8) + 5 tolerans
+            if btts_pct > _btts_cap:
+                logger.info(f'xG-BTTS cap: btts_pct {btts_pct}→{_btts_cap} (base={btts_base_val})')
+                btts_pct = _btts_cap
+        else:
+            if btts_pct > 65:
+                logger.info(f'xG-BTTS hard cap: btts_pct {btts_pct}→65 (btts_base yok)')
+                btts_pct = 65
     # ─────────────────────────────────────────────────────────────────────────
 
     # Tutarlılık garantisi — clamp sonrası çelişkileri düzelt
@@ -1769,6 +1755,25 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         repaired_ht = _repair_ht_from_ft(final_score, ht2g_pct)
         logger.info(f'AI predicted_ht_score inconsistent, repaired: {ai_predicted_ht_score} -> {repaired_ht}')
         final_ht_score = repaired_ht
+
+    # P1 — AI 1X2 tahmini odds/PPG'ye çok aykırıysa logla (override etme)
+    if csv_data:
+        _p1_odds_home = _safe_float(csv_data.get('odds_home'))
+        _p1_odds_away = _safe_float(csv_data.get('odds_away'))
+        _p1_home_ppg  = _safe_float(csv_data.get('current_home_ppg') or csv_data.get('home_ppg'))
+        _p1_away_ppg  = _safe_float(csv_data.get('current_away_ppg') or csv_data.get('away_ppg'))
+        if _p1_odds_home and _p1_odds_away and _p1_home_ppg is not None and _p1_away_ppg is not None:
+            _p1_odds_favors_home = _p1_odds_home < _p1_odds_away
+            _p1_ppg_favors_home  = _p1_home_ppg > _p1_away_ppg
+            _p1_aykiri = (
+                (_pred_1x2 == '2' and _p1_odds_favors_home and _p1_ppg_favors_home)
+                or (_pred_1x2 == '1' and not _p1_odds_favors_home and not _p1_ppg_favors_home)
+            )
+            if _p1_aykiri:
+                logger.warning(
+                    f'[1X2 UYARI] AI={_pred_1x2}, odds={_p1_odds_home}/{_p1_odds_away}, '
+                    f'ppg={_p1_home_ppg}/{_p1_away_ppg}'
+                )
 
     return {
         'analysis_date': datetime.now(tz=_TZ_IST).strftime('%Y-%m-%d'),
