@@ -190,56 +190,55 @@ def api_available_dates():
 @app.route('/api/stats/overview')
 def api_stats_overview():
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
-        cur.execute('''
-            SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
-                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
-                SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
-                COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
-                SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
-                COUNT(CASE WHEN a.btts_pct >= 70 THEN 1 END) as total_btts,
-                SUM(CASE WHEN a.btts_pct >= 70 THEN r.btts_correct ELSE 0 END) as cbtts,
-                COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
-                SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE 1=1 ''' + month_clause, month_params)
-        row = dict(cur.fetchone())
-        total = row['total'] or 0
-        total_1x2 = row['total_1x2'] or 0
-        total_over25 = row['total_over25'] or 0
-        total_btts = row['total_btts'] or 0
-        total_ht = row['total_ht'] or 0
-        # Korner istatistikleri (threshold >= 65 olan maçlar)
-        cur.execute('''
-            SELECT
-                COUNT(CASE WHEN r.korner_85_correct IS NOT NULL THEN 1 END) as total_k85,
-                SUM(CASE WHEN r.korner_85_correct IS NOT NULL THEN r.korner_85_correct ELSE 0 END) as correct_k85,
-                COUNT(CASE WHEN r.korner_95_correct IS NOT NULL THEN 1 END) as total_k95,
-                SUM(CASE WHEN r.korner_95_correct IS NOT NULL THEN r.korner_95_correct ELSE 0 END) as correct_k95
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE r.home_corners IS NOT NULL ''' + month_clause, month_params)
-        krow = dict(cur.fetchone())
-        total_k85 = krow['total_k85'] or 0
-        total_k95 = krow['total_k95'] or 0
-        correct_k85 = krow['correct_k85'] or 0
-        correct_k95 = krow['correct_k95'] or 0
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
+            cur.execute('''
+                SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
+                    COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
+                    SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
+                    COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
+                    SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
+                    COUNT(CASE WHEN a.btts_pct >= 70 THEN 1 END) as total_btts,
+                    SUM(CASE WHEN a.btts_pct >= 70 THEN r.btts_correct ELSE 0 END) as cbtts,
+                    COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
+                    SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE 1=1 ''' + month_clause, month_params)
+            row = dict(cur.fetchone())
+            total = row['total'] or 0
+            total_1x2 = row['total_1x2'] or 0
+            total_over25 = row['total_over25'] or 0
+            total_btts = row['total_btts'] or 0
+            total_ht = row['total_ht'] or 0
+            # Korner istatistikleri (threshold >= 65 olan maçlar)
+            cur.execute('''
+                SELECT
+                    COUNT(CASE WHEN r.korner_85_correct IS NOT NULL THEN 1 END) as total_k85,
+                    SUM(CASE WHEN r.korner_85_correct IS NOT NULL THEN r.korner_85_correct ELSE 0 END) as correct_k85,
+                    COUNT(CASE WHEN r.korner_95_correct IS NOT NULL THEN 1 END) as total_k95,
+                    SUM(CASE WHEN r.korner_95_correct IS NOT NULL THEN r.korner_95_correct ELSE 0 END) as correct_k95
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE r.home_corners IS NOT NULL ''' + month_clause, month_params)
+            krow = dict(cur.fetchone())
+            total_k85 = krow['total_k85'] or 0
+            total_k95 = krow['total_k95'] or 0
+            correct_k85 = krow['correct_k85'] or 0
+            correct_k95 = krow['correct_k95'] or 0
 
-        result = {
-            'total': total,
-            '1x2': {'correct': row['c1x2'] or 0, 'total': total_1x2, 'pct': round((row['c1x2'] or 0)/total_1x2*100) if total_1x2 else 0},
-            'over25': {'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
-            'btts': {'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
-            'score': {'correct': row['cscore'] or 0, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
-            'ht': {'correct': row['cht'] or 0, 'total': total_ht,
-                   'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
-            'korner85': {'correct': correct_k85, 'total': total_k85, 'pct': round(correct_k85/total_k85*100) if total_k85 else 0},
-            'korner95': {'correct': correct_k95, 'total': total_k95, 'pct': round(correct_k95/total_k95*100) if total_k95 else 0},
-        }
-        cur.close(); conn.close()
+            result = {
+                'total': total,
+                '1x2': {'correct': row['c1x2'] or 0, 'total': total_1x2, 'pct': round((row['c1x2'] or 0)/total_1x2*100) if total_1x2 else 0},
+                'over25': {'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
+                'btts': {'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
+                'score': {'correct': row['cscore'] or 0, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
+                'ht': {'correct': row['cht'] or 0, 'total': total_ht,
+                       'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
+                'korner85': {'correct': correct_k85, 'total': total_k85, 'pct': round(correct_k85/total_k85*100) if total_k85 else 0},
+                'korner95': {'correct': correct_k95, 'total': total_k95, 'pct': round(correct_k95/total_k95*100) if total_k95 else 0},
+            }
         return jsonify(result)
     except Exception as e:
         logger.error(f"Stats overview error: {e}")
@@ -248,38 +247,37 @@ def api_stats_overview():
 @app.route('/api/stats/daily')
 def api_stats_daily():
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
-        cur.execute('''
-            SELECT a.analysis_date, COUNT(*) as total,
-                SUM(r.pred_1x2_correct) as c1x2,
-                SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
-                COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
-                SUM(CASE WHEN a.btts_pct >= 70 THEN r.btts_correct ELSE 0 END) as cbtts,
-                COUNT(CASE WHEN a.btts_pct >= 70 THEN 1 END) as total_btts,
-                SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht,
-                COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht
-            FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-            WHERE 1=1 ''' + month_clause + '''
-            GROUP BY a.analysis_date ORDER BY a.analysis_date DESC LIMIT 31
-        ''', month_params)
-        rows = [dict(r) for r in cur.fetchall()]
-        rows.reverse()
-        daily = []
-        for r in rows:
-            t = r['total'] or 0
-            total_over25 = r['total_over25'] or 0
-            total_btts = r['total_btts'] or 0
-            total_ht = r['total_ht'] or 0
-            daily.append({
-                'date': r['analysis_date'], 'total': t,
-                'pct_1x2': round((r['c1x2'] or 0)/t*100) if t else 0,
-                'pct_over25': round((r['cover25'] or 0)/total_over25*100) if total_over25 else 0,
-                'pct_btts': round((r['cbtts'] or 0)/total_btts*100) if total_btts else 0,
-                'pct_ht': round((r['cht'] or 0)/total_ht*100) if total_ht else 0,
-            })
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
+            cur.execute('''
+                SELECT a.analysis_date, COUNT(*) as total,
+                    SUM(r.pred_1x2_correct) as c1x2,
+                    SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
+                    COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
+                    SUM(CASE WHEN a.btts_pct >= 70 THEN r.btts_correct ELSE 0 END) as cbtts,
+                    COUNT(CASE WHEN a.btts_pct >= 70 THEN 1 END) as total_btts,
+                    SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht,
+                    COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht
+                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+                WHERE 1=1 ''' + month_clause + '''
+                GROUP BY a.analysis_date ORDER BY a.analysis_date DESC LIMIT 31
+            ''', month_params)
+            rows = [dict(r) for r in cur.fetchall()]
+            rows.reverse()
+            daily = []
+            for r in rows:
+                t = r['total'] or 0
+                total_over25 = r['total_over25'] or 0
+                total_btts = r['total_btts'] or 0
+                total_ht = r['total_ht'] or 0
+                daily.append({
+                    'date': r['analysis_date'], 'total': t,
+                    'pct_1x2': round((r['c1x2'] or 0)/t*100) if t else 0,
+                    'pct_over25': round((r['cover25'] or 0)/total_over25*100) if total_over25 else 0,
+                    'pct_btts': round((r['cbtts'] or 0)/total_btts*100) if total_btts else 0,
+                    'pct_ht': round((r['cht'] or 0)/total_ht*100) if total_ht else 0,
+                })
         return jsonify(daily)
     except Exception as e:
         logger.error(f"Stats daily error: {e}")
@@ -288,36 +286,35 @@ def api_stats_daily():
 @app.route('/api/stats/by-category')
 def api_stats_by_category():
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
-        cur.execute('''
-            SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
-                COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
-                SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
-                COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
-                SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
-                COUNT(CASE WHEN a.btts_pct >= 70 THEN 1 END) as total_btts,
-                SUM(CASE WHEN a.btts_pct >= 70 THEN r.btts_correct ELSE 0 END) as cbtts,
-                COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
-                SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE 1=1 ''' + month_clause, month_params)
-        row = dict(cur.fetchone())
-        total = row['total'] or 0
-        total_1x2 = row['total_1x2'] or 0
-        total_over25 = row['total_over25'] or 0
-        total_btts = row['total_btts'] or 0
-        total_ht = row['total_ht'] or 0
-        categories = [
-            {'name': '1X2 (Y/ÇY)', 'correct': row['c1x2'] or 0, 'total': total_1x2, 'pct': round((row['c1x2'] or 0)/total_1x2*100) if total_1x2 else 0},
-            {'name': '2.5 Ust (%75+)', 'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
-            {'name': 'KG Var (%70+)', 'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
-            {'name': 'Skor', 'correct': row['cscore'] or 0, 'total': total, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
-            {'name': 'IY 0.5 Ust (%65+)', 'correct': row['cht'] or 0, 'total': total_ht, 'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
-        ]
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
+            cur.execute('''
+                SELECT COUNT(*) as total, SUM(r.score_correct) as cscore,
+                    COUNT(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN 1 END) as total_1x2,
+                    SUM(CASE WHEN a.confidence IN ('Yuksek','Cok Yuksek','Yüksek','Çok Yüksek') THEN r.pred_1x2_correct ELSE 0 END) as c1x2,
+                    COUNT(CASE WHEN a.over25_pct >= 75 THEN 1 END) as total_over25,
+                    SUM(CASE WHEN a.over25_pct >= 75 THEN r.over25_correct ELSE 0 END) as cover25,
+                    COUNT(CASE WHEN a.btts_pct >= 70 THEN 1 END) as total_btts,
+                    SUM(CASE WHEN a.btts_pct >= 70 THEN r.btts_correct ELSE 0 END) as cbtts,
+                    COUNT(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
+                    SUM(CASE WHEN a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as cht
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE 1=1 ''' + month_clause, month_params)
+            row = dict(cur.fetchone())
+            total = row['total'] or 0
+            total_1x2 = row['total_1x2'] or 0
+            total_over25 = row['total_over25'] or 0
+            total_btts = row['total_btts'] or 0
+            total_ht = row['total_ht'] or 0
+            categories = [
+                {'name': '1X2 (Y/ÇY)', 'correct': row['c1x2'] or 0, 'total': total_1x2, 'pct': round((row['c1x2'] or 0)/total_1x2*100) if total_1x2 else 0},
+                {'name': '2.5 Ust (%75+)', 'correct': row['cover25'] or 0, 'total': total_over25, 'pct': round((row['cover25'] or 0)/total_over25*100) if total_over25 else 0},
+                {'name': 'KG Var (%70+)', 'correct': row['cbtts'] or 0, 'total': total_btts, 'pct': round((row['cbtts'] or 0)/total_btts*100) if total_btts else 0},
+                {'name': 'Skor', 'correct': row['cscore'] or 0, 'total': total, 'pct': round((row['cscore'] or 0)/total*100) if total else 0},
+                {'name': 'IY 0.5 Ust (%65+)', 'correct': row['cht'] or 0, 'total': total_ht, 'pct': round((row['cht'] or 0)/total_ht*100) if total_ht else 0},
+            ]
         return jsonify(categories)
     except Exception as e:
         logger.error(f"Stats by category error: {e}")
@@ -326,34 +323,33 @@ def api_stats_by_category():
 @app.route('/api/stats/by-league')
 def api_stats_by_league():
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
-        cur.execute('''
-            SELECT a.league, COUNT(*) as total,
-                SUM(r.pred_1x2_correct) as c1x2,
-                SUM(r.over25_correct) as cover25,
-                SUM(r.btts_correct) as cbtts,
-                COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
-                SUM(r.ht_correct) as cht
-            FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-            WHERE 1=1 ''' + month_clause + '''
-            GROUP BY a.league HAVING COUNT(*) >= 3 ORDER BY COUNT(*) DESC
-        ''', month_params)
-        rows = [dict(r) for r in cur.fetchall()]
-        leagues = []
-        for r in rows:
-            t = r['total'] or 0
-            total_ht = r['total_ht'] or 0
-            leagues.append({
-                'league': r['league'], 'total': t,
-                'pct_1x2': round((r['c1x2'] or 0)/t*100) if t else 0,
-                'pct_over25': round((r['cover25'] or 0)/t*100) if t else 0,
-                'pct_btts': round((r['cbtts'] or 0)/t*100) if t else 0,
-                'pct_ht': round((r['cht'] or 0)/total_ht*100) if total_ht else 0,
-                'total_ht': total_ht,
-            })
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
+            cur.execute('''
+                SELECT a.league, COUNT(*) as total,
+                    SUM(r.pred_1x2_correct) as c1x2,
+                    SUM(r.over25_correct) as cover25,
+                    SUM(r.btts_correct) as cbtts,
+                    COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total_ht,
+                    SUM(r.ht_correct) as cht
+                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+                WHERE 1=1 ''' + month_clause + '''
+                GROUP BY a.league HAVING COUNT(*) >= 3 ORDER BY COUNT(*) DESC
+            ''', month_params)
+            rows = [dict(r) for r in cur.fetchall()]
+            leagues = []
+            for r in rows:
+                t = r['total'] or 0
+                total_ht = r['total_ht'] or 0
+                leagues.append({
+                    'league': r['league'], 'total': t,
+                    'pct_1x2': round((r['c1x2'] or 0)/t*100) if t else 0,
+                    'pct_over25': round((r['cover25'] or 0)/t*100) if t else 0,
+                    'pct_btts': round((r['cbtts'] or 0)/t*100) if t else 0,
+                    'pct_ht': round((r['cht'] or 0)/total_ht*100) if total_ht else 0,
+                    'total_ht': total_ht,
+                })
         return jsonify(leagues)
     except Exception as e:
         logger.error(f"Stats by league error: {e}")
@@ -362,57 +358,56 @@ def api_stats_by_league():
 @app.route('/api/stats/by-confidence')
 def api_stats_by_confidence():
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
-        cur.execute('''
-            SELECT a.confidence, COUNT(*) as total,
-                SUM(r.pred_1x2_correct) as c1x2,
-                SUM(r.over25_correct) as cover25,
-                SUM(r.btts_correct) as cbtts
-            FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-            WHERE 1=1 ''' + month_clause + '''
-            GROUP BY a.confidence ORDER BY COUNT(*) DESC
-        ''', month_params)
-        rows = [dict(r) for r in cur.fetchall()]
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
+            cur.execute('''
+                SELECT a.confidence, COUNT(*) as total,
+                    SUM(r.pred_1x2_correct) as c1x2,
+                    SUM(r.over25_correct) as cover25,
+                    SUM(r.btts_correct) as cbtts
+                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+                WHERE 1=1 ''' + month_clause + '''
+                GROUP BY a.confidence ORDER BY COUNT(*) DESC
+            ''', month_params)
+            rows = [dict(r) for r in cur.fetchall()]
 
-        def normalize_conf(c):
-            c = (c or '').strip()
-            mapping = {
-                'Çok Yüksek': 'Çok Yüksek', 'Cok Yuksek': 'Çok Yüksek',
-                'Çok yüksek': 'Çok Yüksek', 'cok yuksek': 'Çok Yüksek',
-                'Yüksek': 'Yüksek', 'Yuksek': 'Yüksek',
-                'yüksek': 'Yüksek', 'yuksek': 'Yüksek',
-                'Orta': 'Orta', 'orta': 'Orta',
-                'Düşük': 'Düşük', 'Dusuk': 'Düşük',
-                'düşük': 'Düşük', 'dusuk': 'Düşük',
-            }
-            return mapping.get(c, c)
+            def normalize_conf(c):
+                c = (c or '').strip()
+                mapping = {
+                    'Çok Yüksek': 'Çok Yüksek', 'Cok Yuksek': 'Çok Yüksek',
+                    'Çok yüksek': 'Çok Yüksek', 'cok yuksek': 'Çok Yüksek',
+                    'Yüksek': 'Yüksek', 'Yuksek': 'Yüksek',
+                    'yüksek': 'Yüksek', 'yuksek': 'Yüksek',
+                    'Orta': 'Orta', 'orta': 'Orta',
+                    'Düşük': 'Düşük', 'Dusuk': 'Düşük',
+                    'düşük': 'Düşük', 'dusuk': 'Düşük',
+                }
+                return mapping.get(c, c)
 
-        merged = {}
-        for r in rows:
-            key = normalize_conf(r['confidence'])
-            if key not in merged:
-                merged[key] = {'confidence': key, 'total': 0, 'c1x2': 0, 'cover25': 0, 'cbtts': 0}
-            merged[key]['total']   += r['total'] or 0
-            merged[key]['c1x2']    += r['c1x2'] or 0
-            merged[key]['cover25'] += r['cover25'] or 0
-            merged[key]['cbtts']   += r['cbtts'] or 0
+            merged = {}
+            for r in rows:
+                key = normalize_conf(r['confidence'])
+                if key not in merged:
+                    merged[key] = {'confidence': key, 'total': 0, 'c1x2': 0, 'cover25': 0, 'cbtts': 0}
+                merged[key]['total']   += r['total'] or 0
+                merged[key]['c1x2']    += r['c1x2'] or 0
+                merged[key]['cover25'] += r['cover25'] or 0
+                merged[key]['cbtts']   += r['cbtts'] or 0
 
-        order = ['Çok Yüksek', 'Yüksek', 'Orta', 'Düşük']
-        result = []
-        for key in order:
-            if key not in merged:
-                continue
-            m = merged[key]
-            t = m['total'] or 0
-            result.append({
-                'confidence': m['confidence'], 'total': t,
-                'pct_1x2': round(m['c1x2']/t*100) if t else 0,
-                'pct_over25': round(m['cover25']/t*100) if t else 0,
-                'pct_btts': round(m['cbtts']/t*100) if t else 0,
-            })
-        cur.close(); conn.close()
+            order = ['Çok Yüksek', 'Yüksek', 'Orta', 'Düşük']
+            result = []
+            for key in order:
+                if key not in merged:
+                    continue
+                m = merged[key]
+                t = m['total'] or 0
+                result.append({
+                    'confidence': m['confidence'], 'total': t,
+                    'pct_1x2': round(m['c1x2']/t*100) if t else 0,
+                    'pct_over25': round(m['cover25']/t*100) if t else 0,
+                    'pct_btts': round(m['cbtts']/t*100) if t else 0,
+                })
         return jsonify(result)
     except Exception as e:
         logger.error(f"Stats by confidence error: {e}")
@@ -421,20 +416,19 @@ def api_stats_by_confidence():
 @app.route('/api/stats/best-worst-days')
 def api_stats_best_worst_days():
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
-        cur.execute('''
-            SELECT a.analysis_date, COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2
-            FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-            WHERE 1=1 ''' + month_clause + '''
-            GROUP BY a.analysis_date HAVING COUNT(*) >= 2
-            ORDER BY (SUM(r.pred_1x2_correct)::float / COUNT(*)) DESC
-        ''', month_params)
-        rows = [dict(r) for r in cur.fetchall()]
-        all_days = [{'date': r['analysis_date'], 'total': r['total'] or 0, 'correct': r['c1x2'] or 0,
-                     'pct': round((r['c1x2'] or 0)/(r['total'] or 1)*100)} for r in rows]
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
+            cur.execute('''
+                SELECT a.analysis_date, COUNT(*) as total, SUM(r.pred_1x2_correct) as c1x2
+                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+                WHERE 1=1 ''' + month_clause + '''
+                GROUP BY a.analysis_date HAVING COUNT(*) >= 2
+                ORDER BY (SUM(r.pred_1x2_correct)::float / COUNT(*)) DESC
+            ''', month_params)
+            rows = [dict(r) for r in cur.fetchall()]
+            all_days = [{'date': r['analysis_date'], 'total': r['total'] or 0, 'correct': r['c1x2'] or 0,
+                         'pct': round((r['c1x2'] or 0)/(r['total'] or 1)*100)} for r in rows]
         return jsonify({'best': all_days[:3], 'worst': list(reversed(all_days))[:3]})
     except Exception as e:
         logger.error(f"Stats best/worst error: {e}")
@@ -453,52 +447,51 @@ def api_stats_value_bets():
 @app.route('/api/stats/ht-recovery')
 def api_stats_ht_recovery():
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
-        cur.execute('''
-            SELECT
-                COUNT(*) FILTER (WHERE r.ht_correct = 0 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL) as total_missed,
-                COUNT(*) FILTER (WHERE r.ht_correct = 0 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL
-                    AND (r.home_score - r.ht_home_score + r.away_score - r.ht_away_score) > 1) as recovered,
-                COUNT(*) FILTER (WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL) as total_ht_eligible,
-                COUNT(*) FILTER (WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL AND r.ht_correct = 1) as ht_correct_count
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE r.ht_home_score IS NOT NULL AND r.home_score IS NOT NULL
-        ''' + ((' ' + month_clause) if month_clause else ''), month_params)
-        row = dict(cur.fetchone())
-        total_missed = row['total_missed'] or 0
-        recovered = row['recovered'] or 0
-        total_ht = row['total_ht_eligible'] or 0
-        ht_correct = row['ht_correct_count'] or 0
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
+            cur.execute('''
+                SELECT
+                    COUNT(*) FILTER (WHERE r.ht_correct = 0 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL) as total_missed,
+                    COUNT(*) FILTER (WHERE r.ht_correct = 0 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL
+                        AND (r.home_score - r.ht_home_score + r.away_score - r.ht_away_score) > 1) as recovered,
+                    COUNT(*) FILTER (WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL) as total_ht_eligible,
+                    COUNT(*) FILTER (WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL AND r.ht_correct = 1) as ht_correct_count
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE r.ht_home_score IS NOT NULL AND r.home_score IS NOT NULL
+            ''' + ((' ' + month_clause) if month_clause else ''), month_params)
+            row = dict(cur.fetchone())
+            total_missed = row['total_missed'] or 0
+            recovered = row['recovered'] or 0
+            total_ht = row['total_ht_eligible'] or 0
+            ht_correct = row['ht_correct_count'] or 0
 
-        cur.execute('''
-            SELECT a.home_team, a.away_team, a.league, a.analysis_date,
-                   r.ht_home_score, r.ht_away_score, r.home_score, r.away_score,
-                   a.ht2g_pct,
-                   (r.home_score - r.ht_home_score + r.away_score - r.ht_away_score) as ht2_goals
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE r.ht_correct = 0 AND a.ht2g_pct >= 65
-              AND r.ht_home_score IS NOT NULL AND r.home_score IS NOT NULL
-        ''' + ((' ' + month_clause) if month_clause else '') + '''
-            ORDER BY a.analysis_date DESC LIMIT 10
-        ''', month_params)
+            cur.execute('''
+                SELECT a.home_team, a.away_team, a.league, a.analysis_date,
+                       r.ht_home_score, r.ht_away_score, r.home_score, r.away_score,
+                       a.ht2g_pct,
+                       (r.home_score - r.ht_home_score + r.away_score - r.ht_away_score) as ht2_goals
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE r.ht_correct = 0 AND a.ht2g_pct >= 65
+                  AND r.ht_home_score IS NOT NULL AND r.home_score IS NOT NULL
+            ''' + ((' ' + month_clause) if month_clause else '') + '''
+                ORDER BY a.analysis_date DESC LIMIT 10
+            ''', month_params)
 
-        recent = []
-        for r in cur.fetchall():
-            r = dict(r)
-            ht2_goals = int(r.get('ht2_goals') or 0)
-            recent.append({
-                'home_team': r['home_team'], 'away_team': r['away_team'],
-                'league': r['league'], 'date': str(r['analysis_date']),
-                'ht_score': f"{r['ht_home_score']}-{r['ht_away_score']}",
-                'ft_score': f"{r['home_score']}-{r['away_score']}",
-                'ht2g_pct': r['ht2g_pct'], 'ht2_goals': ht2_goals,
-                'recovered': ht2_goals > 1,
-            })
-        cur.close(); conn.close()
+            recent = []
+            for r in cur.fetchall():
+                r = dict(r)
+                ht2_goals = int(r.get('ht2_goals') or 0)
+                recent.append({
+                    'home_team': r['home_team'], 'away_team': r['away_team'],
+                    'league': r['league'], 'date': str(r['analysis_date']),
+                    'ht_score': f"{r['ht_home_score']}-{r['ht_away_score']}",
+                    'ft_score': f"{r['home_score']}-{r['away_score']}",
+                    'ht2g_pct': r['ht2g_pct'], 'ht2_goals': ht2_goals,
+                    'recovered': ht2_goals > 1,
+                })
         return jsonify({
             'total_ht_eligible': total_ht, 'ht_correct': ht_correct,
             'total_missed': total_missed, 'recovered': recovered,
@@ -512,33 +505,32 @@ def api_stats_ht_recovery():
 @app.route('/api/stats/combo-bets')
 def api_stats_combo_bets():
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
-        cur.execute(f'''
-            SELECT
-                COUNT(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 THEN 1 END) as total_o25_btts,
-                SUM(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 THEN
-                    CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 THEN 1 ELSE 0 END
-                END) as correct_o25_btts,
-                COUNT(CASE WHEN a.over25_pct >= 75 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_o25_ht,
-                SUM(CASE WHEN a.over25_pct >= 75 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
-                    CASE WHEN r.over25_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
-                END) as correct_o25_ht,
-                COUNT(CASE WHEN a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_btts_ht,
-                SUM(CASE WHEN a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
-                    CASE WHEN r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
-                END) as correct_btts_ht,
-                COUNT(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_all3,
-                SUM(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
-                    CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
-                END) as correct_all3
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE 1=1 {{month_clause}}
-        '''.format(month_clause=month_clause), month_params)
-        row = dict(cur.fetchone())
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
+            cur.execute(f'''
+                SELECT
+                    COUNT(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 THEN 1 END) as total_o25_btts,
+                    SUM(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 THEN
+                        CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 THEN 1 ELSE 0 END
+                    END) as correct_o25_btts,
+                    COUNT(CASE WHEN a.over25_pct >= 75 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_o25_ht,
+                    SUM(CASE WHEN a.over25_pct >= 75 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
+                        CASE WHEN r.over25_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
+                    END) as correct_o25_ht,
+                    COUNT(CASE WHEN a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_btts_ht,
+                    SUM(CASE WHEN a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
+                        CASE WHEN r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
+                    END) as correct_btts_ht,
+                    COUNT(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN 1 END) as total_all3,
+                    SUM(CASE WHEN a.over25_pct >= 75 AND a.btts_pct >= 70 AND a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL THEN
+                        CASE WHEN r.over25_correct = 1 AND r.btts_correct = 1 AND r.ht_correct = 1 THEN 1 ELSE 0 END
+                    END) as correct_all3
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE 1=1 {{month_clause}}
+            '''.format(month_clause=month_clause), month_params)
+            row = dict(cur.fetchone())
 
         def combo(total_key, correct_key, label):
             t = row[total_key] or 0
@@ -559,80 +551,78 @@ def api_stats_combo_bets():
 @app.route('/api/stats/calibration')
 def api_stats_calibration():
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
 
-        buckets = [
-            (65, 70, '65-70'),
-            (70, 80, '70-80'),
-            (80, 90, '80-90'),
-            (90, 101, '90+'),
-        ]
+            buckets = [
+                (65, 70, '65-70'),
+                (70, 80, '70-80'),
+                (80, 90, '80-90'),
+                (90, 101, '90+'),
+            ]
 
-        result = {'over25': [], 'btts': [], 'ht2g': [], 'korner85': [], 'korner95': []}
+            result = {'over25': [], 'btts': [], 'ht2g': [], 'korner85': [], 'korner95': []}
 
-        for low, high, label in buckets:
+            for low, high, label in buckets:
+                cur.execute(f'''
+                    SELECT COUNT(*) as total, SUM(r.over25_correct) as correct
+                    FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+                    WHERE a.over25_pct >= %s AND a.over25_pct < %s {month_clause}
+                ''', (low, high) + month_params)
+                row = dict(cur.fetchone())
+                total = row['total'] or 0
+                correct = row['correct'] or 0
+                result['over25'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
+                    'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
+
+                cur.execute(f'''
+                    SELECT COUNT(*) as total, SUM(r.btts_correct) as correct
+                    FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+                    WHERE a.btts_pct >= %s AND a.btts_pct < %s {month_clause}
+                ''', (low, high) + month_params)
+                row = dict(cur.fetchone())
+                total = row['total'] or 0
+                correct = row['correct'] or 0
+                result['btts'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
+                    'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
+
+                cur.execute(f'''
+                    SELECT COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total,
+                           SUM(CASE WHEN r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as correct
+                    FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+                    WHERE a.ht2g_pct >= %s AND a.ht2g_pct < %s {month_clause}
+                ''', (low, high) + month_params)
+                row = dict(cur.fetchone())
+                total = row['total'] or 0
+                correct = row['correct'] or 0
+                result['ht2g'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
+                    'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
+
+            # Korner kalibrasyonu: korner_85_correct / korner_95_correct sütunlarından
+            # Bu değerler zaten >=65 eşiği uygulanmış olarak saklandığından tek bucket kullanıyoruz
             cur.execute(f'''
-                SELECT COUNT(*) as total, SUM(r.over25_correct) as correct
-                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-                WHERE a.over25_pct >= %s AND a.over25_pct < %s {month_clause}
-            ''', (low, high) + month_params)
-            row = dict(cur.fetchone())
-            total = row['total'] or 0
-            correct = row['correct'] or 0
-            result['over25'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
-                'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
+                SELECT
+                    COUNT(CASE WHEN r.korner_85_correct IS NOT NULL THEN 1 END) as total_k85,
+                    SUM(CASE WHEN r.korner_85_correct IS NOT NULL THEN r.korner_85_correct ELSE 0 END) as correct_k85,
+                    COUNT(CASE WHEN r.korner_95_correct IS NOT NULL THEN 1 END) as total_k95,
+                    SUM(CASE WHEN r.korner_95_correct IS NOT NULL THEN r.korner_95_correct ELSE 0 END) as correct_k95
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE r.home_corners IS NOT NULL {month_clause}
+            ''', month_params)
+            krow = dict(cur.fetchone())
+            result['korner85'].append({
+                'bucket': '65+', 'predicted': 65,
+                'total': krow['total_k85'] or 0, 'correct': krow['correct_k85'] or 0,
+                'actual_pct': round((krow['correct_k85'] or 0) / krow['total_k85'] * 100) if (krow['total_k85'] or 0) > 0 else None
+            })
+            result['korner95'].append({
+                'bucket': '65+', 'predicted': 65,
+                'total': krow['total_k95'] or 0, 'correct': krow['correct_k95'] or 0,
+                'actual_pct': round((krow['correct_k95'] or 0) / krow['total_k95'] * 100) if (krow['total_k95'] or 0) > 0 else None
+            })
 
-            cur.execute(f'''
-                SELECT COUNT(*) as total, SUM(r.btts_correct) as correct
-                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-                WHERE a.btts_pct >= %s AND a.btts_pct < %s {month_clause}
-            ''', (low, high) + month_params)
-            row = dict(cur.fetchone())
-            total = row['total'] or 0
-            correct = row['correct'] or 0
-            result['btts'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
-                'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
-
-            cur.execute(f'''
-                SELECT COUNT(CASE WHEN r.ht_home_score IS NOT NULL THEN 1 END) as total,
-                       SUM(CASE WHEN r.ht_home_score IS NOT NULL THEN r.ht_correct ELSE 0 END) as correct
-                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-                WHERE a.ht2g_pct >= %s AND a.ht2g_pct < %s {month_clause}
-            ''', (low, high) + month_params)
-            row = dict(cur.fetchone())
-            total = row['total'] or 0
-            correct = row['correct'] or 0
-            result['ht2g'].append({'bucket': label, 'predicted': round((low + min(high, 100)) / 2),
-                'total': total, 'correct': correct, 'actual_pct': round(correct / total * 100) if total > 0 else None})
-
-        # Korner kalibrasyonu: korner_85_correct / korner_95_correct sütunlarından
-        # Bu değerler zaten >=65 eşiği uygulanmış olarak saklandığından tek bucket kullanıyoruz
-        cur.execute(f'''
-            SELECT
-                COUNT(CASE WHEN r.korner_85_correct IS NOT NULL THEN 1 END) as total_k85,
-                SUM(CASE WHEN r.korner_85_correct IS NOT NULL THEN r.korner_85_correct ELSE 0 END) as correct_k85,
-                COUNT(CASE WHEN r.korner_95_correct IS NOT NULL THEN 1 END) as total_k95,
-                SUM(CASE WHEN r.korner_95_correct IS NOT NULL THEN r.korner_95_correct ELSE 0 END) as correct_k95
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE r.home_corners IS NOT NULL {month_clause}
-        ''', month_params)
-        krow = dict(cur.fetchone())
-        result['korner85'].append({
-            'bucket': '65+', 'predicted': 65,
-            'total': krow['total_k85'] or 0, 'correct': krow['correct_k85'] or 0,
-            'actual_pct': round((krow['correct_k85'] or 0) / krow['total_k85'] * 100) if (krow['total_k85'] or 0) > 0 else None
-        })
-        result['korner95'].append({
-            'bucket': '65+', 'predicted': 65,
-            'total': krow['total_k95'] or 0, 'correct': krow['correct_k95'] or 0,
-            'actual_pct': round((krow['correct_k95'] or 0) / krow['total_k95'] * 100) if (krow['total_k95'] or 0) > 0 else None
-        })
-
-        cur.close()
-        conn.close()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Stats calibration error: {e}")
@@ -646,55 +636,54 @@ def api_stats_momentum():
         limit = int(request.args.get('limit', 10))
         if limit not in (10, 20):
             limit = 10
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
 
-        # Son N sonuç: 1X2 (yalnızca Yüksek/Çok Yüksek güven)
-        cur.execute(f'''
-            SELECT r.pred_1x2_correct, a.analysis_date
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE a.confidence IN ('Yüksek', 'Çok Yüksek') {month_clause}
-            ORDER BY a.analysis_date DESC, a.id DESC
-            LIMIT {limit}
-        ''', month_params)
-        rows_1x2 = [dict(r) for r in cur.fetchall()]
+            # Son N sonuç: 1X2 (yalnızca Yüksek/Çok Yüksek güven)
+            cur.execute(f'''
+                SELECT r.pred_1x2_correct, a.analysis_date
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE a.confidence IN ('Yüksek', 'Çok Yüksek') {month_clause}
+                ORDER BY a.analysis_date DESC, a.id DESC
+                LIMIT {limit}
+            ''', month_params)
+            rows_1x2 = [dict(r) for r in cur.fetchall()]
 
-        # Son N sonuç: Over 2.5 (%75+)
-        cur.execute(f'''
-            SELECT r.over25_correct, a.analysis_date
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE a.over25_pct >= 75 {month_clause}
-            ORDER BY a.analysis_date DESC, a.id DESC
-            LIMIT {limit}
-        ''', month_params)
-        rows_over25 = [dict(r) for r in cur.fetchall()]
+            # Son N sonuç: Over 2.5 (%75+)
+            cur.execute(f'''
+                SELECT r.over25_correct, a.analysis_date
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE a.over25_pct >= 75 {month_clause}
+                ORDER BY a.analysis_date DESC, a.id DESC
+                LIMIT {limit}
+            ''', month_params)
+            rows_over25 = [dict(r) for r in cur.fetchall()]
 
-        # Son N sonuç: KG Var (%70+)
-        cur.execute(f'''
-            SELECT r.btts_correct, a.analysis_date
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE a.btts_pct >= 70 {month_clause}
-            ORDER BY a.analysis_date DESC, a.id DESC
-            LIMIT {limit}
-        ''', month_params)
-        rows_btts = [dict(r) for r in cur.fetchall()]
+            # Son N sonuç: KG Var (%70+)
+            cur.execute(f'''
+                SELECT r.btts_correct, a.analysis_date
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE a.btts_pct >= 70 {month_clause}
+                ORDER BY a.analysis_date DESC, a.id DESC
+                LIMIT {limit}
+            ''', month_params)
+            rows_btts = [dict(r) for r in cur.fetchall()]
 
-        # Son N sonuç: İY 0.5 (%65+, ht skoru girilen)
-        cur.execute(f'''
-            SELECT r.ht_correct, a.analysis_date
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL {month_clause}
-            ORDER BY a.analysis_date DESC, a.id DESC
-            LIMIT {limit}
-        ''', month_params)
-        rows_ht = [dict(r) for r in cur.fetchall()]
+            # Son N sonuç: İY 0.5 (%65+, ht skoru girilen)
+            cur.execute(f'''
+                SELECT r.ht_correct, a.analysis_date
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL {month_clause}
+                ORDER BY a.analysis_date DESC, a.id DESC
+                LIMIT {limit}
+            ''', month_params)
+            rows_ht = [dict(r) for r in cur.fetchall()]
 
-        cur.close(); conn.close()
 
         def build_series(rows, key):
             if not rows:
@@ -734,25 +723,24 @@ def api_stats_momentum():
 def api_stats_score_deviation():
     """Tahmin edilen skor ile gerçek skor arasındaki sapma analizi."""
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
 
-        # SPLIT_PART ile parse; ?-? ve boş değerler regex filter ile elenir
-        cur.execute(f'''
-            SELECT
-                SPLIT_PART(a.predicted_score, '-', 1)::int  AS pred_home,
-                SPLIT_PART(a.predicted_score, '-', 2)::int  AS pred_away,
-                r.home_score                                  AS actual_home,
-                r.away_score                                  AS actual_away
-            FROM analyses a
-            JOIN match_results r ON r.analysis_id = a.id
-            WHERE a.predicted_score ~ '^[0-9]+-[0-9]+$'
-              AND r.home_score IS NOT NULL
-              {month_clause}
-        ''', month_params)
-        rows = cur.fetchall()
-        cur.close(); conn.close()
+            # SPLIT_PART ile parse; ?-? ve boş değerler regex filter ile elenir
+            cur.execute(f'''
+                SELECT
+                    SPLIT_PART(a.predicted_score, '-', 1)::int  AS pred_home,
+                    SPLIT_PART(a.predicted_score, '-', 2)::int  AS pred_away,
+                    r.home_score                                  AS actual_home,
+                    r.away_score                                  AS actual_away
+                FROM analyses a
+                JOIN match_results r ON r.analysis_id = a.id
+                WHERE a.predicted_score ~ '^[0-9]+-[0-9]+$'
+                  AND r.home_score IS NOT NULL
+                  {month_clause}
+            ''', month_params)
+            rows = cur.fetchall()
 
         if not rows:
             return jsonify({'total': 0})
@@ -797,22 +785,21 @@ def api_stats_score_deviation():
 def api_stats_weekday():
     """Haftanın günü bazında 1X2 başarı oranı. DOW: 0=Pazar, 1=Pzt, ..., 6=Cmt"""
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
-        cur.execute(f'''
-            SELECT
-                EXTRACT(DOW FROM a.analysis_date::date)::int AS dow,
-                COUNT(*) AS total,
-                SUM(r.pred_1x2_correct) AS correct
-            FROM analyses a
-            JOIN match_results r ON r.analysis_id = a.id
-            WHERE 1=1 {month_clause}
-            GROUP BY dow
-            ORDER BY dow
-        ''', month_params)
-        rows = {r['dow']: r for r in cur.fetchall()}
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
+            cur.execute(f'''
+                SELECT
+                    EXTRACT(DOW FROM a.analysis_date::date)::int AS dow,
+                    COUNT(*) AS total,
+                    SUM(r.pred_1x2_correct) AS correct
+                FROM analyses a
+                JOIN match_results r ON r.analysis_id = a.id
+                WHERE 1=1 {month_clause}
+                GROUP BY dow
+                ORDER BY dow
+            ''', month_params)
+            rows = {r['dow']: r for r in cur.fetchall()}
 
         day_names = ['Pazar', 'Pazartesi', 'Sali', 'Carsamba', 'Persembe', 'Cuma', 'Cumartesi']
         # Pazartesi'den başlayacak şekilde sırala (DOW 1-6, sonra 0)
@@ -839,60 +826,59 @@ def api_stats_weekday():
 def api_stats_goal_distribution():
     """Maç başına toplam gol ve IY gol dağılımı (histogram verisi)."""
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
 
-        # Tam maç gol dağılımı (total_goals)
-        cur.execute(f'''
-            SELECT
-                COUNT(CASE WHEN r.total_goals = 0 THEN 1 END) as g0,
-                COUNT(CASE WHEN r.total_goals = 1 THEN 1 END) as g1,
-                COUNT(CASE WHEN r.total_goals = 2 THEN 1 END) as g2,
-                COUNT(CASE WHEN r.total_goals = 3 THEN 1 END) as g3,
-                COUNT(CASE WHEN r.total_goals = 4 THEN 1 END) as g4,
-                COUNT(CASE WHEN r.total_goals >= 5 THEN 1 END) as g5plus,
-                COUNT(*) as total
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE r.total_goals IS NOT NULL {{month_clause}}
-        '''.format(month_clause=month_clause), month_params)
-        row = dict(cur.fetchone())
-        total = row['total'] or 1
+            # Tam maç gol dağılımı (total_goals)
+            cur.execute(f'''
+                SELECT
+                    COUNT(CASE WHEN r.total_goals = 0 THEN 1 END) as g0,
+                    COUNT(CASE WHEN r.total_goals = 1 THEN 1 END) as g1,
+                    COUNT(CASE WHEN r.total_goals = 2 THEN 1 END) as g2,
+                    COUNT(CASE WHEN r.total_goals = 3 THEN 1 END) as g3,
+                    COUNT(CASE WHEN r.total_goals = 4 THEN 1 END) as g4,
+                    COUNT(CASE WHEN r.total_goals >= 5 THEN 1 END) as g5plus,
+                    COUNT(*) as total
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE r.total_goals IS NOT NULL {{month_clause}}
+            '''.format(month_clause=month_clause), month_params)
+            row = dict(cur.fetchone())
+            total = row['total'] or 1
 
-        ft_dist = [
-            {'label': '0 Gol',  'count': row['g0'] or 0,     'pct': round((row['g0'] or 0) / total * 100)},
-            {'label': '1 Gol',  'count': row['g1'] or 0,     'pct': round((row['g1'] or 0) / total * 100)},
-            {'label': '2 Gol',  'count': row['g2'] or 0,     'pct': round((row['g2'] or 0) / total * 100)},
-            {'label': '3 Gol',  'count': row['g3'] or 0,     'pct': round((row['g3'] or 0) / total * 100)},
-            {'label': '4 Gol',  'count': row['g4'] or 0,     'pct': round((row['g4'] or 0) / total * 100)},
-            {'label': '5+ Gol', 'count': row['g5plus'] or 0, 'pct': round((row['g5plus'] or 0) / total * 100)},
-        ]
+            ft_dist = [
+                {'label': '0 Gol',  'count': row['g0'] or 0,     'pct': round((row['g0'] or 0) / total * 100)},
+                {'label': '1 Gol',  'count': row['g1'] or 0,     'pct': round((row['g1'] or 0) / total * 100)},
+                {'label': '2 Gol',  'count': row['g2'] or 0,     'pct': round((row['g2'] or 0) / total * 100)},
+                {'label': '3 Gol',  'count': row['g3'] or 0,     'pct': round((row['g3'] or 0) / total * 100)},
+                {'label': '4 Gol',  'count': row['g4'] or 0,     'pct': round((row['g4'] or 0) / total * 100)},
+                {'label': '5+ Gol', 'count': row['g5plus'] or 0, 'pct': round((row['g5plus'] or 0) / total * 100)},
+            ]
 
-        # İY gol dağılımı (ht_home_score + ht_away_score)
-        cur.execute(f'''
-            SELECT
-                COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) = 0 THEN 1 END) as g0,
-                COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) = 1 THEN 1 END) as g1,
-                COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) = 2 THEN 1 END) as g2,
-                COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) >= 3 THEN 1 END) as g3plus,
-                COUNT(*) as total
-            FROM match_results r
-            JOIN analyses a ON a.id = r.analysis_id
-            WHERE r.ht_home_score IS NOT NULL AND r.ht_away_score IS NOT NULL
-              {{month_clause}}
-        '''.format(month_clause=month_clause), month_params)
-        ht_row = dict(cur.fetchone())
-        ht_total = ht_row['total'] or 1
+            # İY gol dağılımı (ht_home_score + ht_away_score)
+            cur.execute(f'''
+                SELECT
+                    COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) = 0 THEN 1 END) as g0,
+                    COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) = 1 THEN 1 END) as g1,
+                    COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) = 2 THEN 1 END) as g2,
+                    COUNT(CASE WHEN (r.ht_home_score + r.ht_away_score) >= 3 THEN 1 END) as g3plus,
+                    COUNT(*) as total
+                FROM match_results r
+                JOIN analyses a ON a.id = r.analysis_id
+                WHERE r.ht_home_score IS NOT NULL AND r.ht_away_score IS NOT NULL
+                  {{month_clause}}
+            '''.format(month_clause=month_clause), month_params)
+            ht_row = dict(cur.fetchone())
+            ht_total = ht_row['total'] or 1
 
-        ht_dist = [
-            {'label': '0 Gol',  'count': ht_row['g0'] or 0,     'pct': round((ht_row['g0'] or 0) / ht_total * 100)},
-            {'label': '1 Gol',  'count': ht_row['g1'] or 0,     'pct': round((ht_row['g1'] or 0) / ht_total * 100)},
-            {'label': '2 Gol',  'count': ht_row['g2'] or 0,     'pct': round((ht_row['g2'] or 0) / ht_total * 100)},
-            {'label': '3+ Gol', 'count': ht_row['g3plus'] or 0, 'pct': round((ht_row['g3plus'] or 0) / ht_total * 100)},
-        ]
+            ht_dist = [
+                {'label': '0 Gol',  'count': ht_row['g0'] or 0,     'pct': round((ht_row['g0'] or 0) / ht_total * 100)},
+                {'label': '1 Gol',  'count': ht_row['g1'] or 0,     'pct': round((ht_row['g1'] or 0) / ht_total * 100)},
+                {'label': '2 Gol',  'count': ht_row['g2'] or 0,     'pct': round((ht_row['g2'] or 0) / ht_total * 100)},
+                {'label': '3+ Gol', 'count': ht_row['g3plus'] or 0, 'pct': round((ht_row['g3plus'] or 0) / ht_total * 100)},
+            ]
 
-        cur.close(); conn.close()
         return jsonify({
             'ft': ft_dist, 'ft_total': row['total'] or 0,
             'ht': ht_dist, 'ht_total': ht_row['total'] or 0,
@@ -1372,11 +1358,10 @@ def api_coupon_list():
 @app.route('/api/coupon/delete/<int:coupon_id>', methods=['DELETE'])
 def api_coupon_delete(coupon_id):
     try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute('DELETE FROM coupons WHERE id = %s', (coupon_id,))
-        conn.commit()
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute('DELETE FROM coupons WHERE id = %s', (coupon_id,))
+            conn.commit()
         return jsonify({"status": "success"})
     except Exception as e:
         logger.error(f"Coupon delete error: {e}")
@@ -1386,15 +1371,14 @@ def api_coupon_delete(coupon_id):
 def api_coupon_stats():
     """Kupon istatistikleri: kazanma oranı, ROI, seriler, tip bazlı başarı."""
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
-            SELECT id, coupon_date, items, status, won, total_items, correct_items,
-                   COALESCE(coupon_type, 'taraf') as coupon_type
-            FROM coupons ORDER BY coupon_date ASC, id ASC
-        ''')
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute('''
+                SELECT id, coupon_date, items, status, won, total_items, correct_items,
+                       COALESCE(coupon_type, 'taraf') as coupon_type
+                FROM coupons ORDER BY coupon_date ASC, id ASC
+            ''')
+            rows = [dict(r) for r in cur.fetchall()]
 
         total = len(rows)
         completed = [r for r in rows if r['status'] == 'completed']
@@ -1535,18 +1519,17 @@ def api_coupon_update(date_str):
 def api_summary_highlights(date_str):
     """Belirli bir tarih için yapısal öne çıkanlar: value bet, güvenli pick, risk uyarıları."""
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
-            SELECT a.id, a.home_team, a.away_team, a.league, a.match_time,
-                   a.prediction_1x2, a.confidence, a.over25_pct, a.btts_pct,
-                   a.ht2g_pct, a.value_bets, a.csv_data
-            FROM analyses a
-            WHERE a.analysis_date = %s
-            ORDER BY a.id
-        ''', (date_str,))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute('''
+                SELECT a.id, a.home_team, a.away_team, a.league, a.match_time,
+                       a.prediction_1x2, a.confidence, a.over25_pct, a.btts_pct,
+                       a.ht2g_pct, a.value_bets, a.csv_data
+                FROM analyses a
+                WHERE a.analysis_date = %s
+                ORDER BY a.id
+            ''', (date_str,))
+            rows = [dict(r) for r in cur.fetchall()]
 
         if not rows:
             return jsonify({'best_value_bet': None, 'safest_pick': None, 'risk_alerts': []})
@@ -1718,19 +1701,18 @@ def api_summary_highlights_telegram():
 def api_stats_korner_detail():
     """Korner bucket (65-70, 70-80, 80-90, 90+) ve lig bazlı korner istatistikleri."""
     try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        month_clause, month_params = _get_month_filter(request)
+        with get_conn() as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            month_clause, month_params = _get_month_filter(request)
 
-        cur.execute(f'''
-            SELECT a.league, a.csv_data,
-                   r.korner_85_correct, r.korner_95_correct,
-                   r.home_corners, r.away_corners
-            FROM analyses a JOIN match_results r ON a.id = r.analysis_id
-            WHERE r.home_corners IS NOT NULL {month_clause}
-        ''', month_params)
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close(); conn.close()
+            cur.execute(f'''
+                SELECT a.league, a.csv_data,
+                       r.korner_85_correct, r.korner_95_correct,
+                       r.home_corners, r.away_corners
+                FROM analyses a JOIN match_results r ON a.id = r.analysis_id
+                WHERE r.home_corners IS NOT NULL {month_clause}
+            ''', month_params)
+            rows = [dict(r) for r in cur.fetchall()]
 
         def norm_pct(val):
             if val is None: return None
@@ -1997,21 +1979,20 @@ def api_clear_matches():
 def api_clear_before_date(date_str):
     try:
         from backend.database import _orphan_coupon_items
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute('SELECT id FROM analyses WHERE analysis_date < %s', (date_str,))
-        analysis_ids = [r[0] for r in cur.fetchall()]
-        _orphan_coupon_items(cur, analysis_ids)
-        cur.execute('''
-            DELETE FROM match_results WHERE analysis_id IN (
-                SELECT id FROM analyses WHERE analysis_date < %s
-            )
-        ''', (date_str,))
-        deleted_results = cur.rowcount
-        cur.execute('DELETE FROM analyses WHERE analysis_date < %s', (date_str,))
-        deleted_analyses = cur.rowcount
-        conn.commit()
-        cur.close(); conn.close()
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute('SELECT id FROM analyses WHERE analysis_date < %s', (date_str,))
+            analysis_ids = [r[0] for r in cur.fetchall()]
+            _orphan_coupon_items(cur, analysis_ids)
+            cur.execute('''
+                DELETE FROM match_results WHERE analysis_id IN (
+                    SELECT id FROM analyses WHERE analysis_date < %s
+                )
+            ''', (date_str,))
+            deleted_results = cur.rowcount
+            cur.execute('DELETE FROM analyses WHERE analysis_date < %s', (date_str,))
+            deleted_analyses = cur.rowcount
+            conn.commit()
         return jsonify({"status": "success", "message": f"{date_str} oncesi {deleted_analyses} analiz ve {deleted_results} sonuc silindi"})
     except Exception as e:
         logger.error(f"Admin clear error: {e}")
@@ -2566,12 +2547,10 @@ def api_iy_gol_telegram():
 def api_iy_gol_debug():
     from backend.database import get_conn
     import json
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT id, match_date, home_team, away_team, iy_result, iy2_result FROM iy_gol_tracker ORDER BY id")
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT id, match_date, home_team, away_team, iy_result, iy2_result FROM iy_gol_tracker ORDER BY id")
+        rows = cur.fetchall()
     return jsonify([{'id':r[0],'date':r[1],'home':r[2],'away':r[3],'iy_result':r[4],'iy2_result':r[5]} for r in rows])
 
 
