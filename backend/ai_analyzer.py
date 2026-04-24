@@ -4,9 +4,11 @@ import json
 import logging
 import requests
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from backend.football_api import get_league_goal_averages
+
+_TZ_IST = timezone(timedelta(hours=3))
 
 logger = logging.getLogger(__name__)
 
@@ -1763,7 +1765,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
         final_ht_score = repaired_ht
 
     return {
-        'analysis_date': datetime.now().strftime('%Y-%m-%d'),
+        'analysis_date': datetime.now(tz=_TZ_IST).strftime('%Y-%m-%d'),
         'fixture_id': fixture['fixture']['id'],
         'home_team': home_team, 'away_team': away_team,
         'league': league, 'match_time': match_time,
@@ -1789,7 +1791,7 @@ def mock_analysis(fixture, home_form='', away_form='', home_goals_avg=0, away_go
     home_team = fixture['teams']['home']['name']
     away_team = fixture['teams']['away']['name']
     return {
-        'analysis_date': datetime.now().strftime('%Y-%m-%d'),
+        'analysis_date': datetime.now(tz=_TZ_IST).strftime('%Y-%m-%d'),
         'fixture_id': fixture['fixture']['id'],
         'home_team': home_team, 'away_team': away_team,
         'league': fixture['league']['name'], 'match_time': fixture['fixture']['date'],
@@ -1808,7 +1810,7 @@ def mock_analysis(fixture, home_form='', away_form='', home_goals_avg=0, away_go
 
 def build_summary_prompt(matches):
     """Günlük özet için AI prompt'u oluştur"""
-    today = datetime.now().strftime('%d.%m.%Y')
+    today = datetime.now(tz=_TZ_IST).strftime('%d.%m.%Y')
     total = len(matches)
 
     lines = [

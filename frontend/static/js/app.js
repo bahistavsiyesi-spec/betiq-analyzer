@@ -257,13 +257,10 @@ function getFootballDataLogoUrl(teamName) {
 
 async function fetchLogoFromSportsDB(teamName) {
     if (_logoCache[teamName] !== undefined) return _logoCache[teamName];
+    const url = `/api/team/logo/${encodeURIComponent(teamName)}`;
     try {
-        const encoded = encodeURIComponent(teamName);
-        const resp = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encoded}`);
-        const data = await resp.json();
-        const teams = data.teams;
-        if (teams && teams.length > 0) {
-            const url = teams[0].strBadge || null;
+        const resp = await fetch(url, { method: 'HEAD' });
+        if (resp.ok && resp.status !== 204) {
             _logoCache[teamName] = url;
             return url;
         }

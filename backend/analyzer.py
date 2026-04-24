@@ -1,9 +1,11 @@
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from backend.database import delete_analyses_by_fixture_ids, log_run, save_analysis, get_custom_form
+
+_TZ_IST = timezone(timedelta(hours=3))
 from backend.football_api import (
     get_h2h_footballdata,
     get_team_home_away_stats,
@@ -408,7 +410,7 @@ def run_selected_analysis(fixture_ids=None, manual_matches=None, ai_provider='cl
     fixture_ids = fixture_ids or []
     manual_matches = manual_matches or []
 
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = datetime.now(tz=_TZ_IST).strftime('%Y-%m-%d')
     logger.info(f'Starting selected analysis: {len(fixture_ids)} fixtures, {len(manual_matches)} manual, AI: {ai_provider}')
 
     try:
@@ -439,7 +441,7 @@ def run_selected_analysis(fixture_ids=None, manual_matches=None, ai_provider='cl
                     continue
 
                 manual_fixture = {
-                    'fixture': {'id': 0, 'date': m.get('date', datetime.now().isoformat())},
+                    'fixture': {'id': 0, 'date': m.get('date', datetime.now(tz=_TZ_IST).isoformat())},
                     'league': {'id': 0, 'name': m.get('league', 'Manuel Mac')},
                     'teams': {
                         'home': {'id': 0, 'name': home_team},

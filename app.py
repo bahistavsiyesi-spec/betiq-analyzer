@@ -13,6 +13,9 @@ _TZ_IST = timezone(timedelta(hours=3))
 
 def _today_istanbul():
     return datetime.now(tz=_TZ_IST).strftime('%Y-%m-%d')
+
+_logo_cache = {}          # {team_name: (img_bytes_or_None, content_type, timestamp)}
+_LOGO_CACHE_TTL = 86400   # 24 saat
 import psycopg2
 import psycopg2.extras
 from backend.database import (
@@ -184,6 +187,44 @@ def api_matches_by_date(date_str):
 def api_available_dates():
     dates = get_available_dates()
     return jsonify(dates)
+
+
+# Logo proxy
+@app.route('/api/team/logo/<path:team_name>')
+def api_team_logo(team_name):
+    import time
+    import requests as _req
+    now = time.time()
+    cached = _logo_cache.get(team_name)
+    if cached:
+        img_bytes, content_type, ts = cached
+        if now - ts < _LOGO_CACHE_TTL:
+            if not img_bytes:
+                return ('', 204)
+            resp = Response(img_bytes, content_type=content_type)
+            resp.headers['Cache-Control'] = 'public, max-age=86400'
+            return resp
+    try:
+        r = _req.get(
+            'https://www.thesportsdb.com/api/v1/json/3/searchteams.php',
+            params={'t': team_name}, timeout=5
+        )
+        teams = r.json().get('teams')
+        logo_url = teams[0]['strBadge'] if teams else None
+        if not logo_url:
+            _logo_cache[team_name] = (None, None, now)
+            return ('', 204)
+        img_r = _req.get(logo_url, timeout=5)
+        img_bytes = img_r.content
+        content_type = img_r.headers.get('Content-Type', 'image/png')
+        _logo_cache[team_name] = (img_bytes, content_type, now)
+        resp = Response(img_bytes, content_type=content_type)
+        resp.headers['Cache-Control'] = 'public, max-age=86400'
+        return resp
+    except Exception as e:
+        logger.error(f"Logo proxy error: {e}")
+        _logo_cache[team_name] = (None, None, now)
+        return ('', 204)
 
 
 # Istatistik
@@ -1830,7 +1871,7 @@ def api_parse_image():
         parsed = json.loads(raw)
         matches = []
         for m in parsed:
-            match_date = datetime.now()
+            match_date = datetime.now(tz=_TZ_IST)
             if m.get('time'):
                 try:
                     h, mi = m['time'].split(':')
