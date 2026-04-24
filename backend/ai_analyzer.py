@@ -1860,7 +1860,7 @@ def build_summary_prompt(matches):
 
     lines.append("\n── TALİMATLAR ──")
     lines.append("Madde madde kısa özet yaz (JSON değil, düz metin):")
-    lines.append("1. En güvenilir maçlar (Yüksek/Çok Yüksek güven)")
+    lines.append("1. En güvenilir maçlar (Yüksek güven)")
     lines.append("2. En golcü maçlar (%75+ 2.5 üst)")
     lines.append("3. KG Var yüksek maçlar (%70+)")
     lines.append("4. İY gol beklentisi yüksek maçlar (İY 0.5 üst %65+)")
