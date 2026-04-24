@@ -231,7 +231,7 @@ def build_csv_section(home_team, away_team, csv_data):
             try:
                 imp = round(1 / float(v) * 100, 1)
                 odds_lines.append(f'  - {label}: {v} (implied %{imp})')
-            except:
+            except (ValueError, TypeError, ZeroDivisionError):
                 odds_lines.append(f'  - {label}: {v}')
     if odds_lines:
         lines.append('Bahis Oranları (CSV):')
@@ -845,28 +845,13 @@ def parse_result(raw_text):
     return json.loads(raw_text)
 
 
-def merge_results(r1, r2):
-    conf_order = ['Düşük', 'Orta', 'Yüksek', 'Çok Yüksek']
-    pred = r1.get('prediction_1x2') if r1.get('prediction_1x2') == r2.get('prediction_1x2') else r1.get('prediction_1x2')
-    over25 = round((float(r1.get('over25_pct', 50)) + float(r2.get('over25_pct', 50))) / 2)
-    ht2g = round((float(r1.get('ht2g_pct', 40)) + float(r2.get('ht2g_pct', 40))) / 2)
-    btts = round((float(r1.get('btts_pct', 40)) + float(r2.get('btts_pct', 40))) / 2)
-    c1 = conf_order.index(r1.get('confidence', 'Orta')) if r1.get('confidence') in conf_order else 1
-    c2 = conf_order.index(r2.get('confidence', 'Orta')) if r2.get('confidence') in conf_order else 1
-    return {
-        'prediction_1x2': pred, 'over25_pct': over25, 'ht2g_pct': ht2g, 'btts_pct': btts,
-        'predicted_score': r1.get('predicted_score', '?-?'), 'confidence': conf_order[min(c1, c2)],
-        'reasoning': r1.get('reasoning', r2.get('reasoning', [])),
-        'h2h_summary': r1.get('h2h_summary', '')
-    }
-
 
 def _safe_float(v):
     try:
         if v is None or v == '':
             return None
         return float(v)
-    except:
+    except (ValueError, TypeError, ZeroDivisionError):
         return None
 
 
@@ -1007,7 +992,7 @@ def _parse_score(score_text):
             return None
         left, right = str(score_text).strip().split('-', 1)
         return int(left.strip()), int(right.strip())
-    except:
+    except (ValueError, TypeError, ZeroDivisionError):
         return None
 
 
@@ -1120,8 +1105,9 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
         """Takım adının maçın ev sahibiyle eşleşip eşleşmediğini kontrol et."""
         t = team_name.lower()
         h = match_home_name.lower()
-        first_word = t.split()[0] if t.split() else t
-        return first_word in h or h.startswith(first_word) or t in h or h in t
+        first_two = ' '.join(t.split()[:2])
+        home_two = ' '.join(h.split()[:2])
+        return first_two in home_two or home_two in first_two or t in h or h in t
 
     def _extract_venue_goals(matches, team_name, is_home_venue):
         """Son 5 maçtan sadece belirtilen venue'daki maçları filtrele."""
