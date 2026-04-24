@@ -2206,7 +2206,7 @@ def api_debug_analysis_data(analysis_id):
                     elif d > 5:   odds_side, odds_detail = '1 (hafif)', f'Fark: {abs(d):.0f}%'
                     elif d < -5:  odds_side, odds_detail = '2 (hafif)', f'Fark: {abs(d):.0f}%'
                     else:         odds_side, odds_detail = 'X (dengeli)', f'Fark: {abs(d):.0f}%'
-            except: pass
+            except (ValueError, TypeError, ZeroDivisionError): pass
 
             try:
                 ch = float(csv_data.get('current_home_ppg') or 0)
@@ -2216,7 +2216,7 @@ def api_debug_analysis_data(analysis_id):
                     if d > 0.5:    ppg_side, ppg_detail = '1', f'{home_team}: {ch} · {away_team}: {ca}'
                     elif d < -0.5: ppg_side, ppg_detail = '2', f'{away_team}: {ca} · {home_team}: {ch}'
                     else:          ppg_side, ppg_detail = 'X (dengeli)', f'Fark: {abs(d):.2f}'
-            except: pass
+            except (ValueError, TypeError, ZeroDivisionError): pass
 
         pred = analysis.get('prediction_1x2', '?')
         conf = analysis.get('confidence', 'Orta')

@@ -1106,6 +1106,8 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
         """Takım adının maçın ev sahibiyle eşleşip eşleşmediğini kontrol et."""
         t = team_name.lower()
         h = match_home_name.lower()
+        if not t or not h:
+            return False
         first_two = ' '.join(t.split()[:2])
         home_two = ' '.join(h.split()[:2])
         return first_two in home_two or home_two in first_two or t in h or h in t
