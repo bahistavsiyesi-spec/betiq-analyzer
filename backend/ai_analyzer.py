@@ -1615,6 +1615,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     btts_pct = float(result.get('btts_pct', 40))
     ht2g_pct = float(result.get('ht2g_pct', 40))
 
+    over25_base = None
+    btts_base = None
     if csv_data:
         def clamp(val, base, margin):
             if base is None: return val
@@ -1667,11 +1669,10 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             logger.info(f'Shot both-teams-low SOT: btts_pct {btts_pct}→{btts_pct - adj}')
             btts_pct -= adj
     # Shot pressure sonrası CSV clamp aralığına geri döndür
-    if csv_data:
-        if over25_base is not None:
-            over25_pct = max(float(over25_base) - 10, min(float(over25_base) + 10, over25_pct))
-        if btts_base is not None:
-            btts_pct = max(float(btts_base) - 8, min(float(btts_base) + 8, btts_pct))
+    if over25_base is not None:
+        over25_pct = max(float(over25_base) - 10, min(float(over25_base) + 10, over25_pct))
+    if btts_base is not None:
+        btts_pct = max(float(btts_base) - 8, min(float(btts_base) + 8, btts_pct))
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── xG-BTTS tutarlılık kontrolü ──────────────────────────────────────────
@@ -1846,7 +1847,7 @@ def build_summary_prompt(matches):
         if isinstance(csv, str):
             try:
                 csv = json.loads(csv)
-            except:
+            except (ValueError, json.JSONDecodeError):
                 csv = {}
 
         lines.append(f"\n{m['home_team']} vs {m['away_team']} ({m.get('league', '')})")
