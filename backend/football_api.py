@@ -476,7 +476,7 @@ def get_team_shot_stats(team_name, country_code, last=5):
                 shots_conceded = int(row.get('HS', 0) or 0)
             if shots > 0:
                 team_matches.append({'shots': shots, 'shots_on': shots_on, 'corners': corners, 'shots_conceded': shots_conceded})
-        except:
+        except (ValueError, TypeError):
             continue
     if not team_matches:
         return None
@@ -525,7 +525,7 @@ def _footballdata_last_matches(team_id, team_name, last=10):
                     },
                     'goals': {'home': m['score']['fullTime']['home'], 'away': m['score']['fullTime']['away']}
                 })
-            except:
+            except (KeyError, TypeError):
                 continue
         logger.info('Football-Data: ' + str(len(converted)) + ' matches for ' + team_name)
         return converted
@@ -923,7 +923,7 @@ def get_team_home_away_stats(team_name, matches):
                 home_results.append({'scored': hg, 'conceded': ag, 'result': 'W' if hg > ag else ('D' if hg == ag else 'L')})
             else:
                 away_results.append({'scored': ag, 'conceded': hg, 'result': 'W' if ag > hg else ('D' if ag == hg else 'L')})
-        except:
+        except (KeyError, TypeError):
             continue
     result = {}
     if home_results:
