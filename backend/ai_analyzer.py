@@ -2,6 +2,7 @@ import math
 import os
 import json
 import logging
+import random
 import requests
 import time
 from datetime import datetime, timedelta, timezone
@@ -764,7 +765,6 @@ KURAL 4 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
         '   - over25_pct > %70 → toplam gol MIN 3 olmalı (2-1, 3-0, 1-2, 3-1 gibi)\n'
         '   - CSV over35_avg >= %55 ise predicted_score toplam golü MIN 4 olmalı (3-1, 2-2, 1-3, 4-0 gibi)\n'
         '   - CSV over45_avg >= %35 ise predicted_score toplam golü MIN 5 olmalı (3-2, 4-1, 2-3 gibi)\n'
-        '   - CSV over25_avg yüksek ama over35_avg düşükse 2-1 / 1-2 / 3-0 bandında kal\n'
         '   - prediction_1x2=1 → ev sahibi skoru deplasmandan yüksek olmalı\n'
         '   - prediction_1x2=2 → deplasman skoru ev sahibinden yüksek olmalı\n'
         '   - prediction_1x2=X → skorlar eşit olmalı (1-1, 2-2, 0-0)\n'
@@ -784,7 +784,7 @@ KURAL 4 — Kupa/hazırlık maçlarında maksimum güven "Orta"dır
         '  "over25_pct": 55,\n'
         '  "ht2g_pct": 40,\n'
         '  "btts_pct": 45,\n'
-        '  "predicted_score": "2-1",\n'
+        '  "predicted_score": "X-Y",\n'
         '  "predicted_ht_score": "1-0",\n'
         '  "confidence": "Orta",\n'
         '  "reasoning": [\n'
@@ -1025,9 +1025,9 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
 
     # Orta bölge fallback
     if pred_1x2 == '1':
-        return '2-0' if btts < 45 else '2-1'
+        return '1-0' if btts < 40 else ('2-0' if btts < 55 else '2-1')
     if pred_1x2 == '2':
-        return '0-2' if btts < 45 else '1-2'
+        return '0-1' if btts < 40 else ('0-2' if btts < 55 else '1-2')
     return '1-1'
 
 
@@ -1077,7 +1077,7 @@ def _is_score_valid(score_text, pred_1x2, btts_pct, over25_pct, over35_avg=None,
     if o45 is not None and o45 >= 35 and pred_1x2 != 'X' and total < 5:
         return False
 
-    if total > 5:
+    if total > 6:
         return False
 
     return True
@@ -1747,9 +1747,13 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             logger.info(f'[SKOR TAHMİN] Poisson skoru ({poisson_score}) geçersiz, csv_fallback kullanılıyor: {csv_fallback_score}')
         fallback_score = csv_fallback_score
 
-    _safe_fallbacks = {'X': '1-1', '1': '2-1', '2': '1-2'}
+    _safe_fallbacks = {
+        'X': lambda: random.choice(['1-1', '2-2', '0-0']),
+        '1': lambda: random.choice(['2-1', '2-0', '3-0', '3-1']),
+        '2': lambda: random.choice(['1-2', '0-2', '0-3', '1-3']),
+    }
     if not _is_score_valid(fallback_score, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
-        safe = _safe_fallbacks.get(_pred_1x2, '1-1')
+        safe = _safe_fallbacks.get(_pred_1x2, lambda: '1-1')()
         logger.info(f'[SKOR TAHMİN] fallback_score ({fallback_score}) geçersiz, güvenli skor kullanılıyor: {safe}')
         fallback_score = safe
 
