@@ -1754,6 +1754,8 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     }
     if not _is_score_valid(fallback_score, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
         safe = _safe_fallbacks.get(_pred_1x2, lambda: '1-1')()
+        if not _is_score_valid(safe, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
+            safe = '1-0' if _pred_1x2 == '1' else ('0-1' if _pred_1x2 == '2' else '1-1')
         logger.info(f'[SKOR TAHMİN] fallback_score ({fallback_score}) geçersiz, güvenli skor kullanılıyor: {safe}')
         fallback_score = safe
 
