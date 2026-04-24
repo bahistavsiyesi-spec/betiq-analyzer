@@ -2,7 +2,9 @@ import psycopg2
 import psycopg2.extras
 import os
 import json
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from psycopg2 import pool
 
 _TZ_IST = timezone(timedelta(hours=3))
 
@@ -11,294 +13,289 @@ def _today_istanbul():
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
+_pool = pool.SimpleConnectionPool(5, 20, DATABASE_URL)
+
+@contextmanager
 def get_conn():
-    return psycopg2.connect(DATABASE_URL, connect_timeout=5)
+    conn = _pool.getconn()
+    try:
+        yield conn
+    finally:
+        _pool.putconn(conn)
 
 def init_db():
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS analyses (
-            id SERIAL PRIMARY KEY,
-            analysis_date TEXT NOT NULL,
-            fixture_id INTEGER,
-            home_team TEXT NOT NULL,
-            away_team TEXT NOT NULL,
-            league TEXT,
-            match_time TEXT,
-            prediction_1x2 TEXT,
-            over25_pct REAL,
-            ht2g_pct REAL,
-            btts_pct REAL,
-            predicted_score TEXT,
-            predicted_ht_score TEXT,
-            confidence TEXT,
-            reasoning TEXT,
-            h2h_summary TEXT,
-            home_form TEXT,
-            away_form TEXT,
-            home_goals_avg REAL,
-            away_goals_avg REAL,
-            home_goals_trend TEXT,
-            away_goals_trend TEXT,
-            value_bets TEXT,
-            csv_data TEXT,
-            created_at TEXT DEFAULT NOW()
-        )
-    ''')
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id SERIAL PRIMARY KEY,
-            run_date TEXT,
-            status TEXT,
-            matches_found INTEGER,
-            matches_analyzed INTEGER,
-            error_message TEXT,
-            created_at TEXT DEFAULT NOW()
-        )
-    ''')
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS match_results (
-            id SERIAL PRIMARY KEY,
-            analysis_id INTEGER NOT NULL UNIQUE,
-            fixture_id INTEGER,
-            home_score INTEGER NOT NULL,
-            away_score INTEGER NOT NULL,
-            ht_home_score INTEGER,
-            ht_away_score INTEGER,
-            actual_1x2 TEXT,
-            pred_1x2_correct INTEGER DEFAULT 0,
-            actual_over25 INTEGER DEFAULT 0,
-            over25_correct INTEGER DEFAULT 0,
-            actual_btts INTEGER DEFAULT 0,
-            btts_correct INTEGER DEFAULT 0,
-            score_correct INTEGER DEFAULT 0,
-            ht_correct INTEGER DEFAULT 0,
-            total_goals INTEGER DEFAULT 0,
-            source TEXT DEFAULT 'auto',
-            telegram_sent INTEGER DEFAULT 0,
-            value_bet_results TEXT,
-            updated_at TEXT DEFAULT NOW(),
-            created_at TEXT DEFAULT NOW(),
-            FOREIGN KEY (analysis_id) REFERENCES analyses(id)
-        )
-    ''')
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS pending_matches (
-            id SERIAL PRIMARY KEY,
-            home_team TEXT NOT NULL,
-            away_team TEXT NOT NULL,
-            league TEXT,
-            match_date TEXT,
-            csv_data TEXT,
-            added_date TEXT NOT NULL,
-            created_at TEXT DEFAULT NOW()
-        )
-    ''')
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS coupons (
-            id SERIAL PRIMARY KEY,
-            coupon_date TEXT NOT NULL,
-            items TEXT NOT NULL,
-            status TEXT DEFAULT 'pending',
-            won INTEGER DEFAULT 0,
-            total_items INTEGER DEFAULT 0,
-            correct_items INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT NOW()
-        )
-    ''')
-    # ── İY Gol Takip tablosu ─────────────────────────────────────────────────
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS iy_gol_tracker (
-            id SERIAL PRIMARY KEY,
-            match_date TEXT NOT NULL,
-            home_team TEXT NOT NULL,
-            away_team TEXT NOT NULL,
-            league TEXT,
-            match_time TEXT,
-            iy_pct REAL,
-            iy2_pct REAL,
-            iy_result INTEGER,
-            iy2_result INTEGER,
-            iy_score TEXT,
-            ft_score TEXT,
-            created_at TEXT DEFAULT NOW()
-        )
-    ''')
-    for sql in [
-        'ALTER TABLE iy_gol_tracker ADD COLUMN IF NOT EXISTS iy_score TEXT',
-        'ALTER TABLE iy_gol_tracker ADD COLUMN IF NOT EXISTS ft_score TEXT',
-    ]:
-        try:
-            cur.execute(sql)
-            conn.commit()
-        except:
-            conn.rollback()
-    # ── YENİ: Günlük özet tablosu ────────────────────────────────────────────
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS daily_summaries (
-            id SERIAL PRIMARY KEY,
-            summary_date TEXT NOT NULL UNIQUE,
-            ai_provider TEXT DEFAULT 'claude',
-            content TEXT NOT NULL,
-            created_at TEXT DEFAULT NOW()
-        )
-    ''')
-    # ── Maç Senaryoları tablosu ───────────────────────────────────────────────
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS match_scenarios (
-            id SERIAL PRIMARY KEY,
-            analysis_id INTEGER,
-            scenario_date TEXT NOT NULL,
-            home_team TEXT NOT NULL,
-            away_team TEXT NOT NULL,
-            scenarios TEXT NOT NULL,
-            created_at TEXT DEFAULT NOW(),
-            FOREIGN KEY (analysis_id) REFERENCES analyses(id)
-        )
-    ''')
-    # ── Özel Puan Tablosu (görsel yükleme) ───────────────────────────────────
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS custom_standings (
-            id SERIAL PRIMARY KEY,
-            league TEXT NOT NULL,
-            season TEXT NOT NULL,
-            data TEXT NOT NULL,
-            uploaded_at TEXT DEFAULT NOW(),
-            created_at TEXT DEFAULT NOW(),
-            UNIQUE (league, season)
-        )
-    ''')
-    # ── Özel Form Verisi (görsel yükleme) ─────────────────────────────────────
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS custom_form (
-            id SERIAL PRIMARY KEY,
-            league TEXT NOT NULL,
-            season TEXT NOT NULL,
-            data TEXT NOT NULL,
-            uploaded_at TEXT DEFAULT NOW(),
-            created_at TEXT DEFAULT NOW(),
-            UNIQUE (league, season)
-        )
-    ''')
-    # ── Günlük Değerlendirme tablosu ─────────────────────────────────────────────
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS daily_evaluations (
-            id SERIAL PRIMARY KEY,
-            summary_date DATE UNIQUE NOT NULL,
-            ai_text TEXT NOT NULL,
-            stats_json JSONB,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        )
-    ''')
-    # ─────────────────────────────────────────────────────────────────────────
-    for sql in [
-        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER',
-        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_away_score INTEGER',
-        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_correct INTEGER DEFAULT 0',
-        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS home_goals_trend TEXT',
-        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT',
-        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS value_bets TEXT',
-        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS csv_data TEXT',
-        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS value_bet_results TEXT',
-        'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS predicted_ht_score TEXT',
-        'ALTER TABLE coupons ADD COLUMN IF NOT EXISTS coupon_type TEXT DEFAULT \'dengeli\'',
-        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS home_corners INTEGER',
-        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS away_corners INTEGER',
-        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS korner_85_correct INTEGER',
-        'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS korner_95_correct INTEGER',
-    ]:
-        try:
-            cur.execute(sql)
-            conn.commit()
-        except:
-            conn.rollback()
-    for sql in [
-        'CREATE INDEX IF NOT EXISTS idx_analyses_date ON analyses(analysis_date)',
-        'CREATE INDEX IF NOT EXISTS idx_analyses_league ON analyses(league)',
-        'CREATE INDEX IF NOT EXISTS idx_analyses_confidence ON analyses(confidence)',
-        'CREATE INDEX IF NOT EXISTS idx_match_results_analysis_id ON match_results(analysis_id)',
-        'CREATE INDEX IF NOT EXISTS idx_match_results_fixture_id ON match_results(fixture_id)',
-        'CREATE INDEX IF NOT EXISTS idx_coupons_date ON coupons(coupon_date)',
-    ]:
-        try:
-            cur.execute(sql)
-            conn.commit()
-        except:
-            conn.rollback()
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS analyses (
+                id SERIAL PRIMARY KEY,
+                analysis_date TEXT NOT NULL,
+                fixture_id INTEGER,
+                home_team TEXT NOT NULL,
+                away_team TEXT NOT NULL,
+                league TEXT,
+                match_time TEXT,
+                prediction_1x2 TEXT,
+                over25_pct REAL,
+                ht2g_pct REAL,
+                btts_pct REAL,
+                predicted_score TEXT,
+                predicted_ht_score TEXT,
+                confidence TEXT,
+                reasoning TEXT,
+                h2h_summary TEXT,
+                home_form TEXT,
+                away_form TEXT,
+                home_goals_avg REAL,
+                away_goals_avg REAL,
+                home_goals_trend TEXT,
+                away_goals_trend TEXT,
+                value_bets TEXT,
+                csv_data TEXT,
+                created_at TEXT DEFAULT NOW()
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS run_logs (
+                id SERIAL PRIMARY KEY,
+                run_date TEXT,
+                status TEXT,
+                matches_found INTEGER,
+                matches_analyzed INTEGER,
+                error_message TEXT,
+                created_at TEXT DEFAULT NOW()
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS match_results (
+                id SERIAL PRIMARY KEY,
+                analysis_id INTEGER NOT NULL UNIQUE,
+                fixture_id INTEGER,
+                home_score INTEGER NOT NULL,
+                away_score INTEGER NOT NULL,
+                ht_home_score INTEGER,
+                ht_away_score INTEGER,
+                actual_1x2 TEXT,
+                pred_1x2_correct INTEGER DEFAULT 0,
+                actual_over25 INTEGER DEFAULT 0,
+                over25_correct INTEGER DEFAULT 0,
+                actual_btts INTEGER DEFAULT 0,
+                btts_correct INTEGER DEFAULT 0,
+                score_correct INTEGER DEFAULT 0,
+                ht_correct INTEGER DEFAULT 0,
+                total_goals INTEGER DEFAULT 0,
+                source TEXT DEFAULT 'auto',
+                telegram_sent INTEGER DEFAULT 0,
+                value_bet_results TEXT,
+                updated_at TEXT DEFAULT NOW(),
+                created_at TEXT DEFAULT NOW(),
+                FOREIGN KEY (analysis_id) REFERENCES analyses(id)
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS pending_matches (
+                id SERIAL PRIMARY KEY,
+                home_team TEXT NOT NULL,
+                away_team TEXT NOT NULL,
+                league TEXT,
+                match_date TEXT,
+                csv_data TEXT,
+                added_date TEXT NOT NULL,
+                created_at TEXT DEFAULT NOW()
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS coupons (
+                id SERIAL PRIMARY KEY,
+                coupon_date TEXT NOT NULL,
+                items TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                won INTEGER DEFAULT 0,
+                total_items INTEGER DEFAULT 0,
+                correct_items INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT NOW()
+            )
+        ''')
+        # ── İY Gol Takip tablosu ─────────────────────────────────────────────────
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS iy_gol_tracker (
+                id SERIAL PRIMARY KEY,
+                match_date TEXT NOT NULL,
+                home_team TEXT NOT NULL,
+                away_team TEXT NOT NULL,
+                league TEXT,
+                match_time TEXT,
+                iy_pct REAL,
+                iy2_pct REAL,
+                iy_result INTEGER,
+                iy2_result INTEGER,
+                iy_score TEXT,
+                ft_score TEXT,
+                created_at TEXT DEFAULT NOW()
+            )
+        ''')
+        for sql in [
+            'ALTER TABLE iy_gol_tracker ADD COLUMN IF NOT EXISTS iy_score TEXT',
+            'ALTER TABLE iy_gol_tracker ADD COLUMN IF NOT EXISTS ft_score TEXT',
+        ]:
+            try:
+                cur.execute(sql)
+                conn.commit()
+            except:
+                conn.rollback()
+        # ── YENİ: Günlük özet tablosu ────────────────────────────────────────────
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS daily_summaries (
+                id SERIAL PRIMARY KEY,
+                summary_date TEXT NOT NULL UNIQUE,
+                ai_provider TEXT DEFAULT 'claude',
+                content TEXT NOT NULL,
+                created_at TEXT DEFAULT NOW()
+            )
+        ''')
+        # ── Maç Senaryoları tablosu ───────────────────────────────────────────────
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS match_scenarios (
+                id SERIAL PRIMARY KEY,
+                analysis_id INTEGER,
+                scenario_date TEXT NOT NULL,
+                home_team TEXT NOT NULL,
+                away_team TEXT NOT NULL,
+                scenarios TEXT NOT NULL,
+                created_at TEXT DEFAULT NOW(),
+                FOREIGN KEY (analysis_id) REFERENCES analyses(id)
+            )
+        ''')
+        # ── Özel Puan Tablosu (görsel yükleme) ───────────────────────────────────
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS custom_standings (
+                id SERIAL PRIMARY KEY,
+                league TEXT NOT NULL,
+                season TEXT NOT NULL,
+                data TEXT NOT NULL,
+                uploaded_at TEXT DEFAULT NOW(),
+                created_at TEXT DEFAULT NOW(),
+                UNIQUE (league, season)
+            )
+        ''')
+        # ── Özel Form Verisi (görsel yükleme) ─────────────────────────────────────
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS custom_form (
+                id SERIAL PRIMARY KEY,
+                league TEXT NOT NULL,
+                season TEXT NOT NULL,
+                data TEXT NOT NULL,
+                uploaded_at TEXT DEFAULT NOW(),
+                created_at TEXT DEFAULT NOW(),
+                UNIQUE (league, season)
+            )
+        ''')
+        # ── Günlük Değerlendirme tablosu ─────────────────────────────────────────────
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS daily_evaluations (
+                id SERIAL PRIMARY KEY,
+                summary_date DATE UNIQUE NOT NULL,
+                ai_text TEXT NOT NULL,
+                stats_json JSONB,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        ''')
+        # ─────────────────────────────────────────────────────────────────────────
+        for sql in [
+            'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_home_score INTEGER',
+            'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_away_score INTEGER',
+            'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS ht_correct INTEGER DEFAULT 0',
+            'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS home_goals_trend TEXT',
+            'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS away_goals_trend TEXT',
+            'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS value_bets TEXT',
+            'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS csv_data TEXT',
+            'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS value_bet_results TEXT',
+            'ALTER TABLE analyses ADD COLUMN IF NOT EXISTS predicted_ht_score TEXT',
+            'ALTER TABLE coupons ADD COLUMN IF NOT EXISTS coupon_type TEXT DEFAULT \'dengeli\'',
+            'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS home_corners INTEGER',
+            'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS away_corners INTEGER',
+            'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS korner_85_correct INTEGER',
+            'ALTER TABLE match_results ADD COLUMN IF NOT EXISTS korner_95_correct INTEGER',
+        ]:
+            try:
+                cur.execute(sql)
+                conn.commit()
+            except:
+                conn.rollback()
+        for sql in [
+            'CREATE INDEX IF NOT EXISTS idx_analyses_date ON analyses(analysis_date)',
+            'CREATE INDEX IF NOT EXISTS idx_analyses_league ON analyses(league)',
+            'CREATE INDEX IF NOT EXISTS idx_analyses_confidence ON analyses(confidence)',
+            'CREATE INDEX IF NOT EXISTS idx_match_results_analysis_id ON match_results(analysis_id)',
+            'CREATE INDEX IF NOT EXISTS idx_match_results_fixture_id ON match_results(fixture_id)',
+            'CREATE INDEX IF NOT EXISTS idx_coupons_date ON coupons(coupon_date)',
+        ]:
+            try:
+                cur.execute(sql)
+                conn.commit()
+            except:
+                conn.rollback()
+        conn.commit()
 
 
 # ── Günlük Özet ──────────────────────────────────────────────────────────────
 
 def save_summary(date_str, content, ai_provider='claude'):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('''
-        INSERT INTO daily_summaries (summary_date, content, ai_provider)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (summary_date) DO UPDATE
-        SET content = EXCLUDED.content,
-            ai_provider = EXCLUDED.ai_provider,
-            created_at = NOW()
-    ''', (date_str, content, ai_provider))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO daily_summaries (summary_date, content, ai_provider)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (summary_date) DO UPDATE
+            SET content = EXCLUDED.content,
+                ai_provider = EXCLUDED.ai_provider,
+                created_at = NOW()
+        ''', (date_str, content, ai_provider))
+        conn.commit()
 
 
 def get_summary_by_date(date_str):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('SELECT * FROM daily_summaries WHERE summary_date = %s', (date_str,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('SELECT * FROM daily_summaries WHERE summary_date = %s', (date_str,))
+        row = cur.fetchone()
     return dict(row) if row else None
 
 
 def get_summary_list(limit=30):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute(
-        'SELECT summary_date, ai_provider, created_at FROM daily_summaries ORDER BY summary_date DESC LIMIT %s',
-        (limit,)
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            'SELECT summary_date, ai_provider, created_at FROM daily_summaries ORDER BY summary_date DESC LIMIT %s',
+            (limit,)
+        )
+        rows = cur.fetchall()
     return [dict(r) for r in rows]
 
 # ── Günlük Değerlendirme ─────────────────────────────────────────────────────
 
 def save_daily_evaluation(date_str, ai_text, stats_json=None):
     import json as _json
-    conn = get_conn()
-    cur = conn.cursor()
-    stats_raw = _json.dumps(stats_json) if stats_json is not None else None
-    cur.execute('''
-        INSERT INTO daily_evaluations (summary_date, ai_text, stats_json, updated_at)
-        VALUES (%s, %s, %s::jsonb, NOW())
-        ON CONFLICT (summary_date) DO UPDATE
-        SET ai_text     = EXCLUDED.ai_text,
-            stats_json  = EXCLUDED.stats_json,
-            updated_at  = NOW()
-    ''', (date_str, ai_text, stats_raw))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        stats_raw = _json.dumps(stats_json) if stats_json is not None else None
+        cur.execute('''
+            INSERT INTO daily_evaluations (summary_date, ai_text, stats_json, updated_at)
+            VALUES (%s, %s, %s::jsonb, NOW())
+            ON CONFLICT (summary_date) DO UPDATE
+            SET ai_text     = EXCLUDED.ai_text,
+                stats_json  = EXCLUDED.stats_json,
+                updated_at  = NOW()
+        ''', (date_str, ai_text, stats_raw))
+        conn.commit()
 
 
 def get_daily_evaluation(date_str):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('SELECT * FROM daily_evaluations WHERE summary_date = %s', (date_str,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('SELECT * FROM daily_evaluations WHERE summary_date = %s', (date_str,))
+        row = cur.fetchone()
     if not row:
         return None
     result = dict(row)
@@ -313,31 +310,27 @@ def get_daily_evaluation(date_str):
 
 def save_pending_matches(matches: list):
     today = _today_istanbul()
-    conn = get_conn()
-    cur = conn.cursor()
-    for m in matches:
-        cur.execute('''
-            INSERT INTO pending_matches (home_team, away_team, league, match_date, csv_data, added_date)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        ''', (
-            m['home_team'], m['away_team'],
-            m.get('league', ''), m.get('date', ''),
-            json.dumps(m.get('csv_data'), ensure_ascii=False) if m.get('csv_data') else None,
-            today
-        ))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        for m in matches:
+            cur.execute('''
+                INSERT INTO pending_matches (home_team, away_team, league, match_date, csv_data, added_date)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (
+                m['home_team'], m['away_team'],
+                m.get('league', ''), m.get('date', ''),
+                json.dumps(m.get('csv_data'), ensure_ascii=False) if m.get('csv_data') else None,
+                today
+            ))
+        conn.commit()
 
 
 def get_pending_matches():
     today = _today_istanbul()
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('SELECT * FROM pending_matches WHERE added_date = %s ORDER BY id ASC', (today,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('SELECT * FROM pending_matches WHERE added_date = %s ORDER BY id ASC', (today,))
+        rows = cur.fetchall()
     result = []
     for r in rows:
         row = dict(r)
@@ -351,52 +344,44 @@ def get_pending_matches():
 
 
 def clear_pending_matches():
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('DELETE FROM pending_matches')
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('DELETE FROM pending_matches')
+        conn.commit()
 
 
 def clear_old_pending_matches():
     today = _today_istanbul()
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('DELETE FROM pending_matches WHERE added_date < %s', (today,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('DELETE FROM pending_matches WHERE added_date < %s', (today,))
+        conn.commit()
 
 
 def save_coupon(items: list, coupon_type: str = 'dengeli'):
     today = _today_istanbul()
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('SELECT id FROM coupons WHERE coupon_date = %s AND coupon_type = %s', (today, coupon_type))
-    existing = cur.fetchone()
-    if existing:
-        cur.execute('''
-            UPDATE coupons SET items=%s, status='pending', won=0, total_items=%s, correct_items=0
-            WHERE coupon_date=%s AND coupon_type=%s
-        ''', (json.dumps(items, ensure_ascii=False), len(items), today, coupon_type))
-    else:
-        cur.execute('''
-            INSERT INTO coupons (coupon_date, coupon_type, items, status, total_items)
-            VALUES (%s, %s, %s, 'pending', %s)
-        ''', (today, coupon_type, json.dumps(items, ensure_ascii=False), len(items)))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('SELECT id FROM coupons WHERE coupon_date = %s AND coupon_type = %s', (today, coupon_type))
+        existing = cur.fetchone()
+        if existing:
+            cur.execute('''
+                UPDATE coupons SET items=%s, status='pending', won=0, total_items=%s, correct_items=0
+                WHERE coupon_date=%s AND coupon_type=%s
+            ''', (json.dumps(items, ensure_ascii=False), len(items), today, coupon_type))
+        else:
+            cur.execute('''
+                INSERT INTO coupons (coupon_date, coupon_type, items, status, total_items)
+                VALUES (%s, %s, %s, 'pending', %s)
+            ''', (today, coupon_type, json.dumps(items, ensure_ascii=False), len(items)))
+        conn.commit()
 
 
 def get_coupons(limit=30):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('SELECT * FROM coupons ORDER BY coupon_date DESC LIMIT %s', (limit,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('SELECT * FROM coupons ORDER BY coupon_date DESC LIMIT %s', (limit,))
+        rows = cur.fetchall()
     result = []
     for r in rows:
         row = dict(r)
@@ -409,15 +394,13 @@ def get_coupons(limit=30):
 
 
 def get_coupon_by_date(date_str, coupon_type=None):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    if coupon_type:
-        cur.execute('SELECT * FROM coupons WHERE coupon_date = %s AND coupon_type = %s', (date_str, coupon_type))
-    else:
-        cur.execute('SELECT * FROM coupons WHERE coupon_date = %s ORDER BY id DESC', (date_str,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if coupon_type:
+            cur.execute('SELECT * FROM coupons WHERE coupon_date = %s AND coupon_type = %s', (date_str, coupon_type))
+        else:
+            cur.execute('SELECT * FROM coupons WHERE coupon_date = %s ORDER BY id DESC', (date_str,))
+        row = cur.fetchone()
     if not row:
         return None
     result = dict(row)
@@ -490,29 +473,25 @@ def _update_single_coupon(coupon, cur):
 
 def update_coupon_results(date_str):
     """O güne ait tüm kupon tiplerini güncelle (güvenli, dengeli, riskli)."""
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('SELECT * FROM coupons WHERE coupon_date = %s', (date_str,))
-    coupons = cur.fetchall()
-    for row in coupons:
-        coupon = dict(row)
-        try:
-            coupon['items'] = json.loads(coupon['items']) if isinstance(coupon['items'], str) else coupon['items']
-        except:
-            coupon['items'] = []
-        _update_single_coupon(coupon, cur)
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('SELECT * FROM coupons WHERE coupon_date = %s', (date_str,))
+        coupons = cur.fetchall()
+        for row in coupons:
+            coupon = dict(row)
+            try:
+                coupon['items'] = json.loads(coupon['items']) if isinstance(coupon['items'], str) else coupon['items']
+            except:
+                coupon['items'] = []
+            _update_single_coupon(coupon, cur)
+        conn.commit()
 
 
 def get_value_bet_stats():
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('SELECT value_bet_results FROM match_results WHERE value_bet_results IS NOT NULL')
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('SELECT value_bet_results FROM match_results WHERE value_bet_results IS NOT NULL')
+        rows = cur.fetchall()
     stats = {}
     for row in rows:
         try:
@@ -544,36 +523,34 @@ def get_value_bet_stats():
 
 
 def save_analysis(data: dict):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('''
-        INSERT INTO analyses (
-            analysis_date, fixture_id, home_team, away_team, league, match_time,
-            prediction_1x2, over25_pct, ht2g_pct, btts_pct, predicted_score,
-            predicted_ht_score, confidence, reasoning, h2h_summary, home_form, away_form,
-            home_goals_avg, away_goals_avg, home_goals_trend, away_goals_trend,
-            value_bets, csv_data
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    ''', (
-        data.get('analysis_date', _today_istanbul()),
-        data.get('fixture_id'),
-        data['home_team'], data['away_team'],
-        data.get('league', ''), data.get('match_time', ''),
-        data.get('prediction_1x2', ''), data.get('over25_pct', 0),
-        data.get('ht2g_pct', 0), data.get('btts_pct', 0),
-        data.get('predicted_score', ''),
-        data.get('predicted_ht_score', ''),
-        data.get('confidence', 'Orta'),
-        data.get('reasoning', ''), data.get('h2h_summary', ''),
-        data.get('home_form', ''), data.get('away_form', ''),
-        data.get('home_goals_avg', 0), data.get('away_goals_avg', 0),
-        data.get('home_goals_trend'), data.get('away_goals_trend'),
-        data.get('value_bets'),
-        json.dumps(data.get('csv_data'), ensure_ascii=False) if data.get('csv_data') is not None else None,
-    ))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO analyses (
+                analysis_date, fixture_id, home_team, away_team, league, match_time,
+                prediction_1x2, over25_pct, ht2g_pct, btts_pct, predicted_score,
+                predicted_ht_score, confidence, reasoning, h2h_summary, home_form, away_form,
+                home_goals_avg, away_goals_avg, home_goals_trend, away_goals_trend,
+                value_bets, csv_data
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (
+            data.get('analysis_date', _today_istanbul()),
+            data.get('fixture_id'),
+            data['home_team'], data['away_team'],
+            data.get('league', ''), data.get('match_time', ''),
+            data.get('prediction_1x2', ''), data.get('over25_pct', 0),
+            data.get('ht2g_pct', 0), data.get('btts_pct', 0),
+            data.get('predicted_score', ''),
+            data.get('predicted_ht_score', ''),
+            data.get('confidence', 'Orta'),
+            data.get('reasoning', ''), data.get('h2h_summary', ''),
+            data.get('home_form', ''), data.get('away_form', ''),
+            data.get('home_goals_avg', 0), data.get('away_goals_avg', 0),
+            data.get('home_goals_trend'), data.get('away_goals_trend'),
+            data.get('value_bets'),
+            json.dumps(data.get('csv_data'), ensure_ascii=False) if data.get('csv_data') is not None else None,
+        ))
+        conn.commit()
 
 
 def _decode_csv_data_in_rows(rows):
@@ -591,78 +568,68 @@ def _decode_csv_data_in_rows(rows):
 
 def get_today_matches():
     today = _today_istanbul()
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute(
-        'SELECT * FROM analyses WHERE analysis_date = %s ORDER BY confidence DESC, over25_pct DESC',
-        (today,)
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            'SELECT * FROM analyses WHERE analysis_date = %s ORDER BY confidence DESC, over25_pct DESC',
+            (today,)
+        )
+        rows = cur.fetchall()
     return _decode_csv_data_in_rows(rows)
 
 
 def get_recent_analyses(days=7):
     since = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute(
-        'SELECT * FROM analyses WHERE analysis_date >= %s ORDER BY analysis_date DESC, confidence DESC',
-        (since,)
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            'SELECT * FROM analyses WHERE analysis_date >= %s ORDER BY analysis_date DESC, confidence DESC',
+            (since,)
+        )
+        rows = cur.fetchall()
     return _decode_csv_data_in_rows(rows)
 
 
 def get_analyses_by_date(date_str):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute(
-        'SELECT * FROM analyses WHERE analysis_date = %s ORDER BY confidence DESC, over25_pct DESC',
-        (date_str,)
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            'SELECT * FROM analyses WHERE analysis_date = %s ORDER BY confidence DESC, over25_pct DESC',
+            (date_str,)
+        )
+        rows = cur.fetchall()
     return _decode_csv_data_in_rows(rows)
 
 
 def get_analyses_by_date_with_results(date_str):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('''
-        SELECT
-            a.*,
-            r.home_score, r.away_score,
-            r.ht_home_score, r.ht_away_score,
-            r.actual_1x2, r.pred_1x2_correct,
-            r.actual_over25, r.over25_correct,
-            r.actual_btts, r.btts_correct,
-            r.score_correct, r.ht_correct, r.total_goals,
-            r.value_bet_results,
-            r.home_corners, r.away_corners,
-            r.korner_85_correct, r.korner_95_correct
-        FROM analyses a
-        LEFT JOIN match_results r ON a.id = r.analysis_id
-        WHERE a.analysis_date = %s
-        ORDER BY a.confidence DESC, a.over25_pct DESC
-    ''', (date_str,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            SELECT
+                a.*,
+                r.home_score, r.away_score,
+                r.ht_home_score, r.ht_away_score,
+                r.actual_1x2, r.pred_1x2_correct,
+                r.actual_over25, r.over25_correct,
+                r.actual_btts, r.btts_correct,
+                r.score_correct, r.ht_correct, r.total_goals,
+                r.value_bet_results,
+                r.home_corners, r.away_corners,
+                r.korner_85_correct, r.korner_95_correct
+            FROM analyses a
+            LEFT JOIN match_results r ON a.id = r.analysis_id
+            WHERE a.analysis_date = %s
+            ORDER BY a.confidence DESC, a.over25_pct DESC
+        ''', (date_str,))
+        rows = cur.fetchall()
     return _decode_csv_data_in_rows(rows)
 
 
 def get_analysis_by_id(analysis_id):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('SELECT * FROM analyses WHERE id = %s', (analysis_id,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('SELECT * FROM analyses WHERE id = %s', (analysis_id,))
+        row = cur.fetchone()
     if not row:
         return None
     result = dict(row)
@@ -675,31 +642,27 @@ def get_analysis_by_id(analysis_id):
 
 
 def get_available_dates():
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('SELECT DISTINCT analysis_date FROM analyses ORDER BY analysis_date DESC LIMIT 30')
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('SELECT DISTINCT analysis_date FROM analyses ORDER BY analysis_date DESC LIMIT 30')
+        rows = cur.fetchall()
     return [r[0] for r in rows]
 
 
 def get_pending_result_checks():
     since = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('''
-        SELECT a.* FROM analyses a
-        LEFT JOIN match_results r ON a.id = r.analysis_id
-        WHERE r.id IS NULL
-          AND a.analysis_date >= %s
-          AND a.fixture_id IS NOT NULL
-          AND a.fixture_id > 0
-        ORDER BY a.match_time ASC
-    ''', (since,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            SELECT a.* FROM analyses a
+            LEFT JOIN match_results r ON a.id = r.analysis_id
+            WHERE r.id IS NULL
+              AND a.analysis_date >= %s
+              AND a.fixture_id IS NOT NULL
+              AND a.fixture_id > 0
+            ORDER BY a.match_time ASC
+        ''', (since,))
+        rows = cur.fetchall()
     return [dict(r) for r in rows]
 
 
@@ -713,75 +676,69 @@ def save_match_result(analysis_id, fixture_id, home_score, away_score,
                       home_corners=None, away_corners=None,
                       korner_85_correct=None, korner_95_correct=None):
     vbr = json.dumps(value_bet_results, ensure_ascii=False) if value_bet_results else None
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('''
-        INSERT INTO match_results (
-            analysis_id, fixture_id, home_score, away_score,
-            ht_home_score, ht_away_score,
-            actual_1x2, pred_1x2_correct,
-            actual_over25, over25_correct,
-            actual_btts, btts_correct,
-            score_correct, ht_correct,
-            total_goals, source, value_bet_results,
-            home_corners, away_corners,
-            korner_85_correct, korner_95_correct
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (analysis_id) DO UPDATE SET
-            fixture_id          = EXCLUDED.fixture_id,
-            home_score          = EXCLUDED.home_score,
-            away_score          = EXCLUDED.away_score,
-            ht_home_score       = EXCLUDED.ht_home_score,
-            ht_away_score       = EXCLUDED.ht_away_score,
-            actual_1x2          = EXCLUDED.actual_1x2,
-            pred_1x2_correct    = EXCLUDED.pred_1x2_correct,
-            actual_over25       = EXCLUDED.actual_over25,
-            over25_correct      = EXCLUDED.over25_correct,
-            actual_btts         = EXCLUDED.actual_btts,
-            btts_correct        = EXCLUDED.btts_correct,
-            score_correct       = EXCLUDED.score_correct,
-            ht_correct          = EXCLUDED.ht_correct,
-            total_goals         = EXCLUDED.total_goals,
-            source              = EXCLUDED.source,
-            value_bet_results   = EXCLUDED.value_bet_results,
-            home_corners        = EXCLUDED.home_corners,
-            away_corners        = EXCLUDED.away_corners,
-            korner_85_correct   = EXCLUDED.korner_85_correct,
-            korner_95_correct   = EXCLUDED.korner_95_correct,
-            updated_at          = NOW()
-    ''', (analysis_id, fixture_id, home_score, away_score,
-          ht_home_score, ht_away_score,
-          actual_1x2, pred_1x2_correct,
-          actual_over25, over25_correct,
-          actual_btts, btts_correct,
-          score_correct, ht_correct,
-          total_goals, source, vbr,
-          home_corners, away_corners,
-          korner_85_correct, korner_95_correct))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO match_results (
+                analysis_id, fixture_id, home_score, away_score,
+                ht_home_score, ht_away_score,
+                actual_1x2, pred_1x2_correct,
+                actual_over25, over25_correct,
+                actual_btts, btts_correct,
+                score_correct, ht_correct,
+                total_goals, source, value_bet_results,
+                home_corners, away_corners,
+                korner_85_correct, korner_95_correct
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (analysis_id) DO UPDATE SET
+                fixture_id          = EXCLUDED.fixture_id,
+                home_score          = EXCLUDED.home_score,
+                away_score          = EXCLUDED.away_score,
+                ht_home_score       = EXCLUDED.ht_home_score,
+                ht_away_score       = EXCLUDED.ht_away_score,
+                actual_1x2          = EXCLUDED.actual_1x2,
+                pred_1x2_correct    = EXCLUDED.pred_1x2_correct,
+                actual_over25       = EXCLUDED.actual_over25,
+                over25_correct      = EXCLUDED.over25_correct,
+                actual_btts         = EXCLUDED.actual_btts,
+                btts_correct        = EXCLUDED.btts_correct,
+                score_correct       = EXCLUDED.score_correct,
+                ht_correct          = EXCLUDED.ht_correct,
+                total_goals         = EXCLUDED.total_goals,
+                source              = EXCLUDED.source,
+                value_bet_results   = EXCLUDED.value_bet_results,
+                home_corners        = EXCLUDED.home_corners,
+                away_corners        = EXCLUDED.away_corners,
+                korner_85_correct   = EXCLUDED.korner_85_correct,
+                korner_95_correct   = EXCLUDED.korner_95_correct,
+                updated_at          = NOW()
+        ''', (analysis_id, fixture_id, home_score, away_score,
+              ht_home_score, ht_away_score,
+              actual_1x2, pred_1x2_correct,
+              actual_over25, over25_correct,
+              actual_btts, btts_correct,
+              score_correct, ht_correct,
+              total_goals, source, vbr,
+              home_corners, away_corners,
+              korner_85_correct, korner_95_correct))
+        conn.commit()
 
 
 def mark_telegram_sent(analysis_id):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('UPDATE match_results SET telegram_sent=1 WHERE analysis_id=%s', (analysis_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('UPDATE match_results SET telegram_sent=1 WHERE analysis_id=%s', (analysis_id,))
+        conn.commit()
 
 
 def log_run(run_date, status, matches_found=0, matches_analyzed=0, error=None):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        'INSERT INTO run_logs (run_date, status, matches_found, matches_analyzed, error_message) VALUES (%s, %s, %s, %s, %s)',
-        (run_date, status, matches_found, matches_analyzed, error)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            'INSERT INTO run_logs (run_date, status, matches_found, matches_analyzed, error_message) VALUES (%s, %s, %s, %s, %s)',
+            (run_date, status, matches_found, matches_analyzed, error)
+        )
+        conn.commit()
 
 
 def _orphan_coupon_items(cur, analysis_ids: list):
@@ -811,49 +768,43 @@ def _orphan_coupon_items(cur, analysis_ids: list):
 def delete_analyses_by_fixture_ids(fixture_ids: list):
     if not fixture_ids:
         return
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('SELECT id FROM analyses WHERE fixture_id = ANY(%s)', (fixture_ids,))
-    analysis_ids = [r[0] for r in cur.fetchall()]
-    _orphan_coupon_items(cur, analysis_ids)
-    cur.execute('''
-        DELETE FROM match_results WHERE analysis_id IN (
-            SELECT id FROM analyses WHERE fixture_id = ANY(%s)
-        )
-    ''', (fixture_ids,))
-    cur.execute('DELETE FROM analyses WHERE fixture_id = ANY(%s)', (fixture_ids,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('SELECT id FROM analyses WHERE fixture_id = ANY(%s)', (fixture_ids,))
+        analysis_ids = [r[0] for r in cur.fetchall()]
+        _orphan_coupon_items(cur, analysis_ids)
+        cur.execute('''
+            DELETE FROM match_results WHERE analysis_id IN (
+                SELECT id FROM analyses WHERE fixture_id = ANY(%s)
+            )
+        ''', (fixture_ids,))
+        cur.execute('DELETE FROM analyses WHERE fixture_id = ANY(%s)', (fixture_ids,))
+        conn.commit()
 
 
 def delete_analysis(analysis_id):
-    conn = get_conn()
-    cur = conn.cursor()
-    _orphan_coupon_items(cur, [analysis_id])
-    cur.execute('DELETE FROM match_results WHERE analysis_id = %s', (analysis_id,))
-    cur.execute('DELETE FROM analyses WHERE id = %s', (analysis_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        _orphan_coupon_items(cur, [analysis_id])
+        cur.execute('DELETE FROM match_results WHERE analysis_id = %s', (analysis_id,))
+        cur.execute('DELETE FROM analyses WHERE id = %s', (analysis_id,))
+        conn.commit()
 
 
 def delete_today_analyses():
     today = _today_istanbul()
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('SELECT id FROM analyses WHERE analysis_date = %s', (today,))
-    analysis_ids = [r[0] for r in cur.fetchall()]
-    _orphan_coupon_items(cur, analysis_ids)
-    cur.execute('''
-        DELETE FROM match_results WHERE analysis_id IN (
-            SELECT id FROM analyses WHERE analysis_date = %s
-        )
-    ''', (today,))
-    cur.execute('DELETE FROM analyses WHERE analysis_date = %s', (today,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('SELECT id FROM analyses WHERE analysis_date = %s', (today,))
+        analysis_ids = [r[0] for r in cur.fetchall()]
+        _orphan_coupon_items(cur, analysis_ids)
+        cur.execute('''
+            DELETE FROM match_results WHERE analysis_id IN (
+                SELECT id FROM analyses WHERE analysis_date = %s
+            )
+        ''', (today,))
+        cur.execute('DELETE FROM analyses WHERE analysis_date = %s', (today,))
+        conn.commit()
 
 
 def clear_today_analyses():
@@ -863,87 +814,79 @@ def clear_today_analyses():
 # ── İY Gol Tracker ───────────────────────────────────────────────────────────
 
 def save_iy_match(date, home, away, league, time, iy_pct, iy2_pct):
-    conn = get_conn()
-    cur = conn.cursor()
-    # Aynı gün aynı maç varsa güncelle, yoksa ekle
-    cur.execute(
-        'SELECT id FROM iy_gol_tracker WHERE match_date=%s AND home_team=%s AND away_team=%s',
-        (date, home, away)
-    )
-    existing = cur.fetchone()
-    if existing:
-        cur.execute('''
-            UPDATE iy_gol_tracker SET league=%s, match_time=%s, iy_pct=%s, iy2_pct=%s
-            WHERE id=%s
-        ''', (league, time, iy_pct, iy2_pct, existing[0]))
-        row_id = existing[0]
-    else:
-        cur.execute('''
-            INSERT INTO iy_gol_tracker (match_date, home_team, away_team, league, match_time, iy_pct, iy2_pct)
-            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
-        ''', (date, home, away, league, time, iy_pct, iy2_pct))
-        row_id = cur.fetchone()[0]
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            'SELECT id FROM iy_gol_tracker WHERE match_date=%s AND home_team=%s AND away_team=%s',
+            (date, home, away)
+        )
+        existing = cur.fetchone()
+        if existing:
+            cur.execute('''
+                UPDATE iy_gol_tracker SET league=%s, match_time=%s, iy_pct=%s, iy2_pct=%s
+                WHERE id=%s
+            ''', (league, time, iy_pct, iy2_pct, existing[0]))
+            row_id = existing[0]
+        else:
+            cur.execute('''
+                INSERT INTO iy_gol_tracker (match_date, home_team, away_team, league, match_time, iy_pct, iy2_pct)
+                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+            ''', (date, home, away, league, time, iy_pct, iy2_pct))
+            row_id = cur.fetchone()[0]
+        conn.commit()
     return row_id
 
 
 def get_iy_matches_by_date(date):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute(
-        'SELECT * FROM iy_gol_tracker WHERE match_date=%s ORDER BY match_time ASC, id ASC',
-        (date,)
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            'SELECT * FROM iy_gol_tracker WHERE match_date=%s ORDER BY match_time ASC, id ASC',
+            (date,)
+        )
+        rows = cur.fetchall()
     return [dict(r) for r in rows]
 
 
 def update_iy_result(row_id, iy_result, iy2_result, iy_score=None, ft_score=None):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        'UPDATE iy_gol_tracker SET iy_result=%s, iy2_result=%s, iy_score=%s, ft_score=%s WHERE id=%s',
-        (iy_result, iy2_result, iy_score, ft_score, row_id)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            'UPDATE iy_gol_tracker SET iy_result=%s, iy2_result=%s, iy_score=%s, ft_score=%s WHERE id=%s',
+            (iy_result, iy2_result, iy_score, ft_score, row_id)
+        )
+        conn.commit()
 
 
 def get_iy_stats(date=None):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    if date:
-        cur.execute('''
-            SELECT
-                COUNT(*) as total_resolved,
-                SUM(CASE WHEN iy_result = 1 THEN 1 ELSE 0 END) as iy_correct,
-                SUM(CASE WHEN iy_result = 0 AND iy2_result = 1 THEN 1 ELSE 0 END) as saved,
-                SUM(CASE WHEN iy_result = 0 AND iy2_result = 0 THEN 1 ELSE 0 END) as none
-            FROM iy_gol_tracker
-            WHERE match_date=%s AND iy_result IS NOT NULL AND (iy_result = 1 OR iy2_result IS NOT NULL)
-        ''', (date,))
-    else:
-        cur.execute('''
-            SELECT
-                COUNT(*) as total_resolved,
-                SUM(CASE WHEN iy_result = 1 THEN 1 ELSE 0 END) as iy_correct,
-                SUM(CASE WHEN iy_result = 0 AND iy2_result = 1 THEN 1 ELSE 0 END) as saved,
-                SUM(CASE WHEN iy_result = 0 AND iy2_result = 0 THEN 1 ELSE 0 END) as none
-            FROM iy_gol_tracker
-            WHERE iy_result IS NOT NULL AND (iy_result = 1 OR iy2_result IS NOT NULL)
-        ''')
-    row = dict(cur.fetchone())
-    cur.close()
-    conn.close()
-    total = row['total_resolved'] or 0
-    iy_correct = row['iy_correct'] or 0
-    saved = row['saved'] or 0
-    none_ = row['none'] or 0
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if date:
+            cur.execute('''
+                SELECT
+                    COUNT(*) as total_resolved,
+                    SUM(CASE WHEN iy_result = 1 THEN 1 ELSE 0 END) as iy_correct,
+                    SUM(CASE WHEN iy_result = 0 AND iy2_result = 1 THEN 1 ELSE 0 END) as saved,
+                    SUM(CASE WHEN iy_result = 0 AND iy2_result = 0 THEN 1 ELSE 0 END) as none
+                FROM iy_gol_tracker
+                WHERE match_date=%s AND iy_result IS NOT NULL AND (iy_result = 1 OR iy2_result IS NOT NULL)
+            ''', (date,))
+        else:
+            cur.execute('''
+                SELECT
+                    COUNT(*) as total_resolved,
+                    SUM(CASE WHEN iy_result = 1 THEN 1 ELSE 0 END) as iy_correct,
+                    SUM(CASE WHEN iy_result = 0 AND iy2_result = 1 THEN 1 ELSE 0 END) as saved,
+                    SUM(CASE WHEN iy_result = 0 AND iy2_result = 0 THEN 1 ELSE 0 END) as none
+                FROM iy_gol_tracker
+                WHERE iy_result IS NOT NULL AND (iy_result = 1 OR iy2_result IS NOT NULL)
+            ''')
+        raw = cur.fetchone()
+        row = dict(raw) if raw else {}
+    total = row.get('total_resolved') or 0
+    iy_correct = row.get('iy_correct') or 0
+    saved = row.get('saved') or 0
+    none_ = row.get('none') or 0
     return {
         'total_resolved': total,
         'iy_correct': iy_correct,
@@ -958,43 +901,39 @@ def get_iy_stats(date=None):
 # ── Maç Senaryoları ───────────────────────────────────────────────────────────
 
 def save_scenarios(scenario_date, analysis_id, home_team, away_team, scenarios):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        'SELECT id FROM match_scenarios WHERE scenario_date = %s AND analysis_id = %s',
-        (scenario_date, analysis_id)
-    )
-    existing = cur.fetchone()
-    scenarios_json = json.dumps(scenarios, ensure_ascii=False)
-    if existing:
+    with get_conn() as conn:
+        cur = conn.cursor()
         cur.execute(
-            'UPDATE match_scenarios SET scenarios=%s, created_at=NOW() WHERE id=%s',
-            (scenarios_json, existing[0])
+            'SELECT id FROM match_scenarios WHERE scenario_date = %s AND analysis_id = %s',
+            (scenario_date, analysis_id)
         )
-    else:
-        cur.execute('''
-            INSERT INTO match_scenarios (analysis_id, scenario_date, home_team, away_team, scenarios)
-            VALUES (%s, %s, %s, %s, %s)
-        ''', (analysis_id, scenario_date, home_team, away_team, scenarios_json))
-    conn.commit()
-    cur.close()
-    conn.close()
+        existing = cur.fetchone()
+        scenarios_json = json.dumps(scenarios, ensure_ascii=False)
+        if existing:
+            cur.execute(
+                'UPDATE match_scenarios SET scenarios=%s, created_at=NOW() WHERE id=%s',
+                (scenarios_json, existing[0])
+            )
+        else:
+            cur.execute('''
+                INSERT INTO match_scenarios (analysis_id, scenario_date, home_team, away_team, scenarios)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (analysis_id, scenario_date, home_team, away_team, scenarios_json))
+        conn.commit()
 
 
 def get_scenarios_by_date(date_str):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute('''
-        SELECT ms.*, a.league, a.match_time, a.prediction_1x2, a.confidence,
-               a.predicted_score, a.over25_pct, a.btts_pct
-        FROM match_scenarios ms
-        LEFT JOIN analyses a ON a.id = ms.analysis_id
-        WHERE ms.scenario_date = %s
-        ORDER BY ms.id ASC
-    ''', (date_str,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            SELECT ms.*, a.league, a.match_time, a.prediction_1x2, a.confidence,
+                   a.predicted_score, a.over25_pct, a.btts_pct
+            FROM match_scenarios ms
+            LEFT JOIN analyses a ON a.id = ms.analysis_id
+            WHERE ms.scenario_date = %s
+            ORDER BY ms.id ASC
+        ''', (date_str,))
+        rows = cur.fetchall()
     result = []
     for r in rows:
         row = dict(r)
@@ -1008,59 +947,51 @@ def get_scenarios_by_date(date_str):
 
 
 def delete_scenarios_by_date(date_str):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('DELETE FROM match_scenarios WHERE scenario_date = %s', (date_str,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('DELETE FROM match_scenarios WHERE scenario_date = %s', (date_str,))
+        conn.commit()
 
 
 # ── Özel Puan Tablosu ────────────────────────────────────────────────────────
 
 def save_custom_standings(league, season, data):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('''
-        INSERT INTO custom_standings (league, season, data, uploaded_at)
-        VALUES (%s, %s, %s, NOW())
-        ON CONFLICT (league, season) DO UPDATE
-        SET data = EXCLUDED.data,
-            uploaded_at = NOW()
-    ''', (league, season, json.dumps(data, ensure_ascii=False)))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO custom_standings (league, season, data, uploaded_at)
+            VALUES (%s, %s, %s, NOW())
+            ON CONFLICT (league, season) DO UPDATE
+            SET data = EXCLUDED.data,
+                uploaded_at = NOW()
+        ''', (league, season, json.dumps(data, ensure_ascii=False)))
+        conn.commit()
 
 
 def save_custom_form(league, season, data):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute('''
-        INSERT INTO custom_form (league, season, data, uploaded_at)
-        VALUES (%s, %s, %s, NOW())
-        ON CONFLICT (league, season) DO UPDATE
-        SET data = EXCLUDED.data,
-            uploaded_at = NOW()
-    ''', (league, season, json.dumps(data, ensure_ascii=False)))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO custom_form (league, season, data, uploaded_at)
+            VALUES (%s, %s, %s, NOW())
+            ON CONFLICT (league, season) DO UPDATE
+            SET data = EXCLUDED.data,
+                uploaded_at = NOW()
+        ''', (league, season, json.dumps(data, ensure_ascii=False)))
+        conn.commit()
 
 
 def get_custom_form(league, season=None):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    if season:
-        cur.execute(
-            'SELECT * FROM custom_form WHERE season = %s ORDER BY uploaded_at DESC',
-            (season,)
-        )
-    else:
-        cur.execute('SELECT * FROM custom_form ORDER BY uploaded_at DESC')
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if season:
+            cur.execute(
+                'SELECT * FROM custom_form WHERE season = %s ORDER BY uploaded_at DESC',
+                (season,)
+            )
+        else:
+            cur.execute('SELECT * FROM custom_form ORDER BY uploaded_at DESC')
+        rows = cur.fetchall()
     league_lower = (league or '').lower().strip()
     row = None
     for r in rows:
@@ -1077,21 +1008,19 @@ def get_custom_form(league, season=None):
 
 
 def get_custom_standings(league, season=None):
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    if season:
-        cur.execute(
-            'SELECT * FROM custom_standings WHERE league = %s AND season = %s ORDER BY uploaded_at DESC LIMIT 1',
-            (league, season)
-        )
-    else:
-        cur.execute(
-            'SELECT * FROM custom_standings WHERE league = %s ORDER BY uploaded_at DESC LIMIT 1',
-            (league,)
-        )
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if season:
+            cur.execute(
+                'SELECT * FROM custom_standings WHERE league = %s AND season = %s ORDER BY uploaded_at DESC LIMIT 1',
+                (league, season)
+            )
+        else:
+            cur.execute(
+                'SELECT * FROM custom_standings WHERE league = %s ORDER BY uploaded_at DESC LIMIT 1',
+                (league,)
+            )
+        row = cur.fetchone()
     if row:
         try:
             row = dict(row)
