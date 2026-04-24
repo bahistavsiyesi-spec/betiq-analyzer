@@ -688,6 +688,7 @@ def build_prompt(home_team, away_team, league, match_time,
     confidence_rules = (
         '── Güven Seviyesi Belirleme Kuralları ──\n'
         '"confidence" alanına Yüksek / Orta / Düşük yaz ("Çok Yüksek" KULLANMA).\n'
+        'Rehber: %15+ odds farkı + PPG aynı yön → Yüksek; çelişki → Düşük; diğer → Orta.\n'
         '── Güven Kuralları Sonu ──\n'
     )
 
@@ -1467,6 +1468,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     _conf_odds_favors = None
     _conf_ppg_favors = None
     _odds_diff_abs = None
+    _ppg_diff_abs = None
     if csv_data:
         try:
             h_o = float(csv_data.get('odds_home') or 0)
@@ -1488,6 +1490,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
             ca = float(csv_data.get('current_away_ppg') or 0)
             if ch > 0 or ca > 0:
                 pd = ch - ca
+                _ppg_diff_abs = abs(pd)
                 if pd > 0.5: _conf_ppg_favors = '1'
                 elif pd < -0.5: _conf_ppg_favors = '2'
                 else: _conf_ppg_favors = 'X'
@@ -1531,57 +1534,77 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     else:
         odds_side = _conf_odds_favors.replace('_soft', '') if _conf_odds_favors else None
 
-        # Sinyal yön uyumu yardımcıları
-        _side_ok  = odds_side and odds_side not in ('X', None)
-        _ppg_ok   = _conf_ppg_favors and _conf_ppg_favors not in ('X', None)
-
-        # venue_rank: _strong ve _soft ayrımı
-        _venue_raw   = _conf_venue_rank_favors or ''
-        _venue_side  = _venue_raw.replace('_strong', '').replace('_soft', '') or None
-        _venue_strong = _venue_raw.endswith('_strong')
-        _venue_soft   = _venue_raw.endswith('_soft')
-        venue_data_exists = _conf_venue_rank_favors is not None  # None = veri yok
-
-        ppg_aligned          = _side_ok and _ppg_ok and _conf_ppg_favors == odds_side
-        venue_strong_aligned = _side_ok and _venue_strong and _venue_side == odds_side
-        venue_soft_aligned   = _side_ok and _venue_soft   and _venue_side == odds_side
-
-        # Odds gücü eşikleri
-        strong_odds = _odds_diff_abs is not None and _odds_diff_abs >= 20
-        medium_odds = _odds_diff_abs is not None and 15 <= _odds_diff_abs < 20
-
-        # Çelişki: odds ve PPG farklı tarafa işaret ediyor (X/None değil)
-        conflict = (
-            _side_ok and _ppg_ok
-            and _conf_ppg_favors != odds_side
-        )
-
-        # ── Yüksek: odds %20+ VE PPG aynı yön VE (sıralama GÜÇLÜ aynı yön VEYA sıralama verisi yok) ──
-        high = strong_odds and ppg_aligned and (venue_strong_aligned or not venue_data_exists)
-
-        # ── Orta: aşağıdaki koşullardan biri ────────────────────────────────────
-        # 1. Odds %15-20 + PPG + sıralama güçlü aynı yönde
-        # 2. Odds %20+ + PPG + sıralama soft (4-9 fark) aynı yönde
-        # 3. Odds %20 altında + PPG aynı yönde (sıralama ne olursa)
-        medium = (
-            (medium_odds and ppg_aligned and venue_strong_aligned)
-            or (strong_odds and ppg_aligned and venue_soft_aligned)
-            or (not strong_odds and _side_ok and ppg_aligned)
-        )
-
-        if high:
-            confidence = 'Yüksek'
-        elif conflict:
-            confidence = 'Düşük'
-        elif medium:
-            confidence = 'Orta'
+        if odds_side is None:
+            # C2: Odds verisi yok — sadece PPG farkına göre karar ver
+            _ppg_ok = _conf_ppg_favors and _conf_ppg_favors not in ('X', None)
+            if _ppg_diff_abs is not None and _ppg_ok:
+                _venue_raw  = _conf_venue_rank_favors or ''
+                _venue_side = _venue_raw.replace('_strong', '').replace('_soft', '') or None
+                venue_same_dir = _venue_side == _conf_ppg_favors
+                if _ppg_diff_abs >= 0.5 and venue_same_dir:
+                    confidence = 'Yüksek'
+                elif _ppg_diff_abs >= 0.3:
+                    confidence = 'Orta'
+                else:
+                    confidence = 'Düşük'
+            else:
+                confidence = 'Orta'
+            logger.info(
+                f'Confidence (no-odds): ppg_diff={_ppg_diff_abs} ppg={_conf_ppg_favors} '
+                f'venue_rank={_conf_venue_rank_favors} → {confidence}'
+            )
         else:
-            confidence = 'Orta'
+            # Sinyal yön uyumu yardımcıları
+            _side_ok  = odds_side and odds_side not in ('X', None)
+            _ppg_ok   = _conf_ppg_favors and _conf_ppg_favors not in ('X', None)
 
-        logger.info(
-            f'Confidence inputs: odds_diff={_odds_diff_abs} odds={_conf_odds_favors} '
-            f'ppg={_conf_ppg_favors} venue_rank={_conf_venue_rank_favors}'
-        )
+            # venue_rank: _strong ve _soft ayrımı
+            _venue_raw   = _conf_venue_rank_favors or ''
+            _venue_side  = _venue_raw.replace('_strong', '').replace('_soft', '') or None
+            _venue_strong = _venue_raw.endswith('_strong')
+            _venue_soft   = _venue_raw.endswith('_soft')
+            venue_data_exists = _conf_venue_rank_favors is not None  # None = veri yok
+
+            ppg_aligned          = _side_ok and _ppg_ok and _conf_ppg_favors == odds_side
+            venue_strong_aligned = _side_ok and _venue_strong and _venue_side == odds_side
+            venue_soft_aligned   = _side_ok and _venue_soft   and _venue_side == odds_side
+
+            # Odds gücü eşikleri (C3: strong >= 15, medium 10-15)
+            strong_odds = _odds_diff_abs is not None and _odds_diff_abs >= 15
+            medium_odds = _odds_diff_abs is not None and 10 <= _odds_diff_abs < 15
+
+            # Çelişki: odds ve PPG farklı tarafa işaret ediyor (X/None değil)
+            conflict = (
+                _side_ok and _ppg_ok
+                and _conf_ppg_favors != odds_side
+            )
+
+            # ── Yüksek: odds %15+ VE PPG aynı yön VE (sıralama GÜÇLÜ aynı yön VEYA sıralama verisi yok) ──
+            high = strong_odds and ppg_aligned and (venue_strong_aligned or not venue_data_exists)
+
+            # ── Orta: aşağıdaki koşullardan biri ────────────────────────────────────
+            # 1. Odds %10-15 + PPG + sıralama güçlü aynı yönde
+            # 2. Odds %15+ + PPG + sıralama soft (4-9 fark) aynı yönde
+            # 3. Odds %15 altında + PPG aynı yönde (sıralama ne olursa)
+            medium = (
+                (medium_odds and ppg_aligned and venue_strong_aligned)
+                or (strong_odds and ppg_aligned and venue_soft_aligned)
+                or (not strong_odds and _side_ok and ppg_aligned)
+            )
+
+            if high:
+                confidence = 'Yüksek'
+            elif conflict:
+                confidence = 'Düşük'
+            elif medium:
+                confidence = 'Orta'
+            else:
+                confidence = 'Orta'
+
+            logger.info(
+                f'Confidence inputs: odds_diff={_odds_diff_abs} odds={_conf_odds_favors} '
+                f'ppg={_conf_ppg_favors} venue_rank={_conf_venue_rank_favors}'
+            )
 
         logger.info(
             f'Confidence final: {confidence} | odds={_conf_odds_favors} ppg={_conf_ppg_favors} '
