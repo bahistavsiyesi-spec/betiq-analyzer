@@ -683,7 +683,9 @@ def api_stats_momentum():
 
             # Son N sonuç: 1X2 (yalnızca Yüksek/Çok Yüksek güven)
             cur.execute(f'''
-                SELECT r.pred_1x2_correct, a.analysis_date
+                SELECT r.pred_1x2_correct, a.analysis_date,
+                       a.home_team, a.away_team, a.prediction_1x2,
+                       r.home_score, r.away_score
                 FROM match_results r
                 JOIN analyses a ON a.id = r.analysis_id
                 WHERE a.confidence IN ('Yüksek', 'Çok Yüksek') {month_clause}
@@ -694,7 +696,9 @@ def api_stats_momentum():
 
             # Son N sonuç: Over 2.5 (%75+)
             cur.execute(f'''
-                SELECT r.over25_correct, a.analysis_date
+                SELECT r.over25_correct, a.analysis_date,
+                       a.home_team, a.away_team, a.over25_pct,
+                       r.home_score, r.away_score
                 FROM match_results r
                 JOIN analyses a ON a.id = r.analysis_id
                 WHERE a.over25_pct >= 75 {month_clause}
@@ -705,7 +709,9 @@ def api_stats_momentum():
 
             # Son N sonuç: KG Var (%70+)
             cur.execute(f'''
-                SELECT r.btts_correct, a.analysis_date
+                SELECT r.btts_correct, a.analysis_date,
+                       a.home_team, a.away_team, a.btts_pct,
+                       r.home_score, r.away_score
                 FROM match_results r
                 JOIN analyses a ON a.id = r.analysis_id
                 WHERE a.btts_pct >= 70 {month_clause}
@@ -716,7 +722,9 @@ def api_stats_momentum():
 
             # Son N sonuç: İY 0.5 (%65+, ht skoru girilen)
             cur.execute(f'''
-                SELECT r.ht_correct, a.analysis_date
+                SELECT r.ht_correct, a.analysis_date,
+                       a.home_team, a.away_team, a.ht2g_pct,
+                       r.ht_home_score, r.ht_away_score, r.home_score, r.away_score
                 FROM match_results r
                 JOIN analyses a ON a.id = r.analysis_id
                 WHERE a.ht2g_pct >= 65 AND r.ht_home_score IS NOT NULL {month_clause}
@@ -726,11 +734,36 @@ def api_stats_momentum():
             rows_ht = [dict(r) for r in cur.fetchall()]
 
 
-        def build_series(rows, key):
+        def build_series(rows, key, category):
             if not rows:
                 return None
-            series = [int(r[key] or 0) for r in rows]  # en yeni → en eski
-            series_display = list(reversed(series))       # en eski → en yeni (görsel için)
+            details_raw = []
+            series = []
+            for r in rows:
+                val = int(r[key] or 0)
+                series.append(val)
+                hs = r.get('home_score')
+                as_ = r.get('away_score')
+                det = {
+                    'home_team':   r.get('home_team', ''),
+                    'away_team':   r.get('away_team', ''),
+                    'match_date':  str(r.get('analysis_date', '')),
+                    'result':      'W' if val else 'L',
+                    'actual_score': f"{hs}-{as_}" if hs is not None and as_ is not None else None,
+                }
+                if category == '1x2':
+                    det['prediction'] = r.get('prediction_1x2', '')
+                elif category == 'over25':
+                    det['prediction'] = r.get('over25_pct', '')
+                elif category == 'btts':
+                    det['prediction'] = r.get('btts_pct', '')
+                elif category == 'ht':
+                    det['prediction'] = r.get('ht2g_pct', '')
+                details_raw.append(det)
+
+            # en yeni → en eski; display = en eski → en yeni
+            series_display  = list(reversed(series))
+            details_display = list(reversed(details_raw))
             n = len(series)
             n5 = min(5, n)
             pct_all = round(sum(series) / n * 100)
@@ -739,20 +772,21 @@ def api_stats_momentum():
             elif pct5 < 50:  badge = ('down',    '📉 Zayıf Form')
             else:             badge = ('stable',  '➡️ Stabil')
             return {
-                'series': series_display,
+                'series':  series_display,
+                'details': details_display,
                 'pct_all': pct_all,
-                'pct5': pct5,
-                'count': n,
-                'limit': limit,
-                'badge': badge[0],
+                'pct5':    pct5,
+                'count':   n,
+                'limit':   limit,
+                'badge':       badge[0],
                 'badge_label': badge[1],
             }
 
         result = {
-            '1x2':   build_series(rows_1x2,   'pred_1x2_correct'),
-            'over25': build_series(rows_over25, 'over25_correct'),
-            'btts':  build_series(rows_btts,  'btts_correct'),
-            'ht':    build_series(rows_ht,    'ht_correct'),
+            '1x2':   build_series(rows_1x2,    'pred_1x2_correct', '1x2'),
+            'over25': build_series(rows_over25, 'over25_correct',   'over25'),
+            'btts':  build_series(rows_btts,   'btts_correct',     'btts'),
+            'ht':    build_series(rows_ht,     'ht_correct',       'ht'),
         }
         return jsonify(result)
     except Exception as e:
