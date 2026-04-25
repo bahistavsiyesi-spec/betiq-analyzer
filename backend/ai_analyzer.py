@@ -958,9 +958,9 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
     # KRİTİK FIX → 3.5 düşükse 4 gollü skor YASAK
     if o35 is not None and o35 < 45:
         if pred_1x2 == '1':
-            return '2-1' if btts >= 50 else '2-0'
+            return '2-1' if btts >= 62 else '2-0'
         if pred_1x2 == '2':
-            return '1-2' if btts >= 50 else '0-2'
+            return '1-2' if btts >= 62 else '0-2'
         return '1-1'
 
     if o25 >= 70:
@@ -981,9 +981,9 @@ def _pick_score_by_csv_rules(pred_1x2, btts_pct, over25_pct, over35_avg=None, ov
 
     # Orta bölge fallback
     if pred_1x2 == '1':
-        return '1-0' if btts < 40 else ('2-0' if btts < 55 else '2-1')
+        return '1-0' if btts < 40 else ('2-0' if btts < 62 else '2-1')
     if pred_1x2 == '2':
-        return '0-1' if btts < 40 else ('0-2' if btts < 55 else '1-2')
+        return '0-1' if btts < 40 else ('0-2' if btts < 62 else '1-2')
     return '1-1'
 
 
@@ -1018,7 +1018,7 @@ def _is_score_valid(score_text, pred_1x2, btts_pct, over25_pct, over35_avg=None,
 
     if btts < 40 and home > 0 and away > 0:
         return False
-    if btts > 65 and (home == 0 or away == 0):
+    if btts > 72 and (home == 0 or away == 0):
         return False
 
     if o25 < 40 and total > 2:
@@ -1086,7 +1086,7 @@ def _repair_ht_from_ft(ft_score_text, ht2g_pct=None):
     return '1-0'
 
 
-def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None, h2h_fd=None, csv_data=None, league_code=None, return_debug=False):
+def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_data=None, h2h_fd=None, csv_data=None, league_code=None, return_debug=False, return_candidates=False):
     """
     Poisson dağılımı kullanarak en olasılıklı skoru tahmin eder.
 
@@ -1284,23 +1284,25 @@ def predict_score_poisson(home_matches, away_matches, home_name, away_name, h2h_
             return 1.0 if k == 0 else 0.0
         return math.exp(-lam) * (lam ** k) / math.factorial(k)
 
-    best_prob = -1.0
-    best_home_goals = 1
-    best_away_goals = 0
-
+    all_scores = []
     for h in range(6):
         for a in range(6):
             prob = poisson_prob(home_xg, h) * poisson_prob(away_xg, a)
-            if prob > best_prob:
-                best_prob = prob
-                best_home_goals = h
-                best_away_goals = a
+            all_scores.append((prob, h, a))
+    all_scores.sort(key=lambda x: x[0], reverse=True)
 
+    best_prob, best_home_goals, best_away_goals = all_scores[0]
     logger.info(
         f'[SKOR TAHMİN] Poisson: {home_name} xG={home_xg:.2f} | '
         f'{away_name} xG={away_xg:.2f} → {best_home_goals}-{best_away_goals} '
         f'(p={best_prob:.4f})'
     )
+
+    if return_candidates:
+        top3 = [f'{h}-{a}' for _, h, a in all_scores[:3]]
+        logger.info(f'[SKOR TAHMİN] Poisson top-3: {top3}')
+        return top3
+
     score_str = f'{best_home_goals}-{best_away_goals}'
     if not return_debug:
         return score_str
@@ -1723,27 +1725,32 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     _over45_avg = csv_data.get('over45_avg') if csv_data else None
 
     try:
-        poisson_score = predict_score_poisson(
+        poisson_candidates = predict_score_poisson(
             home_matches, away_matches, home_team, away_team,
             h2h_data=h2h_data, h2h_fd=h2h_fd, csv_data=csv_data,
             league_code=league_code,
+            return_candidates=True,
         )
     except Exception as e:
         logger.warning(f'[SKOR TAHMİN] Poisson hesabı başarısız: {e}')
-        poisson_score = None
+        poisson_candidates = None
 
     csv_fallback_score = _pick_score_by_csv_rules(
         _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg,
         home_shot_stats=home_shot_stats, away_shot_stats=away_shot_stats,
     )
 
-    # Poisson skoru önce doğrula; geçersizse CSV fallback kullan
-    if poisson_score and _is_score_valid(poisson_score, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
-        fallback_score = poisson_score
-    else:
-        if poisson_score:
-            logger.info(f'[SKOR TAHMİN] Poisson skoru ({poisson_score}) geçersiz, csv_fallback kullanılıyor: {csv_fallback_score}')
-        fallback_score = csv_fallback_score
+    # Poisson top-3: geçerli ilk adayı kullan; hepsi geçersizse CSV fallback
+    fallback_score = csv_fallback_score
+    _poisson_valid = False
+    for _candidate in (poisson_candidates or []):
+        if _is_score_valid(_candidate, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
+            fallback_score = _candidate
+            _poisson_valid = True
+            logger.info(f'[SKOR TAHMİN] Poisson aday geçerli: {_candidate}')
+            break
+    if not _poisson_valid and poisson_candidates:
+        logger.info(f'[SKOR TAHMİN] Poisson top-3 {poisson_candidates} hepsi geçersiz, csv_fallback: {csv_fallback_score}')
 
     _safe_fallbacks = {
         'X': lambda: random.choice(['1-1', '2-2', '0-0']),
@@ -1753,7 +1760,7 @@ def analyze_with_claude(fixture, h2h_data, home_matches, away_matches,
     if not _is_score_valid(fallback_score, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
         safe = _safe_fallbacks.get(_pred_1x2, lambda: '1-1')()
         if not _is_score_valid(safe, _pred_1x2, btts_pct, over25_pct, _over35_avg, _over45_avg):
-            if btts_pct < 40:
+            if btts_pct < 55:
                 safe = '2-0' if _pred_1x2 == '1' else ('0-2' if _pred_1x2 == '2' else '0-0')
             else:
                 safe = '2-1' if _pred_1x2 == '1' else ('1-2' if _pred_1x2 == '2' else '1-1')
