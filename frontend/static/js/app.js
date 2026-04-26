@@ -1065,7 +1065,7 @@ function renderMatches(matches){
     if(!matches||matches.length===0){container.innerHTML=`<div class="no-matches"><p>📭 Henuz analiz yapilmadi.</p></div>`;return;}
     container.innerHTML=`
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 4px;">
-            <div style="display:flex;gap:8px;">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
                 <button id="telegramBtn" onclick="sendToTelegram()" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">📨 Telegram'a Gonder</button>
                 <button id="couponBtn-taraf" onclick="generateCoupon('taraf')" style="padding:8px 14px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">🎯 Taraf</button>
                 <button id="couponBtn-ust" onclick="generateCoupon('ust')" style="padding:8px 14px;border-radius:8px;border:none;background:#16a34a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700;">⚽ 2.5 Üst</button>
