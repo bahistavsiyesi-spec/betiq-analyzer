@@ -1018,7 +1018,7 @@ def _is_score_valid(score_text, pred_1x2, btts_pct, over25_pct, over35_avg=None,
 
     if btts < 50 and home > 0 and away > 0:
         return False
-    if btts > 72 and (home == 0 or away == 0):
+    if btts > 65 and (home == 0 or away == 0):
         return False
 
     if o25 < 50 and total > 2:
