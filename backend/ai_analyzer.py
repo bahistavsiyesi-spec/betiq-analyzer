@@ -730,9 +730,9 @@ def build_prompt(home_team, away_team, league, match_time,
         '9. predicted_ht_score ilk yarı tahmini, predicted_score maç sonu tahmini — ikisi tutarlı olmalı\n'
         '   Örnek: İY 1-0 tahmini yapıyorsan maç sonu 1-0, 2-0, 1-1, 2-1 olabilir — 0-1 olamaz\n'
         '10. Skor tahmini kuralları (ZORUNLU):\n'
-        '   - btts_pct < %40 → en az bir takım 0 atmalı (1-0, 2-0, 0-1, 0-2 gibi)\n'
+        '   - btts_pct < %50 → en az bir takım 0 atmalı (1-0, 2-0, 0-1, 0-2 gibi)\n'
         '   - btts_pct > %65 → her iki takım da gol atmalı (1-1, 2-1, 1-2 gibi)\n'
-        '   - over25_pct < %40 → toplam gol MAX 2 olmalı (1-0, 0-1, 1-1, 2-0, 0-2)\n'
+        '   - over25_pct < %50 → toplam gol MAX 2 olmalı (1-0, 0-1, 1-1, 2-0, 0-2)\n'
         '   - over25_pct > %70 → toplam gol MIN 3 olmalı (2-1, 3-0, 1-2, 3-1 gibi)\n'
         '   - CSV over35_avg >= %55 ise predicted_score toplam golü MIN 4 olmalı (3-1, 2-2, 1-3, 4-0 gibi)\n'
         '   - CSV over45_avg >= %35 ise predicted_score toplam golü MIN 5 olmalı (3-2, 4-1, 2-3 gibi)\n'
@@ -1016,12 +1016,12 @@ def _is_score_valid(score_text, pred_1x2, btts_pct, over25_pct, over35_avg=None,
     if pred_1x2 == 'X' and home != away:
         return False
 
-    if btts < 40 and home > 0 and away > 0:
+    if btts < 50 and home > 0 and away > 0:
         return False
     if btts > 72 and (home == 0 or away == 0):
         return False
 
-    if o25 < 40 and total > 2:
+    if o25 < 50 and total > 2:
         return False
     if o25 > 70 and total < 3:
         return False
